@@ -1,0 +1,79 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+# This workflow lets you compile your Go project using a SLSA3 compliant builder.
+# This workflow will generate a so-called "provenance" file describing the steps
+# that were performed to generate the final binary.
+# The project is an initiative of the OpenSSF (openssf.org) and is developed at
+# https://github.com/slsa-framework/slsa-github-generator.
+# The provenance file can be verified using https://github.com/slsa-framework/slsa-verifier.
+# For more information about SLSA and how it improves the supply-chain, visit slsa.dev.
+
+name: SLSA Go releaser
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions: read-all
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest # 推荐使用 ubuntu-latest (当前为 22.04)，性能更好
+    steps:
+      # 1. 拉取代码 (关键：fetch-depth: 0 用于生成 Changelog)
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. 设置 Node.js 环境
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18' # 使用 Node 18 LTS，兼容性好
+          cache: 'pnpm'      # 启用 pnpm 依赖缓存，加速构建
+
+      # 3. 安装 pnpm (关键：使用官方 Action 解决 PATH 问题)
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8.15.6 # 指定 pnpm v8，完美兼容 Node 18
+          run_install: false
+
+      # 4. 设置 Go 环境
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21' # 建议升级到 1.21+，1.19 已停止支持
+          cache: true
+
+      # 5. 构建前端资源
+      - name: Build Frontend Assets
+        run: |
+          echo ">>> 清空原有数据..."
+          rm -rf ./public
+          mkdir -p public
+          
+          echo ">>> 构建用户页面..."
+          cd ui
+          # 使用 frozen-lockfile 确保依赖一致性
+          pnpm install --frozen-lockfile
+          pnpm build
+          cd ..
+          
+          # 智能复制：自动检测 dist (Vite/Vue) 或 build (CRA)
+          if [ -d "ui/dist" ]; then
+            cp -r ui/dist/* public/
+          elif [ -d "ui/build" ]; then
+            cp -r ui/build/* public/
+          else
+            echo "Error: No build output directory found in ui/"
+            exit 1
+          fi
+          
+          echo ">>> 构建前端数据完成"
+          ls -R public/
