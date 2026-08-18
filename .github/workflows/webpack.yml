@@ -1,43 +1,80 @@
-name: NodeJS with Webpack
+name: GoReleaser Release
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
 
 jobs:
-  build:
+  goreleaser:
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x, 22.x]
-
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22' # 升级到 Node 22
-        cache: 'pnpm'    
-        
-    - name: Install pnpm
-      uses: pnpm/action-setup@v3
-      with:
-        version: 9 # 使用新版 pnpm
-        run_install: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+
+      # 1. 安装兼容 Node 18 的 pnpm v8
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8.15.6
+          run_install: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
+
+      # 2. 构建前端资源 (优化后的脚本)
+      - name: Build Frontend Assets
+        run: |
+          echo ">>> 清空原有数据..."
+          rm -rf ./public
+          mkdir -p public
           
-    - name: Build
-      run: |
-        npm install
-        npx webpack
-        echo "清空原有数据"
-        rm -rf ./public
-        mkdir -p public
-        echo '构建用户页面'
-        cd ui && CI=false pnpm install && CI=false pnpm build && cd ..
-        cp -r ui/build/* public/
-        echo '构建前端数据完成'
-        ls public/static
+          echo ">>> 构建用户页面..."
+          cd ui
+          
+          # 使用 pnpm 安装和构建
+          # CI=false 通常用于防止某些框架将警告视为错误，但在 pnpm 中通常不需要，除非你的脚本里有特殊逻辑
+          pnpm install --frozen-lockfile
+          pnpm build
+          
+          cd ..
+          
+          # 智能复制：自动检测是 dist 还是 build 目录
+          if [ -d "ui/dist" ]; then
+            echo ">>> 检测到 dist 目录 (Vite/Vue)"
+            cp -r ui/dist/* public/
+          elif [ -d "ui/build" ]; then
+            echo ">>> 检测到 build 目录 (CRA)"
+            cp -r ui/build/* public/
+          else
+            echo "❌ 错误: 在 ui/ 目录下未找到 dist 或 build 文件夹"
+            ls -R ui/
+            exit 1
+          fi
+          
+          echo ">>> 构建前端数据完成"
+          echo ">>> public 目录内容:"
+          ls -R public/
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
