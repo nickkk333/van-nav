@@ -6,60 +6,77 @@ on:
       - "v*"
 
 permissions:
-  contents: write # 允许创建 Release 和上传资产
+  contents: write
 
 jobs:
   goreleaser:
-    runs-on: ubuntu-latest # 使用最新的 Ubuntu 运行器，性能更好
+    runs-on: ubuntu-latest
     steps:
-      # 1. 拉取代码 (关键：fetch-depth: 0)
+      # 1. 拉取代码
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2. 设置 Node 环境并缓存依赖
+      # 2. 设置 Node.js 环境
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18" # 建议使用 LTS 版本，或者指定具体小版本
-          cache: 'pnpm' # 自动缓存 pnpm 依赖，大幅加速构建
-          cache-dependency-path: ui/pnpm-lock.yaml
+          node-version: '18'
+          cache: 'pnpm' # 启用 pnpm 缓存支持
 
-      # 3. 设置 Go 环境
+      # 3. 【关键修改】安装 pnpm
+      # 使用官方 action 安装 pnpm，比 npm install -g 更稳定且自动配置环境变量
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8 # 指定 pnpm 版本，或者使用 'latest'
+          run_install: false # 我们手动控制安装步骤
+
+      # 4. 设置 Go 环境
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21' # 建议升级到较新版本，除非有特定兼容需求
-          cache: true # 缓存 Go 模块依赖
+          go-version: '1.21'
+          cache: true
 
-      # 4. 构建前端资源
+      # 5. 构建前端资源
       - name: Build Frontend Assets
         run: |
-          # 安装 pnpm (如果 runner 未预装)
-          npm install -g pnpm
-          
-          # 清理旧的 public 目录
+          echo ">>> 清理旧文件..."
           rm -rf ./public
           mkdir -p public
           
           echo ">>> 开始构建前端..."
           cd ui
-          pnpm install --frozen-lockfile # 使用 frozen-lockfile 确保依赖一致性
+          
+          # 现在 pnpm 命令可以直接使用了
+          pnpm install --frozen-lockfile
           pnpm build
+          
           cd ..
           
-          # 将构建产物复制到 Go 项目的 public 目录
-          # 注意：确保你的 Go 代码中 embed 的路径与此处一致
-          cp -r ui/dist/* public/ # 注意：Vite/React 通常输出到 dist，Vue CLI 可能是 build，请根据实际调整
+          # 复制构建产物
+          # 注意：请确认你的前端构建输出目录是 dist 还是 build
+          # 如果是 Create React App 通常是 build，Vite/Vue 通常是 dist
+          if [ -d "ui/dist" ]; then
+            cp -r ui/dist/* public/
+          elif [ -d "ui/build" ]; then
+            cp -r ui/build/* public/
+          else
+            echo "Error: No build output directory found in ui/"
+            exit 1
+          fi
           
           echo ">>> 前端构建完成，文件列表："
           ls -R public/
 
-      # 5. 运行 GoReleaser
+      # 6. 运行 GoReleaser
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser
-          version: latest # 使用最新版，或者指定具体版本如 v1.26.0
-          args: release --
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
