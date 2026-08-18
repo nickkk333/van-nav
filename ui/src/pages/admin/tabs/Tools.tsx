@@ -487,6 +487,16 @@ export const Tools: React.FC<ToolsProps> = (props) => {
               } dataIndex={"hide"} width={50} render={(val) => {
                 return Boolean(val) ? "是" : "否"
               }} />
+
+              <Table.Column title={
+                <span>默认
+                  <Tooltip title="开启后在默认页展示">
+                    <QuestionCircleOutlined style={{ marginLeft: '5px' }} />
+                  </Tooltip>
+                </span>
+              } dataIndex={"default"} width={50} render={(val) => {
+                return Boolean(val) ? "是" : "否"
+              }} />
               <Table.Column
                 title="操作"
                 width={40}
@@ -617,6 +627,21 @@ export const Tools: React.FC<ToolsProps> = (props) => {
               labelCol={{ span: 4 }}>
               <Switch checkedChildren="开" unCheckedChildren="关" />
             </Form.Item>
+
+            <Form.Item
+                name="default"
+                required
+                label={
+                  <span>
+                  <Tooltip title="开启后在默认页展示">
+                    <QuestionCircleOutlined style={{ marginLeft: '5px' }} />
+                  </Tooltip>
+                    &nbsp;默认
+                </span>
+                }
+                labelCol={{ span: 4 }}>
+              <Switch checkedChildren="开" unCheckedChildren="关" />
+            </Form.Item>
           </Form>
         </Spin>
       </Modal>}
@@ -688,6 +713,21 @@ export const Tools: React.FC<ToolsProps> = (props) => {
                 </span>
               }
               labelCol={{ span: 4 }}>
+              <Switch checkedChildren="开" unCheckedChildren="关" />
+            </Form.Item>
+
+            <Form.Item
+                name="default"
+                required
+                label={
+                  <span>
+                  <Tooltip title="开启后在默认页展示">
+                    <QuestionCircleOutlined style={{ marginLeft: '5px' }} />
+                  </Tooltip>
+                    &nbsp;默认
+                </span>
+                }
+                labelCol={{ span: 4 }}>
               <Switch checkedChildren="开" unCheckedChildren="关" />
             </Form.Item>
           </Form>

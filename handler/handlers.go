@@ -179,8 +179,7 @@ func GetAllHandler(c *gin.Context) {
 	if !utils.IsLogin(c) {
 		// 过滤掉隐藏工具
 		tools = utils.FilterHideTools(tools, catelogs)
-	}
-	if !utils.IsLogin(c) {
+
 		// 过滤掉隐藏分类
 		catelogs = utils.FilterHideCates(catelogs)
 	}
@@ -570,7 +569,7 @@ func AddSearchEngineHandler(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	id, err := database.AddSearchEngine(engine)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -579,7 +578,7 @@ func AddSearchEngineHandler(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "添加搜索引擎成功",
@@ -600,7 +599,7 @@ func UpdateSearchEngineHandler(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// 从URL参数获取ID
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -612,7 +611,7 @@ func UpdateSearchEngineHandler(c *gin.Context) {
 		return
 	}
 	engine.Id = id
-	
+
 	err = database.UpdateSearchEngine(engine)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -621,7 +620,7 @@ func UpdateSearchEngineHandler(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "更新搜索引擎成功",
@@ -639,7 +638,7 @@ func DeleteSearchEngineHandler(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	err = database.DeleteSearchEngine(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -648,7 +647,7 @@ func DeleteSearchEngineHandler(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "删除搜索引擎成功",
@@ -669,7 +668,7 @@ func UpdateSearchEngineSortHandler(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	err = database.UpdateSearchEngineSort(sortData)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -678,7 +677,7 @@ func UpdateSearchEngineSortHandler(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "更新排序成功",

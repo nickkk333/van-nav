@@ -39,6 +39,7 @@ type UpdateToolDto struct {
 	Desc    string `json:"desc"`
 	Sort    int    `json:"sort"`
 	Hide    bool   `json:"hide"`
+	Default bool   `json:"default"`
 }
 type AddToolDto struct {
 	Name    string `json:"name"`
@@ -48,6 +49,7 @@ type AddToolDto struct {
 	Desc    string `json:"desc"`
 	Sort    int    `json:"sort"`
 	Hide    bool   `json:"hide"`
+	Default bool   `json:"default"`
 }
 type UpdateToolsSortDto struct {
 	Id   int `json:"id"`

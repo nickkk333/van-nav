@@ -125,3 +125,4 @@ act.secret
 requirements.txt
 
 .DS_Store
+/.idea

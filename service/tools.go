@@ -46,12 +46,12 @@ func UpdateTool(data types.UpdateToolDto) {
 	// 除了更新工具本身之外，也要更新 img 表
 	sql_update_tool := `
 		UPDATE nav_table
-		SET name = ?, url = ?, logo = ?, catelog = ?, desc = ?, sort = ?, hide = ?
+		SET name = ?, url = ?, logo = ?, catelog = ?, "desc" = ?, sort = ?, "hide" = ?, "default" = ?
 		WHERE id = ?;
 		`
 	stmt, err := database.DB.Prepare(sql_update_tool)
 	utils.CheckErr(err)
-	res, err := stmt.Exec(data.Name, data.Url, data.Logo, data.Catelog, data.Desc, data.Sort, data.Hide, data.Id)
+	res, err := stmt.Exec(data.Name, data.Url, data.Logo, data.Catelog, data.Desc, data.Sort, data.Hide, data.Default, data.Id)
 	utils.CheckErr(err)
 	_, err = res.RowsAffected()
 	utils.CheckErr(err)
@@ -76,8 +76,8 @@ func AddTool(data types.AddToolDto) (int64, error) {
 	}()
 
 	sql_add_tool := `
-		INSERT INTO nav_table (name, url, logo, catelog, desc, sort, hide)
-		VALUES (?, ?, ?, ?, ?, ?, ?);
+		INSERT INTO nav_table (name, url, logo, catelog, "desc", sort, "hide", "default")
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 		`
 	stmt, err := tx.Prepare(sql_add_tool)
 	if err != nil {
@@ -85,7 +85,7 @@ func AddTool(data types.AddToolDto) (int64, error) {
 	}
 	defer stmt.Close()
 
-	res, err := stmt.Exec(data.Name, data.Url, data.Logo, data.Catelog, data.Desc, data.Sort, data.Hide)
+	res, err := stmt.Exec(data.Name, data.Url, data.Logo, data.Catelog, data.Desc, data.Sort, data.Hide, data.Default)
 	if err != nil {
 		return 0, err
 	}
@@ -110,17 +110,17 @@ func AddTool(data types.AddToolDto) (int64, error) {
 }
 
 func GetAllTool() []types.Tool {
-	sql_get_all := `
-		SELECT id,name,url,logo,catelog,desc,sort,hide FROM nav_table order by sort;
-		`
+	sql_get_all := `SELECT id, name, url, logo, catelog, ` + "`desc`" + `, sort, ` + "`hide`" + `, ` + "`default`" + ` FROM nav_table ORDER BY sort;`
 	results := make([]types.Tool, 0)
 	rows, err := database.DB.Query(sql_get_all)
+	logger.LogError("%s", rows)
 	utils.CheckErr(err)
 	for rows.Next() {
 		var tool types.Tool
 		var hide interface{}
 		var sort interface{}
-		err = rows.Scan(&tool.Id, &tool.Name, &tool.Url, &tool.Logo, &tool.Catelog, &tool.Desc, &sort, &hide)
+		var defVal interface{}
+		err = rows.Scan(&tool.Id, &tool.Name, &tool.Url, &tool.Logo, &tool.Catelog, &tool.Desc, &sort, &hide, &defVal)
 		if hide == nil {
 			tool.Hide = false
 		} else {
@@ -128,6 +128,15 @@ func GetAllTool() []types.Tool {
 				tool.Hide = false
 			} else {
 				tool.Hide = true
+			}
+		}
+		if defVal == nil {
+			tool.Default = false
+		} else {
+			if defVal.(int64) == 0 {
+				tool.Default = false
+			} else {
+				tool.Default = true
 			}
 		}
 		if sort == nil {

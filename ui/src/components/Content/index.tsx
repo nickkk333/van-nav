@@ -24,7 +24,7 @@ const mutiSearch = (s, t) => {
 const Content = (props: any) => {
   const [data, setData] = useState<any>({});
   const [loading, setLoading] = useState<boolean>(true);
-  const [currTag, setCurrTag] = useState("全部工具");
+  const [currTag, setCurrTag] = useState("默认");
   const [searchString, setSearchString] = useState("");
   const [val, setVal] = useState("");
   const [searchEngineCards, setSearchEngineCards] = useState<any[]>([]);
@@ -93,7 +93,7 @@ const Content = (props: any) => {
 
   const handleSetSearch = (val: string) => {
     if (val !== "" && val) {
-      setCurrTag("全部工具");
+      setCurrTag("默认");
       setSearchString(val.trim());
     } else {
       resetSearch();
@@ -104,8 +104,8 @@ const Content = (props: any) => {
     if (data.tools) {
       const localResult = data.tools
         .filter((item: any) => {
-          if (currTag === "全部工具") {
-            return true;
+          if (currTag === "默认") {
+            return item.default === true;
           }
           return item.catelog === currTag;
         })
@@ -213,7 +213,7 @@ const Content = (props: any) => {
             }}
           />
           <TagSelector
-            tags={data?.catelogs ?? ["全部工具"]}
+            tags={data?.catelogs ?? ["默认"]}
             currTag={currTag}
             onTagChange={handleSetCurrTag}
           />
