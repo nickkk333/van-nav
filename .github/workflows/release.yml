@@ -1,40 +1,82 @@
-name: GoReleaser
+name: GoReleaser Release
 
 on:
   push:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   goreleaser:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
+      # 1. 拉取代码
       - name: Checkout
-        uses: actions/checkout@v2
-      - uses: actions/setup-node@v3
+        uses: actions/checkout@v4
         with:
-          node-version: "18.14.1"
+          fetch-depth: 0
+
+      # 2. 设置 Node.js 环境
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm' # 启用 pnpm 缓存支持
+
+      # 3. 【关键修改】安装 pnpm
+      # 使用官方 action 安装 pnpm，比 npm install -g 更稳定且自动配置环境变量
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8 # 指定 pnpm 版本，或者使用 'latest'
+          run_install: false # 我们手动控制安装步骤
+
+      # 4. 设置 Go 环境
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.19
-      - name: build public files
+          go-version: '1.21'
+          cache: true
+
+      # 5. 构建前端资源
+      - name: Build Frontend Assets
         run: |
-          npm install -g pnpm
-          echo "清空原有数据"
+          echo ">>> 清理旧文件..."
           rm -rf ./public
           mkdir -p public
-          echo '构建用户页面'
-          cd ui && CI=false pnpm install && CI=false pnpm build && cd ..
-          cp -r ui/build/* public/
-          echo '构建前端数据完成'
-          ls public/static
-          git stash
+          
+          echo ">>> 开始构建前端..."
+          cd ui
+          
+          # 现在 pnpm 命令可以直接使用了
+          pnpm install --frozen-lockfile
+          pnpm build
+          
+          cd ..
+          
+          # 复制构建产物
+          # 注意：请确认你的前端构建输出目录是 dist 还是 build
+          # 如果是 Create React App 通常是 build，Vite/Vue 通常是 dist
+          if [ -d "ui/dist" ]; then
+            cp -r ui/dist/* public/
+          elif [ -d "ui/build" ]; then
+            cp -r ui/build/* public/
+          else
+            echo "Error: No build output directory found in ui/"
+            exit 1
+          fi
+          
+          echo ">>> 前端构建完成，文件列表："
+          ls -R public/
+
+      # 6. 运行 GoReleaser
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v2
+        uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser
-          version: v1.18.2
-          args: release
+          version: latest
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
