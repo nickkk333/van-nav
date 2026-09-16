@@ -1,7 +1,7 @@
 # ===== 第一阶段：构建前端 =====
 FROM node:18-alpine AS frontendbuilder
 WORKDIR /app
-RUN npm install -g pnpm
+RUN npm install -g pnpm@9.15.4
 COPY ui/package.json ui/pnpm-lock.yaml ./ui/
 RUN cd ui && pnpm install --frozen-lockfile
 COPY ui/ ./ui/
