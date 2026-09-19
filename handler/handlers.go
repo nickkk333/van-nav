@@ -189,7 +189,7 @@ func GetAllHandler(c *gin.Context) {
 		"success": true,
 		"data": gin.H{
 			"tools":      tools,
-			"catelogs":   catelogs,
+			"catelogs":   service.ToCatelogNames(catelogs),
 			"setting":    setting,
 			"siteConfig": siteConfig,
 		},

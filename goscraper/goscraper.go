@@ -182,7 +182,8 @@ func (scraper *Scraper) parseDocument(doc *Document) error {
 	for {
 		tokenType := t.Next()
 		if tokenType == html.ErrorToken {
-			return nil
+			// 文档解析结束，退出循环（后续统一 return）
+			break
 		}
 		if tokenType != html.SelfClosingTagToken && tokenType != html.StartTagToken && tokenType != html.EndTagToken {
 			continue

@@ -68,8 +68,10 @@ components:
           type: integer
         name:
           type: string
-        desc:
-          type: string
+        sort:
+          type: integer
+        hide:
+          type: boolean
 
     UpdateCatelogDto:
       type: object
@@ -86,12 +88,37 @@ components:
     Setting:
       type: object
       properties:
+        id:
+          type: integer
+        favicon:
+          type: string
         title:
+          type: string
+        govRecord:
           type: string
         logo192:
           type: string
         logo512:
           type: string
+        hideAdmin:
+          type: boolean
+        hideGithub:
+          type: boolean
+        hideToggleJumpTarget:
+          type: boolean
+        jumpTargetBlank:
+          type: boolean
+
+    SiteConfig:
+      description: 站点展示配置
+      type: object
+      properties:
+        id:
+          type: integer
+        noImageMode:
+          type: boolean
+        compactMode:
+          type: boolean
 
     LoginDto:
       type: object
@@ -222,11 +249,14 @@ paths:
                             items:
                               $ref: "#/components/schemas/Tool"
                           catelogs:
+                            description: 分类名称列表（前台标签使用）
                             type: array
                             items:
-                              $ref: "#/components/schemas/Catelog"
+                              type: string
                           setting:
                             $ref: "#/components/schemas/Setting"
+                          siteConfig:
+                            $ref: "#/components/schemas/SiteConfig"
 
   /api/admin/all:
     get:

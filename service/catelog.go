@@ -56,7 +56,7 @@ func AddCatelog(data types.AddCatelogDto) {
 	if data.Name == "" || strings.TrimSpace(data.Name) == "" {
 		return
 	}
-	
+
 	// 先检查重复不重复
 	existCatelogs := GetAllCatelog()
 	var existCatelogsArr []string
@@ -93,4 +93,16 @@ func GetAllCatelog() []types.Catelog {
 	}
 	defer rows.Close()
 	return results
+}
+
+// ToCatelogNames 把分类转成名称数组（前台标签使用）
+func ToCatelogNames(catelogs []types.Catelog) []string {
+	names := make([]string, 0, len(catelogs))
+	for _, catelog := range catelogs {
+		if strings.TrimSpace(catelog.Name) == "" {
+			continue
+		}
+		names = append(names, catelog.Name)
+	}
+	return names
 }

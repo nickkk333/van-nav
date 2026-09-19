@@ -97,8 +97,8 @@ dist
 .cache/
 # Comment in the public line in if your project uses Gatsby and *not* Next.js
 # https://nextjs.org/blog/next-9-1#public-directory-support
-**/package-lock.json
-package-lock.json
+# 保留前端锁文件，Dockerfile / CI 中的 npm ci 依赖它
+!ui/package-lock.json
 
 # vuepress build output
 .vuepress/dist
@@ -117,8 +117,10 @@ package-lock.json
 
 dist/
 
+# go:embed 的前端产物与本地构建输出（由 make 生成）
 public/*
-act.secret
+bin/
+data/
 *.exe
 .dev
 *.py

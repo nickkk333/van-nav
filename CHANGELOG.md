@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0] - 2026-09-18
+
+### 🎉 重构
+
+- 前端由 React + Ant Design 全面重写为 **Vue 3 + Vite + TypeScript + Element Plus + Pinia + Vue Router**
+- 后端依赖升级：gin v1.12、gin-contrib/gzip v1.2.7、golang-jwt **v5**、modernc.org/sqlite v1.59、golang.org/x/net v0.59
+- 新增 `Makefile`（install / build / build-linux / docker / dev / clean 等）与多阶段 `Dockerfile`（Node 构建前端 → Go 编译静态二进制 → alpine 运行）
+- 前端产物直接输出到 `public/`，由 `//go:embed` 内嵌，最终产出**单个可执行文件**，镜像内不含前端资源目录
+- JWT 密钥支持通过环境变量 `NAV_JWT_SECRET` 固定（多副本部署友好）
+- 新增 `-addr` 启动参数，服务支持 SIGTERM/SIGINT 优雅退出
+
+### 🚀 Features
+
+- 后台工具列表支持拖拽排序（sortablejs），并保留原有的拼音 + 关键字模糊搜索
+- 后台全部表单/表格改用 Element Plus 组件，交互与提示文案与旧版保持一致
+- 暗色主题改用 Element Plus 官方 `html.dark` 变量体系，支持自动/浅色/深色三种模式
+- `GET /api/` 的 `catelogs` 返回分类名称数组，并新增 `siteConfig` 字段
+
+###  Bug Fixes
+
+- 修复 `goscraper` 中不可达代码导致的 `go vet` 告警
+- 数据库布尔/排序字段改用 `sql.Null*` 读取，避免 NULL 值导致扫描失败
+
+### 📚 Documentation
+
+- README 补充技术栈、目录结构、本地开发与镜像构建说明
+- 新增 `.github/workflows/release.yml`：前端构建 + GoReleaser 多平台发布 + 多架构 Docker 镜像
+- 同步 openapi 文档中的 `Setting` / `SiteConfig` / `Catelog` 字段定义
+
 ## [1.12.1] - 2025-01-17
 
 ### 🚀 Features

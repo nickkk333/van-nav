@@ -68,19 +68,19 @@ func AddSearchEngine(engine types.SearchEngine) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	
+
 	sql := `INSERT INTO nav_search_engine (name, baseUrl, queryParam, logo, sort, enabled) VALUES (?, ?, ?, ?, ?, ?)`
 	stmt, err := DB.Prepare(sql)
 	if err != nil {
 		return 0, err
 	}
 	defer stmt.Close()
-	
+
 	result, err := stmt.Exec(engine.Name, engine.BaseUrl, engine.QueryParam, engine.Logo, maxSort+1, engine.Enabled)
 	if err != nil {
 		return 0, err
 	}
-	
+
 	return result.LastInsertId()
 }
 
@@ -92,7 +92,7 @@ func UpdateSearchEngine(engine types.SearchEngine) error {
 		return err
 	}
 	defer stmt.Close()
-	
+
 	_, err = stmt.Exec(engine.Name, engine.BaseUrl, engine.QueryParam, engine.Logo, engine.Enabled, engine.Id)
 	return err
 }
@@ -105,7 +105,7 @@ func DeleteSearchEngine(id int) error {
 		return err
 	}
 	defer stmt.Close()
-	
+
 	_, err = stmt.Exec(id)
 	return err
 }
@@ -120,19 +120,19 @@ func UpdateSearchEngineSort(sortData []struct {
 		return err
 	}
 	defer tx.Rollback()
-	
+
 	stmt, err := tx.Prepare(`UPDATE nav_search_engine SET sort = ? WHERE id = ?`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
-	
+
 	for _, item := range sortData {
 		_, err = stmt.Exec(item.Sort, item.Id)
 		if err != nil {
 			return err
 		}
 	}
-	
+
 	return tx.Commit()
 }

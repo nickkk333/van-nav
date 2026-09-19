@@ -3,14 +3,16 @@ package utils
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/mereith/nav/logger"
 	"github.com/mereith/nav/types"
 )
 
+// RandomJWTKey 生成一个随机密钥
 func RandomJWTKey() string {
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {
@@ -20,44 +22,47 @@ func RandomJWTKey() string {
 	return hex.EncodeToString(bytes)
 }
 
-// JTW 密钥
-var jwtSecret = []byte("boy_next_door")
+// jwtSecret 签名密钥，可通过环境变量 NAV_JWT_SECRET 固定，否则每次启动随机生成
+var jwtSecret []byte
 
 func init() {
+	if env := os.Getenv("NAV_JWT_SECRET"); env != "" {
+		jwtSecret = []byte(env)
+		logger.LogInfo("jwtSecret 来自环境变量 NAV_JWT_SECRET")
+		return
+	}
 	jwtSecret = []byte(RandomJWTKey())
 	logger.LogInfo("jwtSecret Setted: %s", jwtSecret)
 }
 
-// 签名一个 JTW
+// SignJWT 为用户签名一个 JWT
 func SignJWT(user types.User) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+	claims := jwt.MapClaims{
 		"name": user.Name,
 		"id":   user.Id,
 		"exp":  time.Now().Add(time.Hour * 24 * 30).Unix(),
-	})
-	tokenString, err := token.SignedString([]byte(jwtSecret))
-	return tokenString, err
+	}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(jwtSecret)
 }
 
-// 签名一个 JTW
+// SignJWTForAPI 为 API Token 签名一个 JWT
 func SignJWTForAPI(tokenName string, tokenId int) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+	claims := jwt.MapClaims{
 		"name": tokenName,
 		"id":   tokenId,
 		"exp":  time.Now().Add(time.Hour * 24 * 365 * 100).Unix(),
-	})
-	tokenString, err := token.SignedString([]byte(jwtSecret))
-	return tokenString, err
+	}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(jwtSecret)
 }
 
-// 解密一个 JTW
+// ParseJWT 解析并校验 JWT
 func ParseJWT(tokenString string) (*jwt.Token, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (i interface{}, e error) {
+	return jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		return jwtSecret, nil
-	})
-	return token, err
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 }
 
+// IsLogin 判断当前请求是否已登录
 func IsLogin(c *gin.Context) bool {
 	rawToken := c.Request.Header.Get("Authorization")
 	if rawToken == "" {

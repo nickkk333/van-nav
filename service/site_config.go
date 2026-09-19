@@ -1,73 +1,41 @@
 package service
 
 import (
+	"database/sql"
+
 	"github.com/mereith/nav/database"
 	"github.com/mereith/nav/logger"
 	"github.com/mereith/nav/types"
 )
 
+// GetSiteConfig 获取站点展示配置
 func GetSiteConfig() types.SiteConfig {
-	sql_get_site_config := `
-		SELECT id, noImageMode, compactMode 
-		FROM nav_site_config 
-		ORDER BY id ASC 
+	row := database.DB.QueryRow(`
+		SELECT id, noImageMode, compactMode
+		FROM nav_site_config
+		ORDER BY id ASC
 		LIMIT 1;
-		`
-	var siteConfig types.SiteConfig
-	row := database.DB.QueryRow(sql_get_site_config)
-	var noImageMode interface{}
-	var compactMode interface{}
-	err := row.Scan(&siteConfig.Id, &noImageMode, &compactMode)
-	if err != nil {
+		`)
+	var (
+		siteConfig  types.SiteConfig
+		noImageMode sql.NullBool
+		compactMode sql.NullBool
+	)
+	if err := row.Scan(&siteConfig.Id, &noImageMode, &compactMode); err != nil {
 		logger.LogError("获取网站配置失败: %s", err)
-		return types.SiteConfig{
-			Id:          1,
-			NoImageMode: false,
-			CompactMode: false,
-		}
+		return types.SiteConfig{Id: 1, NoImageMode: false, CompactMode: false}
 	}
-	
-	if noImageMode == nil {
-		siteConfig.NoImageMode = false
-	} else {
-		if noImageMode.(int64) == 0 {
-			siteConfig.NoImageMode = false
-		} else {
-			siteConfig.NoImageMode = true
-		}
-	}
-
-	if compactMode == nil {
-		siteConfig.CompactMode = false
-	} else {
-		if compactMode.(int64) == 0 {
-			siteConfig.CompactMode = false
-		} else {
-			siteConfig.CompactMode = true
-		}
-	}
-
+	siteConfig.NoImageMode = noImageMode.Bool
+	siteConfig.CompactMode = compactMode.Bool
 	return siteConfig
 }
 
+// UpdateSiteConfig 更新站点展示配置
 func UpdateSiteConfig(data types.SiteConfig) error {
-	sql_update_site_config := `
+	_, err := database.DB.Exec(`
 		UPDATE nav_site_config
 		SET noImageMode = ?, compactMode = ?
 		WHERE id = (SELECT id FROM nav_site_config ORDER BY id ASC LIMIT 1);
-		`
-
-	stmt, err := database.DB.Prepare(sql_update_site_config)
-	if err != nil {
-		return err
-	}
-	res, err := stmt.Exec(data.NoImageMode, data.CompactMode)
-	if err != nil {
-		return err
-	}
-	_, err = res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	return nil
+		`, data.NoImageMode, data.CompactMode)
+	return err
 }
