@@ -55,3 +55,11 @@ type UpdateToolsSortDto struct {
 	Id   int `json:"id"`
 	Sort int `json:"sort"`
 }
+
+// UrlInfoDto 抓取网址得到的信息，用于后台添加工具时自动填充
+type UrlInfoDto struct {
+	Name        string `json:"name"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Logo        string `json:"logo"`
+}

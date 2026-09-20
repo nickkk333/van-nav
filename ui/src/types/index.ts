@@ -19,6 +19,14 @@ export interface Catelog {
   hide: boolean
 }
 
+// 抓取网址得到的信息（后台添加工具时自动填充用）
+export interface UrlInfo {
+  name: string
+  title: string
+  description: string
+  logo: string
+}
+
 export interface Setting {
   id: number
   favicon: string

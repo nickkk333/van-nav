@@ -731,6 +731,24 @@ body {
   color: var(--el-text-color-secondary);
 }
 
+/* 添加工具弹窗里的网址输入块 */
+.url-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.form-tip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--el-text-color-secondary);
+}
+
 .card-header-right {
   display: flex;
   align-items: center;

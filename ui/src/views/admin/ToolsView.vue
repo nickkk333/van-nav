@@ -175,11 +175,33 @@
 
   <el-dialog v-model="showAdd" title="新建工具" width="560px" destroy-on-close>
     <el-form ref="addFormRef" :model="addForm" :rules="toolRules" label-width="90px">
+      <el-form-item label="网址" prop="url">
+        <div class="url-field">
+          <el-input
+            v-model="addForm.url"
+            placeholder="请输入完整 URL（以 http:// 或 https:// 开头）"
+            @change="autoFillFromUrl()"
+          >
+            <template #suffix>
+              <el-icon v-if="urlInfoLoading" class="is-loading"><Loading /></el-icon>
+            </template>
+          </el-input>
+          <div class="form-tip">
+            <span>输入网址后会自动获取名称、描述和图标</span>
+            <el-button
+              link
+              type="primary"
+              :disabled="!addForm.url"
+              :loading="urlInfoLoading"
+              @click="autoFillFromUrl(true)"
+            >
+              重新获取
+            </el-button>
+          </div>
+        </div>
+      </el-form-item>
       <el-form-item label="名称" prop="name">
         <el-input v-model="addForm.name" placeholder="请输入工具名称" />
-      </el-form-item>
-      <el-form-item label="网址" prop="url">
-        <el-input v-model="addForm.url" placeholder="请输入完整 URL（以 http:// 或 https:// 开头）" />
       </el-form-item>
       <el-form-item label="logo 网址" prop="logo">
         <el-input v-model="addForm.logo" placeholder="请输入 logo url，为空则自动获取" />
@@ -219,12 +241,13 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Download, Plus, QuestionFilled, Rank, Refresh, Upload } from '@element-plus/icons-vue'
+import { Download, Loading, Plus, QuestionFilled, Rank, Refresh, Upload } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules, UploadRawFile } from 'element-plus'
 import {
   fetchAddTool,
   fetchDeleteTool,
   fetchExportTools,
+  fetchGetUrlInfo,
   fetchImportTools,
   fetchUpdateTool,
   fetchUpdateToolsSort,
@@ -234,7 +257,7 @@ import { useAdminStore } from '../../stores/admin'
 import { useTableSortable } from '../../composables/useTableSortable'
 import { multiSearch } from '../../utils/match'
 import { getLogoUrl } from '../../utils/check'
-import type { Tool } from '../../types'
+import type { Tool, UrlInfo } from '../../types'
 
 interface ToolForm {
   id?: number
@@ -278,6 +301,8 @@ const requestLoading = ref(false)
 const showAdd = ref(false)
 const page = ref(1)
 const pageSize = ref(10)
+/** 添加工具时是否正在抓取网址信息 */
+const urlInfoLoading = ref(false)
 
 /** 每行「服务端已保存」的快照，用于判断是否被改动 / 撤销 */
 const snapshotMap = reactive<Record<number, Tool>>({})
@@ -476,6 +501,73 @@ const revertRow = (row: Tool) => {
 const openAdd = () => {
   Object.assign(addForm, createEmptyForm())
   showAdd.value = true
+}
+
+/**
+ * 从抓取结果里挑一个合适的工具名称：
+ * 优先 og:site_name；后端拿不到时会用域名兜底，这种情况改用网页标题的第一段
+ */
+const pickName = (info: UrlInfo, target: string) => {
+  const name = (info.name || '').trim()
+  const title = (info.title || '').trim()
+  let host = ''
+  try {
+    host = new URL(target).host
+  } catch {
+    host = ''
+  }
+  if (name && (!host || name.toLowerCase() !== host.toLowerCase())) {
+    return name
+  }
+  const shortTitle = title.split(/[-–—|·]+/)[0].trim()
+  if (shortTitle && shortTitle.length <= 28) {
+    return shortTitle
+  }
+  return name || title
+}
+
+/**
+ * 根据填写的网址抓取信息，自动补全表单
+ * @param overwrite 为 true 时覆盖已有内容（「重新获取」按钮），否则只补全空项
+ */
+const autoFillFromUrl = async (overwrite = false) => {
+  const target = addForm.url.trim()
+  if (!target) {
+    return
+  }
+  if (!/^https?:\/\//.test(target)) {
+    ElMessage.warning('网址必须以 http:// 或 https:// 开头')
+    return
+  }
+  urlInfoLoading.value = true
+  try {
+    const info = (await fetchGetUrlInfo(target)) ?? { name: '', title: '', description: '', logo: '' }
+    const filled: string[] = []
+    const name = pickName(info, target)
+    if (name && (overwrite || !addForm.name.trim())) {
+      addForm.name = name
+      filled.push('名称')
+    }
+    const desc = (info.description || '').trim()
+    if (desc && (overwrite || !addForm.desc.trim())) {
+      addForm.desc = desc
+      filled.push('描述')
+    }
+    const logo = (info.logo || '').trim()
+    if (logo && (overwrite || !addForm.logo.trim())) {
+      addForm.logo = logo
+      filled.push('图标')
+    }
+    if (filled.length) {
+      ElMessage.success(`已自动填充：${filled.join('、')}`)
+    } else {
+      ElMessage.warning('没能读取到网站信息，请手动填写')
+    }
+  } catch (error) {
+    ElMessage.warning(resolveError(error, '获取网址信息失败'))
+  } finally {
+    urlInfoLoading.value = false
+  }
 }
 
 const validateForm = async (formRef?: FormInstance) => {

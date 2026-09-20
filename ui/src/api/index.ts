@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AdminData, ApiResult, Catelog, HomeData, SearchEngine, Token, Tool, User } from '../types'
+import type { AdminData, ApiResult, Catelog, HomeData, SearchEngine, Token, Tool, UrlInfo, User } from '../types'
 
 export const http = axios.create({
   baseURL: '/api',
@@ -87,6 +87,12 @@ export const fetchUpdateTool = async (payload: Partial<Tool>): Promise<ApiResult
 export const fetchDeleteTool = async (id: number): Promise<ApiResult> => {
   const { data } = await http.delete<ApiResult>(`/admin/tool/${id}`)
   return data
+}
+
+/** 抓取网址信息（标题/描述/图标），用于添加工具时自动填充 */
+export const fetchGetUrlInfo = async (url: string): Promise<UrlInfo> => {
+  const { data } = await http.get<ApiResult<UrlInfo>>('/admin/urlInfo', { params: { url } })
+  return data.data
 }
 
 export const fetchUpdateToolsSort = async (updates: { id: number; sort: number }[]): Promise<ApiResult> => {

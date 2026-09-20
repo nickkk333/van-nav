@@ -375,6 +375,31 @@ func DeleteToolHandler(c *gin.Context) {
 	})
 }
 
+// GetUrlInfoHandler 抓取网址信息，供后台添加工具时自动填充
+func GetUrlInfoHandler(c *gin.Context) {
+	target := strings.TrimSpace(c.Query("url"))
+	if target == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": "缺少 url 参数",
+		})
+		return
+	}
+	if !strings.HasPrefix(target, "http://") && !strings.HasPrefix(target, "https://") {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": "网址必须以 http:// 或 https:// 开头",
+		})
+		return
+	}
+	logger.LogInfo("获取网址信息: %s", target)
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "获取网址信息成功",
+		"data":    service.GetUrlInfo(target),
+	})
+}
+
 func UpdateToolHandler(c *gin.Context) {
 	// 更新工具
 	var data types.UpdateToolDto

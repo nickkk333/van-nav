@@ -110,6 +110,7 @@ func main() {
 			admin.PUT("/siteConfig", handler.UpdateSiteConfigHandler)
 
 			admin.POST("/tool", handler.AddToolHandler)
+			admin.GET("/urlInfo", handler.GetUrlInfoHandler)
 			admin.DELETE("/tool/:id", handler.DeleteToolHandler)
 			admin.PUT("/tool/:id", handler.UpdateToolHandler)
 			admin.PUT("/tools/sort", handler.UpdateToolsSortHandler)
