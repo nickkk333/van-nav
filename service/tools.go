@@ -14,8 +14,8 @@ import (
 func ImportTools(data []types.Tool) {
 	var catelogs []string
 	stmt, err := database.DB.Prepare(`
-		INSERT INTO nav_table (id, name, catelog, url, logo, "desc")
-		VALUES (?, ?, ?, ?, ?, ?);
+		INSERT INTO nav_table (id, name, catelog, url, logo, "desc", sort, "hide", "default")
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 		`)
 	if err != nil {
 		utils.CheckErr(err)
@@ -28,7 +28,7 @@ func ImportTools(data []types.Tool) {
 		if strings.TrimSpace(v.Catelog) != "" && !utils.In(v.Catelog, catelogs) {
 			catelogs = append(catelogs, v.Catelog)
 		}
-		_, err = stmt.Exec(v.Id, v.Name, v.Catelog, v.Url, v.Logo, v.Desc)
+		_, err = stmt.Exec(v.Id, v.Name, v.Catelog, v.Url, v.Logo, v.Desc, v.Sort, v.Hide, v.Default)
 		utils.CheckErr(err)
 	}
 	for _, catelog := range catelogs {

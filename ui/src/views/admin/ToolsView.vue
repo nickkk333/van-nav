@@ -117,7 +117,7 @@
       </el-form-item>
       <el-form-item label="排序" prop="sort">
         <el-tooltip content="升序，按数字从小到大排序" placement="top">
-          <el-input-number v-model="addForm.sort" :min="0" />
+          <el-input-number v-model="addForm.sort" :min="0" :step="1" controls-position="right" />
         </el-tooltip>
       </el-form-item>
       <el-form-item label="隐藏">
@@ -160,7 +160,7 @@
         <el-input v-model="editForm.desc" placeholder="请输入描述" />
       </el-form-item>
       <el-form-item label="排序" prop="sort">
-        <el-input-number v-model="editForm.sort" :min="0" />
+        <el-input-number v-model="editForm.sort" :min="0" :step="1" controls-position="right" />
       </el-form-item>
       <el-form-item label="隐藏">
         <el-switch v-model="editForm.hide" inline-prompt active-text="开" inactive-text="关" />
