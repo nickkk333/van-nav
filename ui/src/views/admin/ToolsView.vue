@@ -4,6 +4,7 @@
       <div class="card-header">
         <div class="card-header-left">
           <span class="card-header-title">{{ `当前共 ${allTools.length} 条` }}</span>
+          <span class="card-header-tip">点击单元格即可直接修改，失焦/回车后自动保存</span>
           <template v-if="selectedRows.length">
             <el-popconfirm title="确定删除这些吗？" @confirm="handleBulkDelete">
               <template #reference>
@@ -41,17 +42,37 @@
       ref="tableRef"
       v-loading="loading"
       :data="pagedData"
+      :row-class-name="rowClassName"
       row-key="id"
       @selection-change="onSelectionChange"
     >
       <el-table-column type="selection" width="46" />
-      <el-table-column label="排序" width="60" align="center">
-        <template #default>
-          <el-icon class="drag-handle"><Rank /></el-icon>
+      <el-table-column width="118" align="center">
+        <template #header>
+          <span class="column-with-tip">
+            排序
+            <el-tooltip content="可拖动左侧手柄排序，也可直接改数字（升序）" placement="top">
+              <el-icon><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </span>
+        </template>
+        <template #default="{ row }">
+          <div class="sort-cell">
+            <el-icon class="drag-handle"><Rank /></el-icon>
+            <el-input-number
+              v-model="row.sort"
+              class="sort-input"
+              size="small"
+              :min="0"
+              :step="1"
+              controls-position="right"
+              @change="saveRow(row)"
+            />
+          </div>
         </template>
       </el-table-column>
       <el-table-column prop="id" label="ID" width="70" />
-      <el-table-column label="名称" min-width="170">
+      <el-table-column label="名称" min-width="160">
         <template #default="{ row }">
           <div class="tool-name-cell">
             <el-image v-if="row.logo" class="tool-logo" :src="getLogoUrl(row.logo)" fit="cover" lazy>
@@ -59,23 +80,79 @@
                 <div class="tool-logo-error">🖼️</div>
               </template>
             </el-image>
-            <span class="tool-name-text">{{ row.name }}</span>
+            <el-input v-model="row.name" placeholder="请输入名称" @change="saveRow(row)" />
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="分类" width="120">
-        <template #default="{ row }">{{ displayCatelog(row.catelog) }}</template>
-      </el-table-column>
-      <el-table-column prop="url" label="网址" min-width="220" show-overflow-tooltip />
-      <el-table-column label="隐藏" width="80">
-        <template #default="{ row }">{{ row.hide ? '是' : '否' }}</template>
-      </el-table-column>
-      <el-table-column label="默认" width="80">
-        <template #default="{ row }">{{ row.default ? '是' : '否' }}</template>
-      </el-table-column>
-      <el-table-column label="操作" width="150" fixed="right">
+      <el-table-column label="分类" width="130">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openEdit(row)">修改</el-button>
+          <el-select
+            v-model="row.catelog"
+            placeholder="未分类"
+            clearable
+            style="width: 100%"
+            @change="saveRow(row)"
+          >
+            <el-option v-for="opt in catelogOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+          </el-select>
+        </template>
+      </el-table-column>
+      <el-table-column label="网址" min-width="190">
+        <template #default="{ row }">
+          <el-input v-model="row.url" placeholder="https://" @change="saveRow(row)" />
+        </template>
+      </el-table-column>
+      <el-table-column label="描述" min-width="150">
+        <template #default="{ row }">
+          <el-input v-model="row.desc" placeholder="请输入描述" @change="saveRow(row)" />
+        </template>
+      </el-table-column>
+      <el-table-column label="logo 网址" min-width="170">
+        <template #header>
+          <span class="column-with-tip">
+            logo 网址
+            <el-tooltip content="为空则保存后自动获取网站图标" placement="top">
+              <el-icon><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </span>
+        </template>
+        <template #default="{ row }">
+          <el-input v-model="row.logo" placeholder="留空则自动获取" @change="saveRow(row)" />
+        </template>
+      </el-table-column>
+      <el-table-column width="76" align="center">
+        <template #header>
+          <span class="column-with-tip">
+            隐藏
+            <el-tooltip content="开启后只有登录后才会展示该工具" placement="top">
+              <el-icon><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </span>
+        </template>
+        <template #default="{ row }">
+          <el-switch v-model="row.hide" inline-prompt active-text="开" inactive-text="关" @change="saveRow(row)" />
+        </template>
+      </el-table-column>
+      <el-table-column width="76" align="center">
+        <template #header>
+          <span class="column-with-tip">
+            默认
+            <el-tooltip content="开启后在默认页展示" placement="top">
+              <el-icon><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </span>
+        </template>
+        <template #default="{ row }">
+          <el-switch v-model="row.default" inline-prompt active-text="开" inactive-text="关" @change="saveRow(row)" />
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="140" fixed="right">
+        <template #default="{ row }">
+          <span v-if="isSaving(row)" class="cell-status">保存中…</span>
+          <template v-else-if="isDirty(row)">
+            <el-button link type="primary" @click="saveRow(row)">保存</el-button>
+            <el-button link type="info" @click="revertRow(row)">撤销</el-button>
+          </template>
           <el-popconfirm :title="`确定要删除 ${row.name} 吗？`" @confirm="handleDelete(row.id)">
             <template #reference>
               <el-button link type="danger">删除</el-button>
@@ -137,50 +214,12 @@
     </template>
   </el-dialog>
 
-  <el-dialog v-model="showEdit" title="修改工具" width="560px" destroy-on-close>
-    <el-form ref="editFormRef" :model="editForm" :rules="toolRules" label-width="90px">
-      <el-form-item label="序号">
-        <el-input v-model="editForm.id" disabled />
-      </el-form-item>
-      <el-form-item label="名称" prop="name">
-        <el-input v-model="editForm.name" placeholder="请输入工具名称" />
-      </el-form-item>
-      <el-form-item label="网址" prop="url">
-        <el-input v-model="editForm.url" placeholder="请输入 url" />
-      </el-form-item>
-      <el-form-item label="logo 网址" prop="logo">
-        <el-input v-model="editForm.logo" placeholder="请输入 logo url，为空则自动获取" />
-      </el-form-item>
-      <el-form-item label="分类" prop="catelog">
-        <el-select v-model="editForm.catelog" placeholder="请选择分类" style="width: 100%">
-          <el-option v-for="opt in catelogOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="描述" prop="desc">
-        <el-input v-model="editForm.desc" placeholder="请输入描述" />
-      </el-form-item>
-      <el-form-item label="排序" prop="sort">
-        <el-input-number v-model="editForm.sort" :min="0" :step="1" controls-position="right" />
-      </el-form-item>
-      <el-form-item label="隐藏">
-        <el-switch v-model="editForm.hide" inline-prompt active-text="开" inactive-text="关" />
-      </el-form-item>
-      <el-form-item label="默认">
-        <el-switch v-model="editForm.default" inline-prompt active-text="开" inactive-text="关" />
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <el-button @click="showEdit = false">取消</el-button>
-      <el-button type="primary" :loading="requestLoading" @click="handleUpdate">确定</el-button>
-    </template>
-  </el-dialog>
-
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Download, Plus, Rank, Refresh, Upload } from '@element-plus/icons-vue'
+import { Download, Plus, QuestionFilled, Rank, Refresh, Upload } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules, UploadRawFile } from 'element-plus'
 import {
   fetchAddTool,
@@ -194,7 +233,7 @@ import {
 import { useAdminStore } from '../../stores/admin'
 import { useTableSortable } from '../../composables/useTableSortable'
 import { multiSearch } from '../../utils/match'
-import { displayCatelog, getLogoUrl } from '../../utils/check'
+import { getLogoUrl } from '../../utils/check'
 import type { Tool } from '../../types'
 
 interface ToolForm {
@@ -230,18 +269,20 @@ const catelogOptions = computed(() =>
 
 const tableRef = ref()
 const addFormRef = ref<FormInstance>()
-const editFormRef = ref<FormInstance>()
 const addForm = reactive<ToolForm>(createEmptyForm())
-const editForm = reactive<ToolForm>(createEmptyForm())
 
 const searchString = ref('')
 const catelogName = ref('')
 const selectedRows = ref<Tool[]>([])
 const requestLoading = ref(false)
 const showAdd = ref(false)
-const showEdit = ref(false)
 const page = ref(1)
 const pageSize = ref(10)
+
+/** 每行「服务端已保存」的快照，用于判断是否被改动 / 撤销 */
+const snapshotMap = reactive<Record<number, Tool>>({})
+/** 每行是否正在保存 */
+const savingMap = reactive<Record<number, boolean>>({})
 
 const toolRules: FormRules = {
   name: [{ required: true, message: '请填写名称', trigger: 'blur' }],
@@ -321,16 +362,120 @@ useTableSortable({
   },
 })
 
+// ==================== 行内编辑（点击单元格直接修改） ====================
+
+/** 取出一行的可编辑字段（用于快照比对） */
+const pickRow = (row: Tool): Tool => ({
+  id: row.id,
+  name: row.name,
+  url: row.url,
+  logo: row.logo,
+  catelog: row.catelog,
+  desc: row.desc,
+  sort: row.sort,
+  hide: row.hide,
+  default: row.default,
+})
+
+/** 数据（重新）加载后重建快照 */
+const seedSnapshots = () => {
+  Object.keys(snapshotMap).forEach((key) => delete snapshotMap[Number(key)])
+  allTools.value.forEach((row) => {
+    snapshotMap[row.id] = pickRow(row)
+  })
+}
+
+watch(allTools, seedSnapshots, { immediate: true })
+
+const isDirty = (row: Tool) => {
+  const snap = snapshotMap[row.id]
+  if (!snap) {
+    return false
+  }
+  return (
+    row.name !== snap.name ||
+    row.url !== snap.url ||
+    row.logo !== snap.logo ||
+    row.catelog !== snap.catelog ||
+    row.desc !== snap.desc ||
+    row.sort !== snap.sort ||
+    Boolean(row.hide) !== Boolean(snap.hide) ||
+    Boolean(row.default) !== Boolean(snap.default)
+  )
+}
+
+const isSaving = (row: Tool) => savingMap[row.id] === true
+
+const rowClassName = ({ row }: { row: Tool }) => (isDirty(row) ? 'row-dirty' : '')
+
+/** 行内保存前的校验（分类、描述允许留空，避免历史数据无法保存） */
+const validateRow = (row: Tool) => {
+  if (!row.name || !String(row.name).trim()) {
+    return '名称不能为空'
+  }
+  if (!row.url || !String(row.url).trim()) {
+    return '网址不能为空'
+  }
+  if (!/^https?:\/\//.test(String(row.url).trim())) {
+    return '网址必须以 http:// 或 https:// 开头'
+  }
+  return ''
+}
+
+/** 保存单行（输入框失焦/回车、选择器与开关变化时自动触发） */
+const saveRow = async (row: Tool) => {
+  if (isSaving(row)) {
+    return
+  }
+  const errorMessage = validateRow(row)
+  if (errorMessage) {
+    ElMessage.warning(errorMessage)
+    return
+  }
+  savingMap[row.id] = true
+  try {
+    const res = await fetchUpdateTool({
+      ...pickRow(row),
+      name: String(row.name).trim(),
+      url: String(row.url).trim(),
+      desc: String(row.desc ?? '').trim(),
+    })
+    if (res.success === false) {
+      ElMessage.warning(res.errorMessage || '更新失败')
+      return
+    }
+    snapshotMap[row.id] = pickRow(row)
+    ElMessage({ message: '已保存', type: 'success', grouping: true, duration: 1500 })
+    // logo 为空时后端会去抓取图标，稍后刷新一次拿到新图标
+    if (!row.logo) {
+      setTimeout(() => {
+        if (!isDirty(row)) {
+          reload()
+        }
+      }, 3000)
+    }
+  } catch (error) {
+    ElMessage.warning(resolveError(error, '更新失败'))
+  } finally {
+    savingMap[row.id] = false
+  }
+}
+
+/** 撤销该行未保存的修改 */
+const revertRow = (row: Tool) => {
+  const snap = snapshotMap[row.id]
+  if (!snap) {
+    return
+  }
+  Object.assign(row, pickRow(snap))
+  ElMessage.info('已撤销未保存的修改')
+}
+
 // ==================== 增删改 ====================
 
 const openAdd = () => {
   Object.assign(addForm, createEmptyForm())
   showAdd.value = true
-}
-
-const openEdit = (row: Tool) => {
-  Object.assign(editForm, createEmptyForm(), row)
-  showEdit.value = true
 }
 
 const validateForm = async (formRef?: FormInstance) => {
@@ -357,28 +502,6 @@ const handleCreate = async () => {
     setTimeout(reload, 3000)
   } catch (error) {
     ElMessage.warning(resolveError(error, '添加失败'))
-  } finally {
-    requestLoading.value = false
-  }
-}
-
-const handleUpdate = async () => {
-  if (!(await validateForm(editFormRef.value))) {
-    return
-  }
-  requestLoading.value = true
-  try {
-    const res = await fetchUpdateTool({ ...editForm })
-    if (res.success === false) {
-      ElMessage.warning(res.errorMessage || '更新失败')
-      return
-    }
-    ElMessage.success('更新成功! Logo 将在 3 秒后刷新并加载！')
-    showEdit.value = false
-    await reload()
-    setTimeout(reload, 3000)
-  } catch (error) {
-    ElMessage.warning(resolveError(error, '更新失败'))
   } finally {
     requestLoading.value = false
   }

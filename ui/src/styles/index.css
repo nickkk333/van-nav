@@ -726,6 +726,11 @@ body {
   font-weight: 600;
 }
 
+.card-header-tip {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
 .card-header-right {
   display: flex;
   align-items: center;
@@ -752,6 +757,11 @@ body {
   gap: 8px;
 }
 
+.tool-name-cell .el-input {
+  flex: 1;
+  min-width: 0;
+}
+
 .tool-logo {
   width: 28px;
   height: 28px;
@@ -768,10 +778,26 @@ body {
   font-size: 14px;
 }
 
-.tool-name-text {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.cell-status {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+/* 行内编辑：有未保存修改的行 */
+.admin-card .el-table .row-dirty > td.el-table__cell {
+  background-color: var(--el-color-warning-light-9);
+}
+
+/* 行内编辑：排序列（拖拽手柄 + 数字输入） */
+.sort-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.sort-input {
+  width: 92px;
 }
 
 .engine-logo {
