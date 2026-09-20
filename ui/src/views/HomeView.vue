@@ -1,11 +1,15 @@
 <template>
   <div class="app">
+    <div class="app-bg" aria-hidden="true"></div>
     <div class="main">
       <div class="topbar">
-        <div class="content">
-          <SearchBar :model-value="searchText" @update:model-value="onSearchInput" />
-          <TagSelector :tags="tags" :curr-tag="currTag" @change="handleSetCurrTag" />
-        </div>
+        <SearchBar
+          ref="searchBarRef"
+          :model-value="searchText"
+          @update:model-value="onSearchInput"
+          @search="onSearchSubmit"
+        />
+        <TagSelector :tags="tags" :curr-tag="currTag" @change="handleSetCurrTag" />
       </div>
       <div class="content-wraper">
         <div class="content cards" :class="{ 'compact-grid': siteConfig.compactMode }">
@@ -56,6 +60,7 @@ const searchString = ref('')
 const currTag = ref(DEFAULT_TAG)
 const engineCards = ref<Tool[]>([])
 const loading = ref(true)
+const searchBarRef = ref<InstanceType<typeof SearchBar>>()
 
 const setting = computed(() => site.data.setting)
 const siteConfig = computed(() => site.data.siteConfig)
@@ -138,14 +143,29 @@ const handleCardClick = async (tool: Tool) => {
   }
 }
 
+/** 打开当前结果列表的第一项（回车或点击搜索按钮） */
+const openFirstResult = () => {
+  const cards = filteredData.value
+  if (cards.length) {
+    window.open(cards[0].url, '_blank')
+    resetSearch()
+  }
+}
+
+/** 点击搜索按钮：有关键词时打开第一条结果，否则聚焦搜索框 */
+const onSearchSubmit = () => {
+  if (isSearching.value) {
+    openFirstResult()
+    return
+  }
+  searchBarRef.value?.focus()
+}
+
 /** 回车打开第一条结果，Ctrl/Cmd + 数字打开对应结果 */
 const onKeyEnter = (ev: KeyboardEvent) => {
   const cards = filteredData.value
   if (ev.key === 'Enter' || ev.keyCode === 13) {
-    if (cards.length) {
-      window.open(cards[0].url, '_blank')
-      resetSearch()
-    }
+    openFirstResult()
     return
   }
   if (ev.ctrlKey || ev.metaKey) {

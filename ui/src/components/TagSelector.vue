@@ -1,5 +1,5 @@
 <template>
-  <div class="tag-selector span-3">
+  <div class="tag-selector">
     <div class="tag-selector-wrapper">
       <span
         v-for="tag in tags"
