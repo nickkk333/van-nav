@@ -386,30 +386,6 @@ const persistSort = async (movedId: number, targetId: number) => {
   }
 }
 
-/**
- * 新建工具后重排整张表：把新工具放到目标位置，再把所有排序值重写成 1 开始依次递增
- * @param mode 'front' 放到最前（0 或留空）| 'back' 放到最后（-1）| 正数 表示插入到该序号位置
- */
-const applyNewToolSort = async (newId: number | undefined, mode: 'front' | 'back' | number) => {
-  const list = [...sortedTools.value]
-  const index = newId === undefined ? -1 : list.findIndex((item) => item.id === newId)
-  if (index >= 0) {
-    const [newTool] = list.splice(index, 1)
-    let target = list.length
-    if (mode === 'front') {
-      target = 0
-    } else if (typeof mode === 'number') {
-      target = Math.min(Math.max(mode - 1, 0), list.length)
-    }
-    list.splice(target, 0, newTool)
-  }
-  try {
-    await fetchUpdateToolsSort(buildSortUpdates(list))
-  } catch (error) {
-    ElMessage.warning(resolveError(error, '排序调整失败'))
-  }
-}
-
 useTableSortable({
   tableRef,
   rows: pagedData,
@@ -595,35 +571,15 @@ const validateForm = async (formRef?: FormInstance) => {
   return Boolean(await formRef.validate().catch(() => false))
 }
 
-/**
- * 新建工具的排序落点：
- * - -1（默认）或负数：排到最后，值取「现有最大排序 + 1」
- * - 0 或留空：排到最前
- * - 正数：插入到该序号位置，后续项依次往后
- * 无论哪种情况，保存后都会把所有工具的排序值重排成 1 开始依次递增
- */
-const resolveNewSort = () => {
-  const raw: unknown = addForm.sort
-  const isEmpty = raw === undefined || raw === null || String(raw).trim() === ''
-  const value = isEmpty ? 0 : Number(raw)
-  if (value < 0) {
-    const maxSort = allTools.value.reduce((max, item) => Math.max(max, item.sort ?? 0), 0)
-    return { sort: maxSort + 1, mode: 'back' as const }
-  }
-  if (value === 0) {
-    return { sort: 0, mode: 'front' as const }
-  }
-  return { sort: value, mode: value }
-}
-
 const handleCreate = async () => {
   if (!(await validateForm(addFormRef.value))) {
     return
   }
   requestLoading.value = true
   try {
-    const { sort, mode } = resolveNewSort()
-    const res = await fetchAddTool({ ...addForm, sort })
+    // 排序落点（-1/负数排到最后、0 或留空排到最前、正数插入到该序号）与全表排序值重排
+    // 统一由后端 /admin/tool 处理，前端只负责提交表单
+    const res = await fetchAddTool({ ...addForm })
     if (res.success === false) {
       ElMessage.warning(res.errorMessage || '添加失败')
       return
@@ -631,8 +587,6 @@ const handleCreate = async () => {
     ElMessage.success('添加成功! Logo 将在 3 秒后刷新并加载！')
     showAdd.value = false
     await reload()
-    // 每次新建都把新工具放到目标位置，并重排所有工具的排序值
-    await applyNewToolSort(res.data?.id, mode)
     setTimeout(reload, 3000)
   } catch (error) {
     ElMessage.warning(resolveError(error, '添加失败'))

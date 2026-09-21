@@ -47,9 +47,11 @@ type AddToolDto struct {
 	Logo    string `json:"logo"`
 	Catelog string `json:"catelog"`
 	Desc    string `json:"desc"`
-	Sort    int    `json:"sort"`
-	Hide    bool   `json:"hide"`
-	Default bool   `json:"default"`
+	// Sort 新建工具的落点：-1（默认）或负数排到最后；0 或留空排到最前；正数插入到该序号位置
+	// 落位后由后端把所有工具的排序值统一重排成从 1 开始依次递增
+	Sort    int  `json:"sort"`
+	Hide    bool `json:"hide"`
+	Default bool `json:"default"`
 }
 type UpdateToolsSortDto struct {
 	Id   int `json:"id"`

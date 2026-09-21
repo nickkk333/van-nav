@@ -53,7 +53,27 @@ func UpdateTool(data types.UpdateToolDto) {
 	UpdateImg(data.Logo)
 }
 
+// ResolveToolInsertIndex 计算新工具在排序中的插入位置（count 为插入前的工具总数）
+// - sort < 0：排到最后
+// - sort == 0（含留空）：排到最前
+// - sort > 0：插入到该序号位置（从 1 开始，超出范围则排到最后）
+func ResolveToolInsertIndex(sort int, count int) int {
+	if sort < 0 {
+		return count
+	}
+	if sort == 0 {
+		return 0
+	}
+	index := sort - 1
+	if index > count {
+		index = count
+	}
+	return index
+}
+
 // AddTool 新增工具
+// 排序规则：-1（默认）或负数排到最后；0 或留空排到最前；正数插入到该序号位置
+// 落位完成后把所有工具的排序值重排成从 1 开始依次递增
 func AddTool(data types.AddToolDto) (int64, error) {
 	tx, err := database.DB.Begin()
 	if err != nil {
@@ -64,6 +84,27 @@ func AddTool(data types.AddToolDto) (int64, error) {
 			_ = tx.Rollback()
 		}
 	}()
+
+	// 先取出当前所有工具 id（按排序升序），用于计算新工具的落点
+	rows, err := tx.Query(`
+		SELECT id FROM nav_table ORDER BY sort, id;
+		`)
+	if err != nil {
+		return 0, err
+	}
+	ids := make([]int64, 0)
+	for rows.Next() {
+		var eachId int64
+		if err = rows.Scan(&eachId); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, eachId)
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return 0, err
+	}
 
 	res, err := tx.Exec(`
 		INSERT INTO nav_table (name, url, logo, catelog, "desc", sort, "hide", "default")
@@ -76,6 +117,24 @@ func AddTool(data types.AddToolDto) (int64, error) {
 	id, err := res.LastInsertId()
 	if err != nil {
 		return 0, err
+	}
+
+	// 把新工具插到目标位置，再把所有排序值重写成 1 开始依次递增
+	index := ResolveToolInsertIndex(data.Sort, len(ids))
+	ordered := make([]int64, 0, len(ids)+1)
+	ordered = append(ordered, ids[:index]...)
+	ordered = append(ordered, id)
+	ordered = append(ordered, ids[index:]...)
+
+	stmt, err := tx.Prepare(`UPDATE nav_table SET sort = ? WHERE id = ?;`)
+	if err != nil {
+		return 0, err
+	}
+	defer stmt.Close()
+	for i, eachId := range ordered {
+		if _, err = stmt.Exec(i+1, eachId); err != nil {
+			return 0, err
+		}
 	}
 
 	if err = tx.Commit(); err != nil {

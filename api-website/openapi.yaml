@@ -42,6 +42,11 @@ components:
           type: string
         catelogId:
           type: integer
+        sort:
+          type: integer
+          description: >-
+            新建工具的排序落点：-1（默认）或负数排到最后；0 或留空排到最前；正数插入到该序号位置。
+            落位后后端会把所有工具的排序值重排成从 1 开始依次递增
 
     UpdateToolDto:
       type: object

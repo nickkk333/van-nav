@@ -325,6 +325,8 @@ func AddToolHandler(c *gin.Context) {
 	}
 
 	logger.LogInfo("%s 获取 logo: %s", data.Name, data.Logo)
+	// 排序落点与全表排序值重排都由 service.AddTool 处理：
+	// -1（默认）或负数排到最后；0 或留空排到最前；正数插入到该序号位置，最终排序值从 1 开始依次递增
 	id, err := service.AddTool(data)
 	if err != nil {
 		utils.CheckErr(err)
