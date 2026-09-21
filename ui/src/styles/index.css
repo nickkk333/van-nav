@@ -806,7 +806,7 @@ body {
   background-color: var(--el-color-warning-light-9);
 }
 
-/* 行内编辑：排序列（拖拽手柄 + 数字输入） */
+/* 行内编辑：排序列（拖拽手柄 + 序号，序号只读，改排序只能拖） */
 .sort-cell {
   display: flex;
   align-items: center;
@@ -814,8 +814,11 @@ body {
   gap: 6px;
 }
 
-.sort-input {
-  width: 92px;
+.sort-value {
+  min-width: 14px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .engine-logo {

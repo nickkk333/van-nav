@@ -74,8 +74,8 @@ export const fetchAdminData = async (): Promise<AdminData> => {
 }
 
 // 工具管理
-export const fetchAddTool = async (payload: Partial<Tool>): Promise<ApiResult> => {
-  const { data } = await http.post<ApiResult>('/admin/tool', payload)
+export const fetchAddTool = async (payload: Partial<Tool>): Promise<ApiResult<{ id: number }>> => {
+  const { data } = await http.post<ApiResult<{ id: number }>>('/admin/tool', payload)
   return data
 }
 

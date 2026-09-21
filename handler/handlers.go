@@ -340,6 +340,9 @@ func AddToolHandler(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "添加成功",
+		"data": gin.H{
+			"id": id,
+		},
 	})
 }
 

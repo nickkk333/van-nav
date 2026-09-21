@@ -47,11 +47,11 @@
       @selection-change="onSelectionChange"
     >
       <el-table-column type="selection" width="46" />
-      <el-table-column width="118" align="center">
+      <el-table-column width="92" align="center">
         <template #header>
           <span class="column-with-tip">
             排序
-            <el-tooltip content="可拖动左侧手柄排序，也可直接改数字（升序）" placement="top">
+            <el-tooltip content="拖动左侧手柄排序，序号从 1 开始依次递增" placement="top">
               <el-icon><QuestionFilled /></el-icon>
             </el-tooltip>
           </span>
@@ -59,15 +59,7 @@
         <template #default="{ row }">
           <div class="sort-cell">
             <el-icon class="drag-handle"><Rank /></el-icon>
-            <el-input-number
-              v-model="row.sort"
-              class="sort-input"
-              size="small"
-              :min="0"
-              :step="1"
-              controls-position="right"
-              @change="saveRow(row)"
-            />
+            <span class="sort-value">{{ row.sort ?? 0 }}</span>
           </div>
         </template>
       </el-table-column>
@@ -193,7 +185,7 @@
               type="primary"
               :disabled="!addForm.url"
               :loading="urlInfoLoading"
-              @click="autoFillFromUrl(true)"
+              @click="autoFillFromUrl()"
             >
               重新获取
             </el-button>
@@ -212,11 +204,14 @@
         </el-select>
       </el-form-item>
       <el-form-item label="描述" prop="desc">
-        <el-input v-model="addForm.desc" placeholder="请输入描述" />
+        <el-input v-model="addForm.desc" placeholder="选填，可自动获取" />
       </el-form-item>
       <el-form-item label="排序" prop="sort">
-        <el-tooltip content="升序，按数字从小到大排序" placement="top">
-          <el-input-number v-model="addForm.sort" :min="0" :step="1" controls-position="right" />
+        <el-tooltip
+          content="-1（默认）排到最后；0 或留空排到最前；正数插入到该序号位置；保存后所有排序值会重排为 1、2、3…"
+          placement="top"
+        >
+          <el-input-number v-model="addForm.sort" :min="-1" :step="1" controls-position="right" />
         </el-tooltip>
       </el-form-item>
       <el-form-item label="隐藏">
@@ -257,7 +252,7 @@ import { useAdminStore } from '../../stores/admin'
 import { useTableSortable } from '../../composables/useTableSortable'
 import { multiSearch } from '../../utils/match'
 import { getLogoUrl } from '../../utils/check'
-import type { Tool, UrlInfo } from '../../types'
+import type { Tool } from '../../types'
 
 interface ToolForm {
   id?: number
@@ -277,9 +272,11 @@ const createEmptyForm = (): ToolForm => ({
   logo: '',
   catelog: '',
   desc: '',
-  sort: 1,
+  // -1 表示新增后自动排到最后；0 或留空表示排到最前；正数表示插入到该序号位置
+  sort: -1,
   hide: false,
-  default: false,
+  // 新工具默认展示在默认页
+  default: true,
 })
 
 const adminStore = useAdminStore()
@@ -316,8 +313,6 @@ const toolRules: FormRules = {
     { pattern: /^https?:\/\//, message: '网址必须以 http:// 或 https:// 开头', trigger: 'blur' },
   ],
   catelog: [{ required: true, message: '请选择分类', trigger: 'change' }],
-  desc: [{ required: true, message: '请填写描述', trigger: 'blur' }],
-  sort: [{ required: true, message: '请填写排序', trigger: 'change' }],
 }
 
 const sortedTools = computed(() => [...allTools.value].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0)))
@@ -354,6 +349,22 @@ const reload = () => loadData(true)
 
 // ==================== 拖拽排序 ====================
 
+/** 按给定顺序把排序值重写成「从 1 开始依次递增」，并同步本地快照（返回给接口的数据） */
+const buildSortUpdates = (list: Tool[]) => {
+  const updates: { id: number; sort: number }[] = []
+  list.forEach((item, index) => {
+    const sort = index + 1
+    item.sort = sort
+    // 同步快照里的排序值，避免排序后被标成「未保存」
+    const snapshot = snapshotMap[item.id]
+    if (snapshot) {
+      snapshot.sort = sort
+    }
+    updates.push({ id: item.id, sort })
+  })
+  return updates
+}
+
 const persistSort = async (movedId: number, targetId: number) => {
   const list = [...sortedTools.value]
   const from = list.findIndex((item) => item.id === movedId)
@@ -363,14 +374,39 @@ const persistSort = async (movedId: number, targetId: number) => {
   }
   const [moved] = list.splice(from, 1)
   list.splice(to, 0, moved)
-  const updates = list.map((item, index) => ({ id: item.id, sort: index + 1 }))
+  // 先写回本地，表格立即按新顺序刷新；排序值从 1 开始依次递增
+  const updates = buildSortUpdates(list)
   try {
     await fetchUpdateToolsSort(updates)
-    ElMessage.success('排序更新成功')
+    ElMessage({ message: '排序已更新', type: 'success', grouping: true, duration: 1200 })
   } catch (error) {
     ElMessage.error(resolveError(error, '排序更新失败'))
-  } finally {
+    // 失败时以服务端数据为准
     await reload()
+  }
+}
+
+/**
+ * 新建工具后重排整张表：把新工具放到目标位置，再把所有排序值重写成 1 开始依次递增
+ * @param mode 'front' 放到最前（0 或留空）| 'back' 放到最后（-1）| 正数 表示插入到该序号位置
+ */
+const applyNewToolSort = async (newId: number | undefined, mode: 'front' | 'back' | number) => {
+  const list = [...sortedTools.value]
+  const index = newId === undefined ? -1 : list.findIndex((item) => item.id === newId)
+  if (index >= 0) {
+    const [newTool] = list.splice(index, 1)
+    let target = list.length
+    if (mode === 'front') {
+      target = 0
+    } else if (typeof mode === 'number') {
+      target = Math.min(Math.max(mode - 1, 0), list.length)
+    }
+    list.splice(target, 0, newTool)
+  }
+  try {
+    await fetchUpdateToolsSort(buildSortUpdates(list))
+  } catch (error) {
+    ElMessage.warning(resolveError(error, '排序调整失败'))
   }
 }
 
@@ -504,33 +540,10 @@ const openAdd = () => {
 }
 
 /**
- * 从抓取结果里挑一个合适的工具名称：
- * 优先 og:site_name；后端拿不到时会用域名兜底，这种情况改用网页标题的第一段
+ * 根据填写的网址抓取信息：先清空名称/描述/logo 网址，再填入抓取到的内容
+ * 名称直接用接口返回的 title
  */
-const pickName = (info: UrlInfo, target: string) => {
-  const name = (info.name || '').trim()
-  const title = (info.title || '').trim()
-  let host = ''
-  try {
-    host = new URL(target).host
-  } catch {
-    host = ''
-  }
-  if (name && (!host || name.toLowerCase() !== host.toLowerCase())) {
-    return name
-  }
-  const shortTitle = title.split(/[-–—|·]+/)[0].trim()
-  if (shortTitle && shortTitle.length <= 28) {
-    return shortTitle
-  }
-  return name || title
-}
-
-/**
- * 根据填写的网址抓取信息，自动补全表单
- * @param overwrite 为 true 时覆盖已有内容（「重新获取」按钮），否则只补全空项
- */
-const autoFillFromUrl = async (overwrite = false) => {
+const autoFillFromUrl = async () => {
   const target = addForm.url.trim()
   if (!target) {
     return
@@ -539,22 +552,27 @@ const autoFillFromUrl = async (overwrite = false) => {
     ElMessage.warning('网址必须以 http:// 或 https:// 开头')
     return
   }
+  // 网址变了就先把上一次抓来的内容全部清掉，避免残留旧信息
+  addForm.name = ''
+  addForm.desc = ''
+  addForm.logo = ''
   urlInfoLoading.value = true
   try {
     const info = (await fetchGetUrlInfo(target)) ?? { name: '', title: '', description: '', logo: '' }
     const filled: string[] = []
-    const name = pickName(info, target)
-    if (name && (overwrite || !addForm.name.trim())) {
+    // 名称直接用接口返回的 title
+    const name = (info.title || '').trim()
+    if (name) {
       addForm.name = name
       filled.push('名称')
     }
     const desc = (info.description || '').trim()
-    if (desc && (overwrite || !addForm.desc.trim())) {
+    if (desc) {
       addForm.desc = desc
       filled.push('描述')
     }
     const logo = (info.logo || '').trim()
-    if (logo && (overwrite || !addForm.logo.trim())) {
+    if (logo) {
       addForm.logo = logo
       filled.push('图标')
     }
@@ -577,13 +595,35 @@ const validateForm = async (formRef?: FormInstance) => {
   return Boolean(await formRef.validate().catch(() => false))
 }
 
+/**
+ * 新建工具的排序落点：
+ * - -1（默认）或负数：排到最后，值取「现有最大排序 + 1」
+ * - 0 或留空：排到最前
+ * - 正数：插入到该序号位置，后续项依次往后
+ * 无论哪种情况，保存后都会把所有工具的排序值重排成 1 开始依次递增
+ */
+const resolveNewSort = () => {
+  const raw: unknown = addForm.sort
+  const isEmpty = raw === undefined || raw === null || String(raw).trim() === ''
+  const value = isEmpty ? 0 : Number(raw)
+  if (value < 0) {
+    const maxSort = allTools.value.reduce((max, item) => Math.max(max, item.sort ?? 0), 0)
+    return { sort: maxSort + 1, mode: 'back' as const }
+  }
+  if (value === 0) {
+    return { sort: 0, mode: 'front' as const }
+  }
+  return { sort: value, mode: value }
+}
+
 const handleCreate = async () => {
   if (!(await validateForm(addFormRef.value))) {
     return
   }
   requestLoading.value = true
   try {
-    const res = await fetchAddTool({ ...addForm })
+    const { sort, mode } = resolveNewSort()
+    const res = await fetchAddTool({ ...addForm, sort })
     if (res.success === false) {
       ElMessage.warning(res.errorMessage || '添加失败')
       return
@@ -591,6 +631,8 @@ const handleCreate = async () => {
     ElMessage.success('添加成功! Logo 将在 3 秒后刷新并加载！')
     showAdd.value = false
     await reload()
+    // 每次新建都把新工具放到目标位置，并重排所有工具的排序值
+    await applyNewToolSort(res.data?.id, mode)
     setTimeout(reload, 3000)
   } catch (error) {
     ElMessage.warning(resolveError(error, '添加失败'))
