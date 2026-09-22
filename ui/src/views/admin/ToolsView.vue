@@ -63,7 +63,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="id" label="ID" width="70" />
+      <!-- <el-table-column prop="id" label="ID" width="70" /> -->
       <el-table-column label="名称" min-width="160">
         <template #default="{ row }">
           <div class="tool-name-cell">

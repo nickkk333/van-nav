@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { fetchList } from '../api'
+import { DEFAULT_CARDS_PER_ROW } from '../utils/setting'
 import type { HomeData, Setting, SiteConfig } from '../types'
 
 const defaultSetting: Setting = {
@@ -20,6 +21,7 @@ const defaultSiteConfig: SiteConfig = {
   id: 0,
   noImageMode: false,
   compactMode: false,
+  cardsPerRow: DEFAULT_CARDS_PER_ROW,
 }
 
 export const useSiteStore = defineStore('site', () => {

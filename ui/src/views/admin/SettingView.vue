@@ -86,6 +86,17 @@
             <el-switch v-model="siteConfigForm.compactMode" inline-prompt active-text="开" inactive-text="关" />
           </el-tooltip>
         </el-form-item>
+        <el-form-item label="每行显示数量">
+          <el-tooltip :content="`首页每行展示的网站数量，可填 1-${MAX_CARDS_PER_ROW}，默认 ${DEFAULT_CARDS_PER_ROW}`" placement="top">
+            <el-input-number
+              v-model="siteConfigForm.cardsPerRow"
+              :min="1"
+              :max="MAX_CARDS_PER_ROW"
+              :step="1"
+              controls-position="right"
+            />
+          </el-tooltip>
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="requestLoading" @click="handleUpdateSiteConfig">提交</el-button>
         </el-form-item>
@@ -100,6 +111,7 @@ import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { fetchUpdateSetting, fetchUpdateSiteConfig, fetchUpdateUser, resolveError } from '../../api'
 import { useAdminStore } from '../../stores/admin'
+import { DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW } from '../../utils/setting'
 
 const defaultSettingForm = () => ({
   favicon: 'favicon.ico',
@@ -122,7 +134,11 @@ const requestLoading = ref(false)
 
 const userForm = reactive({ name: '', password: '' })
 const settingForm = reactive(defaultSettingForm())
-const siteConfigForm = reactive({ noImageMode: false, compactMode: false })
+const siteConfigForm = reactive({
+  noImageMode: false,
+  compactMode: false,
+  cardsPerRow: DEFAULT_CARDS_PER_ROW,
+})
 
 const userRules: FormRules = {
   name: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -141,7 +157,14 @@ const syncForms = () => {
   const store = adminStore.store
   userForm.name = store.user?.name ?? ''
   Object.assign(settingForm, defaultSettingForm(), store.setting ?? {})
-  Object.assign(siteConfigForm, { noImageMode: false, compactMode: false }, store.siteConfig ?? {})
+  const siteConfig = store.siteConfig
+  // 老数据可能没有 cardsPerRow 字段，回落到默认值
+  const cardsPerRow = Number(siteConfig?.cardsPerRow)
+  Object.assign(siteConfigForm, {
+    noImageMode: siteConfig?.noImageMode ?? false,
+    compactMode: siteConfig?.compactMode ?? false,
+    cardsPerRow: cardsPerRow >= 1 ? cardsPerRow : DEFAULT_CARDS_PER_ROW,
+  })
 }
 
 watch(() => adminStore.store, syncForms, { deep: true })

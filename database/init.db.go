@@ -173,7 +173,8 @@ func InitDB() {
 		CREATE TABLE IF NOT EXISTS nav_site_config (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			noImageMode BOOLEAN NOT NULL DEFAULT 0,
-			compactMode BOOLEAN NOT NULL DEFAULT 0
+			compactMode BOOLEAN NOT NULL DEFAULT 0,
+			cardsPerRow INTEGER NOT NULL DEFAULT 5
 		);
 		`
 	_, err = DB.Exec(sql_create_table)
@@ -182,6 +183,11 @@ func InitDB() {
 	// 网站配置表结构升级 - 添加compactMode列
 	if !columnExists("nav_site_config", "compactMode") {
 		DB.Exec(`ALTER TABLE nav_site_config ADD COLUMN compactMode BOOLEAN NOT NULL DEFAULT 0;`)
+	}
+
+	// 网站配置表结构升级 - 添加cardsPerRow列（首页每行展示的网站数量）
+	if !columnExists("nav_site_config", "cardsPerRow") {
+		DB.Exec(`ALTER TABLE nav_site_config ADD COLUMN cardsPerRow INTEGER NOT NULL DEFAULT 5;`)
 	}
 
 	// 如果不存在，就初始化默认搜索引擎
@@ -267,12 +273,13 @@ func InitDB() {
 	utils.CheckErr(err)
 	if !rows.Next() {
 		sql_add_site_config := `
-			INSERT INTO nav_site_config (noImageMode, compactMode)
-			VALUES (?, ?);
+			INSERT INTO nav_site_config (noImageMode, compactMode, cardsPerRow)
+			VALUES (?, ?, ?);
 			`
 		stmt, err := DB.Prepare(sql_add_site_config)
 		utils.CheckErr(err)
-		res, err := stmt.Exec(false, false)
+		// 5 为每行展示网站数量的默认值，与 service.DefaultCardsPerRow 保持一致
+		res, err := stmt.Exec(false, false, 5)
 		utils.CheckErr(err)
 		_, err = res.LastInsertId()
 		utils.CheckErr(err)

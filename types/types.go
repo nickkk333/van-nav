@@ -67,4 +67,6 @@ type SiteConfig struct {
 	Id          int  `json:"id"`
 	NoImageMode bool `json:"noImageMode"`
 	CompactMode bool `json:"compactMode"`
+	// CardsPerRow 首页每行展示的网站数量
+	CardsPerRow int `json:"cardsPerRow"`
 }

@@ -12,7 +12,11 @@
         <TagSelector :tags="tags" :curr-tag="currTag" @change="handleSetCurrTag" />
       </div>
       <div class="content-wraper">
-        <div class="content cards" :class="{ 'compact-grid': siteConfig.compactMode }">
+        <div
+          class="content cards"
+          :class="{ 'compact-grid': siteConfig.compactMode }"
+          :style="gridStyle"
+        >
           <Loading v-if="loading" />
           <ToolCard
             v-for="(item, index) in filteredData"
@@ -30,24 +34,29 @@
       <div class="record-wraper">
         <a href="https://beian.miit.gov.cn" target="_blank" rel="noreferrer">{{ setting.govRecord }}</a>
       </div>
-      <GithubLink v-if="showGithub" />
-      <DarkSwitch :hide-github="!showGithub" />
+      <div class="float-actions">
+        <DarkSwitch />
+        <GithubLink v-if="showGithub" />
+        <AdminLink />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import type { CSSProperties } from 'vue'
 import SearchBar from '../components/SearchBar.vue'
 import TagSelector from '../components/TagSelector.vue'
 import ToolCard from '../components/ToolCard.vue'
 import GithubLink from '../components/GithubLink.vue'
+import AdminLink from '../components/AdminLink.vue'
 import DarkSwitch from '../components/DarkSwitch.vue'
 import Loading from '../components/Loading.vue'
 import { useSiteStore } from '../stores/site'
 import { multiSearch } from '../utils/match'
 import { generateSearchEngineCards } from '../utils/searchEngine'
-import { initServerJumpTargetConfig, toggleJumpTarget } from '../utils/setting'
+import { DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW, initServerJumpTargetConfig, toggleJumpTarget } from '../utils/setting'
 import type { Tool } from '../types'
 
 const DEFAULT_TAG = '默认'
@@ -66,6 +75,22 @@ const setting = computed(() => site.data.setting)
 const siteConfig = computed(() => site.data.siteConfig)
 const isSearching = computed(() => searchString.value.trim() !== '')
 const showGithub = computed(() => setting.value.hideGithub !== true)
+
+/** 每行展示的网站数量，小屏自动收敛，避免卡片过窄 */
+const cardsPerRow = computed(() => {
+  const value = Number(siteConfig.value.cardsPerRow)
+  if (!Number.isFinite(value) || value < 1) {
+    return DEFAULT_CARDS_PER_ROW
+  }
+  return Math.min(Math.floor(value), MAX_CARDS_PER_ROW)
+})
+
+/** 通过 CSS 变量把每行数量传给网格布局 */
+const gridStyle = computed<CSSProperties>(() => ({
+  '--cards-per-row': String(cardsPerRow.value),
+  '--cards-per-row-md': String(Math.min(cardsPerRow.value, 3)),
+  '--cards-per-row-sm': String(Math.min(cardsPerRow.value, 2)),
+}))
 
 /** 默认标签 + 所有分类 */
 const tags = computed(() => {

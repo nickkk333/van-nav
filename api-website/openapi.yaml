@@ -124,6 +124,11 @@ components:
           type: boolean
         compactMode:
           type: boolean
+        cardsPerRow:
+          type: integer
+          description: 首页每行展示的网站数量，取值 1-12，默认 5
+          minimum: 1
+          maximum: 12
 
     LoginDto:
       type: object

@@ -228,12 +228,12 @@ body {
   display: none;
 }
 
-/* 卡片区：流式布局，每块的宽度由内容长度决定（按需分配尺寸），整体居中 */
+/* 卡片区：网格布局，每行数量由 --cards-per-row 控制，所有卡片等宽等高 */
 .content.cards {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(var(--cards-per-row, 5), minmax(0, 1fr));
+  grid-auto-rows: 1fr;
   align-items: stretch;
-  justify-content: center;
   gap: 14px;
   max-width: 1440px;
   margin: 0 auto;
@@ -241,9 +241,8 @@ body {
 }
 
 .content.cards > .card-box {
-  flex: 0 1 auto;
-  min-width: 224px;
-  max-width: 340px;
+  width: 100%;
+  max-width: none;
 }
 
 .empty-tip {
@@ -257,7 +256,7 @@ body {
 }
 
 .loading-wrapper {
-  flex: 0 0 100%;
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -389,33 +388,21 @@ body {
 
 /* ==================== 悬浮入口 ==================== */
 
-.github-link-box {
+/* 右下角悬浮入口：自上而下依次为主题切换、Github、管理后台 */
+.float-actions {
   position: fixed;
   right: 20px;
   bottom: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background-color: var(--card-bg);
-  color: var(--text-secondary);
-  box-shadow: var(--card-shadow);
-  transition: color 0.2s, transform 0.2s, background-color 0.2s;
   z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
 }
 
-.github-link-box:hover {
-  color: var(--el-color-primary);
-  background-color: var(--card-hover-bg);
-  transform: scale(1.08);
-}
-
+.github-link-box,
+.admin-link-box,
 .theme-switch-box {
-  position: fixed;
-  right: 20px;
-  bottom: 72px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -423,21 +410,25 @@ body {
   height: 42px;
   border-radius: 50%;
   background-color: var(--card-bg);
-  cursor: pointer;
   color: var(--text-secondary);
   box-shadow: var(--card-shadow);
   transition: color 0.2s, transform 0.2s, background-color 0.2s;
-  z-index: 20;
 }
 
+.admin-link-box {
+  text-decoration: none;
+}
+
+.github-link-box:hover,
+.admin-link-box:hover,
 .theme-switch-box:hover {
   color: var(--el-color-primary);
   background-color: var(--card-hover-bg);
   transform: scale(1.08);
 }
 
-.theme-switch-box.hide-github {
-  bottom: 20px;
+.theme-switch-box {
+  cursor: pointer;
 }
 
 .record-wraper {
@@ -468,8 +459,6 @@ body {
 }
 
 .content.cards.compact-grid > .card-box {
-  min-width: 150px;
-  max-width: 220px;
   min-height: 48px;
   padding: 8px 12px;
 }
@@ -500,15 +489,11 @@ body {
   .main {
     padding-top: 40px;
   }
+  /* 中等屏幕下每行最多 3 个，避免卡片过窄 */
   .content.cards {
+    grid-template-columns: repeat(var(--cards-per-row-md, 3), minmax(0, 1fr));
     gap: 12px;
     padding: 10px 12px 220px;
-  }
-  .content.cards > .card-box {
-    min-width: 200px;
-  }
-  .content.cards.compact-grid > .card-box {
-    min-width: 140px;
   }
 }
 
@@ -520,21 +505,17 @@ body {
     padding: 0 12px;
   }
   .content.cards {
+    grid-template-columns: repeat(var(--cards-per-row-sm, 2), minmax(0, 1fr));
     gap: 8px;
   }
-  /* 小屏下卡片平分一行，内容纵向排列 */
+  /* 小屏下卡片内容纵向排列 */
   .content.cards > .card-box {
-    flex: 1 1 30%;
-    min-width: 96px;
-    max-width: 100%;
     min-height: 78px;
     padding: 8px 6px;
     flex-direction: column;
     justify-content: center;
   }
   .content.cards.compact-grid > .card-box {
-    flex: 1 1 40%;
-    min-width: 128px;
     min-height: 46px;
     flex-direction: row;
   }

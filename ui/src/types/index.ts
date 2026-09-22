@@ -44,6 +44,8 @@ export interface SiteConfig {
   id: number
   noImageMode: boolean
   compactMode: boolean
+  /** 首页每行展示的网站数量 */
+  cardsPerRow: number
 }
 
 export interface Token {

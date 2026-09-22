@@ -1,5 +1,11 @@
 export type JumpTarget = 'blank' | 'self'
 
+/** 首页每行展示的网站数量默认值（与后端 service.DefaultCardsPerRow 保持一致） */
+export const DEFAULT_CARDS_PER_ROW = 5
+
+/** 首页每行展示的网站数量上限（与后端 service.MaxCardsPerRow 保持一致） */
+export const MAX_CARDS_PER_ROW = 12
+
 const JUMP_TARGET_KEY = 'jumpTarget'
 const INITED_KEY = 'initedServerJumpTarget'
 
