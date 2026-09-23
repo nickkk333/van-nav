@@ -24,6 +24,8 @@ LDFLAGS    := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 IMAGE_NAME ?= mereith/van-nav
 IMAGE_TAG  ?= latest
 PORT       ?= 6412
+# docker-tar 目标导出的镜像平台架构
+ARCH       ?= amd64
 
 # 前端包管理器：npm 或 pnpm
 NPM        ?= npm
@@ -57,6 +59,7 @@ help: ## 显示所有可用命令
 	@echo "  make run                本地运行(默认端口 $(PORT))"
 	@echo "  make dev                同时启动后端与前端开发服务器"
 	@echo "  make docker             构建 Docker 镜像 $(IMAGE_NAME):$(IMAGE_TAG)"
+	@echo "  make docker-tar         导出可离线加载的镜像 tar（bin/$(BINARY)-docker-$(ARCH).tar）"
 	@echo "  make docker-multiarch   构建并推送多架构镜像(amd64/arm64)"
 	@echo "  make docker-run         运行 Docker 容器"
 	@echo "  make fmt vet test       格式化 / 静态检查 / 测试"
@@ -134,6 +137,16 @@ docker-multiarch: ## 构建并推送多架构镜像
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(COMMIT) \
 		-t $(IMAGE_NAME):$(IMAGE_TAG) -t $(IMAGE_NAME):$(VERSION) --push .
+
+.PHONY: docker-tar
+docker-tar: ## 导出可离线 docker load 的镜像 tar（平台由 ARCH 控制，默认 amd64）
+	@$(MKDIR) $(DIST_DIR)
+	docker buildx build --platform linux/$(ARCH) --provenance=false --sbom=false \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		-t $(IMAGE_NAME):$(IMAGE_TAG) -t $(IMAGE_NAME):$(VERSION) \
+		--output type=docker,dest=$(DIST_DIR)/$(BINARY)-docker-$(ARCH).tar .
+	@echo 镜像已导出到 $(DIST_DIR)/$(BINARY)-docker-$(ARCH).tar
 
 .PHONY: docker-run
 docker-run: ## 运行 Docker 容器

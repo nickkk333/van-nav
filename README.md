@@ -74,6 +74,9 @@ make clean            # 清理产物
 # 构建本地 Docker 镜像
 make docker                       # 等价于 docker build -t mereith/van-nav:latest .
 
+# 导出可离线 docker load 的镜像 tar
+make docker-tar
+
 # 多架构构建并推送
 make docker-multiarch
 
