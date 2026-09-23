@@ -19,8 +19,12 @@
       <template #header>修改网站信息</template>
       <el-form ref="settingFormRef" v-loading="loading" :model="settingForm" :rules="settingRules" label-width="140px">
         <el-form-item label="网站 logo" prop="favicon">
-          <el-tooltip content="输入 logo 的 url，仅支持 png 或 svg 格式" placement="top">
-            <el-input v-model="settingForm.favicon" placeholder="请输入网站 logo" />
+          <el-tooltip content="输入或上传 logo，仅支持 png 或 svg 格式" placement="top">
+            <ImageUploader
+              v-model="settingForm.favicon"
+              placeholder="请输入网站 logo"
+              accept=".png,.svg"
+            />
           </el-tooltip>
         </el-form-item>
         <el-form-item label="网站标题" prop="title">
@@ -28,6 +32,18 @@
         </el-form-item>
         <el-form-item label="公信部备案" prop="govRecord">
           <el-input v-model="settingForm.govRecord" placeholder="请输入网站备案信息" />
+        </el-form-item>
+        <el-form-item label="首页背景图" prop="backgroundImage">
+          <el-tooltip
+            content="上传或填写图片地址，前台首页会作为全屏背景图；留空则不展示背景图"
+            placement="top"
+          >
+            <ImageUploader
+              v-model="settingForm.backgroundImage"
+              preview
+              placeholder="上传图片或输入图片地址，留空则不展示背景图"
+            />
+          </el-tooltip>
         </el-form-item>
         <el-form-item label="默认跳转方式" prop="jumpTargetBlank">
           <el-tooltip content="选择点击卡片后默认的跳转方式" placement="top">
@@ -39,12 +55,12 @@
         </el-form-item>
         <el-form-item label="logo 192x192" prop="logo192">
           <el-tooltip content="192x192 大小的 logo，用于实现可安装的 web 应用" placement="top">
-            <el-input v-model="settingForm.logo192" placeholder="192x192 大小的 logo 链接" />
+            <ImageUploader v-model="settingForm.logo192" placeholder="192x192 大小的 logo 链接" />
           </el-tooltip>
         </el-form-item>
         <el-form-item label="logo 512x512" prop="logo512">
           <el-tooltip content="512x512 大小的 logo，用于实现可安装的 web 应用" placement="top">
-            <el-input v-model="settingForm.logo512" placeholder="512x512 大小的 logo 链接" />
+            <ImageUploader v-model="settingForm.logo512" placeholder="512x512 大小的 logo 链接" />
           </el-tooltip>
         </el-form-item>
         <el-form-item label="隐藏管理员后台卡片">
@@ -111,6 +127,7 @@ import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { fetchUpdateSetting, fetchUpdateSiteConfig, fetchUpdateUser, resolveError } from '../../api'
 import { useAdminStore } from '../../stores/admin'
+import ImageUploader from '../../components/ImageUploader.vue'
 import { DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW } from '../../utils/setting'
 
 const defaultSettingForm = () => ({
@@ -123,6 +140,7 @@ const defaultSettingForm = () => ({
   hideGithub: false,
   hideToggleJumpTarget: false,
   jumpTargetBlank: true,
+  backgroundImage: '',
 })
 
 const adminStore = useAdminStore()

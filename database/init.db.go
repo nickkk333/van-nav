@@ -54,7 +54,8 @@ func InitDB() {
 		hideAdmin BOOLEAN,
 		hideGithub BOOLEAN,
 		hideToggleJumpTarget BOOLEAN,
-		jumpTargetBlank BOOLEAN
+		jumpTargetBlank BOOLEAN,
+		backgroundImage TEXT
 	);
 	`
 	_, err = DB.Exec(sql_create_table)
@@ -83,6 +84,10 @@ func InitDB() {
 	// 设置表表结构升级-20250624
 	if !columnExists("nav_setting", "hideToggleJumpTarget") {
 		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN hideToggleJumpTarget BOOLEAN;`)
+	}
+	// 设置表表结构升级-20250923【首页背景图，存放后台上传返回的 url 或外链地址】
+	if !columnExists("nav_setting", "backgroundImage") {
+		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN backgroundImage TEXT;`)
 	}
 
 	// 默认 tools 用的 表

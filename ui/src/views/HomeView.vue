@@ -1,6 +1,6 @@
 <template>
   <div class="app">
-    <div class="app-bg" aria-hidden="true"></div>
+    <div class="app-bg" :style="bgStyle" aria-hidden="true"></div>
     <div class="main">
       <div class="topbar">
         <SearchBar
@@ -75,6 +75,13 @@ const setting = computed(() => site.data.setting)
 const siteConfig = computed(() => site.data.siteConfig)
 const isSearching = computed(() => searchString.value.trim() !== '')
 const showGithub = computed(() => setting.value.hideGithub !== true)
+
+/** 首页全屏背景图：地址来自后台设置，留空时保持纯色背景 */
+const bgStyle = computed<CSSProperties>(() => {
+  // 过滤掉可能破坏 url() 语法的字符，避免异常地址影响整个样式
+  const url = (setting.value.backgroundImage ?? '').replace(/["'()\\\s]/g, '')
+  return url ? { backgroundImage: `url("${url}")` } : {}
+})
 
 /** 每行展示的网站数量，小屏自动收敛，避免卡片过窄 */
 const cardsPerRow = computed(() => {

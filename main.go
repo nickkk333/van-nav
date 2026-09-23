@@ -76,7 +76,9 @@ func main() {
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
-	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedExtensions([]string{".png", ".jpg", ".jpeg", ".ico", ".svg"})))
+	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedExtensions([]string{".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".svg"})))
+	// 上传图片直接落盘，超过该内存上限的部分写到临时文件
+	router.MaxMultipartMemory = 8 << 20
 
 	// 动态生成的 manifest
 	router.GET("/manifest.json", handler.ManifastHanlder)
@@ -90,6 +92,8 @@ func main() {
 		api.POST("/login", handler.LoginHandler)
 		api.GET("/logout", handler.LogoutHandler)
 		api.GET("/img", handler.GetLogoImgHandler)
+		// 后台上传的图片（背景图 / logo 等）
+		api.GET("/uploadedImage/:name", handler.GetUploadedImageHandler)
 
 		// 获取启用的搜索引擎（公开接口）
 		api.GET("/searchEngines", handler.GetEnabledSearchEnginesHandler)
@@ -108,6 +112,8 @@ func main() {
 			admin.PUT("/user", handler.UpdateUserHandler)
 			admin.PUT("/setting", handler.UpdateSettingHandler)
 			admin.PUT("/siteConfig", handler.UpdateSiteConfigHandler)
+			// 图片上传（表单字段名为 file）
+			admin.POST("/uploadImage", handler.UploadImageHandler)
 
 			admin.POST("/tool", handler.AddToolHandler)
 			admin.GET("/urlInfo", handler.GetUrlInfoHandler)

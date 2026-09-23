@@ -11,7 +11,7 @@ import (
 // GetSetting 获取网站设置
 func GetSetting() types.Setting {
 	row := database.DB.QueryRow(`
-		SELECT id, favicon, title, govRecord, logo192, logo512, hideAdmin, hideGithub, hideToggleJumpTarget, jumpTargetBlank
+		SELECT id, favicon, title, govRecord, logo192, logo512, hideAdmin, hideGithub, hideToggleJumpTarget, jumpTargetBlank, backgroundImage
 		FROM nav_setting
 		ORDER BY id ASC
 		LIMIT 1;
@@ -22,9 +22,10 @@ func GetSetting() types.Setting {
 		hideGithub           sql.NullBool
 		hideToggleJumpTarget sql.NullBool
 		jumpTargetBlank      sql.NullBool
+		backgroundImage      sql.NullString
 	)
 	err := row.Scan(&setting.Id, &setting.Favicon, &setting.Title, &setting.GovRecord, &setting.Logo192, &setting.Logo512,
-		&hideAdmin, &hideGithub, &hideToggleJumpTarget, &jumpTargetBlank)
+		&hideAdmin, &hideGithub, &hideToggleJumpTarget, &jumpTargetBlank, &backgroundImage)
 	if err != nil {
 		logger.LogError("获取配置失败: %s", err)
 		return types.Setting{
@@ -38,6 +39,7 @@ func GetSetting() types.Setting {
 			HideGithub:           false,
 			HideToggleJumpTarget: false,
 			JumpTargetBlank:      true,
+			BackgroundImage:      "",
 		}
 	}
 	setting.HideAdmin = hideAdmin.Bool
@@ -48,6 +50,8 @@ func GetSetting() types.Setting {
 	if jumpTargetBlank.Valid {
 		setting.JumpTargetBlank = jumpTargetBlank.Bool
 	}
+	// 未设置时前台不展示背景图
+	setting.BackgroundImage = backgroundImage.String
 	return setting
 }
 
@@ -55,9 +59,9 @@ func GetSetting() types.Setting {
 func UpdateSetting(data types.Setting) error {
 	_, err := database.DB.Exec(`
 		UPDATE nav_setting
-		SET favicon = ?, title = ?, govRecord = ?, logo192 = ?, logo512 = ?, hideAdmin = ?, hideGithub = ?, hideToggleJumpTarget = ?, jumpTargetBlank = ?
+		SET favicon = ?, title = ?, govRecord = ?, logo192 = ?, logo512 = ?, hideAdmin = ?, hideGithub = ?, hideToggleJumpTarget = ?, jumpTargetBlank = ?, backgroundImage = ?
 		WHERE id = (SELECT id FROM nav_setting ORDER BY id ASC LIMIT 1);
 		`, data.Favicon, data.Title, data.GovRecord, data.Logo192, data.Logo512,
-		data.HideAdmin, data.HideGithub, data.HideToggleJumpTarget, data.JumpTargetBlank)
+		data.HideAdmin, data.HideGithub, data.HideToggleJumpTarget, data.JumpTargetBlank, data.BackgroundImage)
 	return err
 }

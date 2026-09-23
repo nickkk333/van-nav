@@ -15,6 +15,7 @@ const defaultSetting: Setting = {
   hideGithub: false,
   hideToggleJumpTarget: false,
   jumpTargetBlank: true,
+  backgroundImage: '',
 }
 
 const defaultSiteConfig: SiteConfig = {

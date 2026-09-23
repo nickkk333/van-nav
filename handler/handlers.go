@@ -114,6 +114,7 @@ func UpdateSettingHandler(c *gin.Context) {
 		return
 	}
 	logger.LogInfo("更新配置: %+v", data)
+	oldSetting := service.GetSetting()
 	err := service.UpdateSetting(data)
 	if err != nil {
 		utils.CheckErr(err)
@@ -123,6 +124,8 @@ func UpdateSettingHandler(c *gin.Context) {
 		})
 		return
 	}
+	// 清理被替换掉的上传图片
+	service.CleanupReplacedUploadedImages(oldSetting, data)
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "更新配置成功",
@@ -231,6 +234,48 @@ func GetLogoImgHandler(c *gin.Context) {
 	}
 	// 直接输出二进制数据，避免string转换导致的内存多分配
 	c.Data(http.StatusOK, t, imgBuffer)
+}
+
+// UploadImageHandler 上传图片（背景图 / logo 等），返回可直接使用的 url
+func UploadImageHandler(c *gin.Context) {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		logger.LogError("解析上传文件失败: %s", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": "请选择要上传的图片",
+		})
+		return
+	}
+	url, err := service.SaveUploadedImage(fileHeader)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": err.Error(),
+		})
+		return
+	}
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "上传成功",
+		"data": gin.H{
+			"url": url,
+		},
+	})
+}
+
+// GetUploadedImageHandler 输出后台上传的图片
+func GetUploadedImageHandler(c *gin.Context) {
+	path, ok := service.GetUploadedImagePath(c.Param("name"))
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success":      false,
+			"errorMessage": "图片不存在",
+		})
+		return
+	}
+	c.Header("Cache-Control", "public, max-age=604800")
+	c.File(path)
 }
 
 func GetAdminAllDataHandler(c *gin.Context) {

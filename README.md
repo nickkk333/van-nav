@@ -123,6 +123,8 @@ docker build --build-arg GOPROXY=https://goproxy.cn,direct -t van-nav:latest .
 
 另外可以设置跳转方式哦。
 
+后台「系统设置」里可以直接上传图片：首页背景图、网站 logo、logo192 / logo512 都支持上传（也可以直接填写图片外链）；上传的图片保存在 `data/images` 下，背景图留空即不展示背景图。
+
 ## CHANGELOG
 
 具体请看 [CHANGELOG.md](CHANGELOG.md)

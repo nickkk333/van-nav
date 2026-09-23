@@ -142,6 +142,17 @@ export const fetchUpdateUser = async (payload: Record<string, unknown>): Promise
   return data
 }
 
+/**
+ * 上传图片（背景图 / logo 等），返回图片的可访问地址
+ * 后端限制单张图片不超过 5MB，支持的格式见 service/upload.go
+ */
+export const fetchUploadImage = async (file: File): Promise<string> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await http.post<ApiResult<{ url: string }>>('/admin/uploadImage', formData)
+  return data.data?.url ?? ''
+}
+
 // API Token
 export const fetchAddApiToken = async (payload: { name: string }): Promise<ApiResult> => {
   const { data } = await http.post<ApiResult>('/admin/apiToken', payload)
