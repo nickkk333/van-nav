@@ -14,20 +14,22 @@
       <div class="content-wraper">
         <div
           class="content cards"
-          :class="{ 'compact-grid': siteConfig.compactMode }"
+          :class="{ 'compact-grid': siteConfig.compactMode, 'grouped-grid': groupByCatelog }"
           :style="gridStyle"
         >
           <Loading v-if="loading" />
-          <ToolCard
-            v-for="(item, index) in filteredData"
-            :key="item.id + '-' + index"
-            :tool="item"
-            :index="index"
-            :is-searching="isSearching"
-            :no-image-mode="siteConfig.noImageMode"
-            :compact-mode="siteConfig.compactMode"
-            @click="handleCardClick"
-          />
+          <div v-for="group in cardGroups" :key="group.key" class="cards-group">
+            <ToolCard
+              v-for="item in group.items"
+              :key="item.tool.id + '-' + item.index"
+              :tool="item.tool"
+              :index="item.index"
+              :is-searching="isSearching"
+              :no-image-mode="siteConfig.noImageMode"
+              :compact-mode="siteConfig.compactMode"
+              @click="handleCardClick"
+            />
+          </div>
         </div>
         <div v-if="!loading && filteredData.length === 0" class="empty-tip">没有找到匹配的结果</div>
       </div>
@@ -127,6 +129,62 @@ const filteredData = computed<Tool[]>(() => {
     )
   })
   return searching ? [...localResult, ...engineCards.value] : localResult
+})
+
+/** 首页渲染用的卡片项：index 同时用于搜索序号与列表 key */
+interface CardItem {
+  tool: Tool
+  index: number
+}
+
+/** 卡片分组：默认栏中每个分类为一组，其余情况只有一组 */
+interface CardGroup {
+  key: string
+  items: CardItem[]
+}
+
+/** 默认栏（默认标签且未搜索）需要按分类分组展示 */
+const groupByCatelog = computed(() => !isSearching.value && currTag.value === DEFAULT_TAG)
+
+/**
+ * 默认栏按分类顺序分组：同一分类的工具排在一起，不同分类各占一组
+ * （每组单独换行，组与组之间的距离由样式中的 --cards-group-gap 加大）。
+ * 分类顺序以接口返回的 catelogs（后台排序后的顺序）为准；
+ * 不在分类列表中的工具（例如未分类）统一追加到最后。
+ */
+const cardGroups = computed<CardGroup[]>(() => {
+  const list = filteredData.value
+  let index = 0
+  const toItems = (tools: Tool[]): CardItem[] => tools.map((tool) => ({ tool, index: index++ }))
+
+  if (!groupByCatelog.value) {
+    return [{ key: 'all', items: toItems(list) }]
+  }
+
+  const catelogs = site.data.catelogs ?? []
+  const groups = new Map<string, Tool[]>()
+  catelogs.forEach((name) => groups.set(name, []))
+  const rest: Tool[] = []
+  list.forEach((tool) => {
+    const group = groups.get(tool.catelog)
+    if (group) {
+      group.push(tool)
+    } else {
+      rest.push(tool)
+    }
+  })
+
+  const result: CardGroup[] = []
+  const appendGroup = (name: string, tools: Tool[]) => {
+    // 空分类不渲染，避免产生多余的组间距
+    if (!tools.length) {
+      return
+    }
+    result.push({ key: `${result.length}-${name}`, items: toItems(tools) })
+  }
+  groups.forEach((tools, name) => appendGroup(name, tools))
+  appendGroup('未分类', rest)
+  return result
 })
 
 // 关键字变化时生成搜索引擎卡片

@@ -227,18 +227,37 @@ body {
 }
 
 /* 卡片区：网格布局，每行数量由 --cards-per-row 控制，所有卡片等宽等高 */
-.content.cards {
+/* .cards-group 为卡片分组容器（默认栏中每个分类一组），列数与间距和整页网格保持一致 */
+.content.cards,
+.cards-group {
   display: grid;
   grid-template-columns: repeat(var(--cards-per-row, 5), minmax(0, 1fr));
   grid-auto-rows: 1fr;
   align-items: stretch;
-  gap: 14px;
+  gap: var(--cards-gap, 14px);
+}
+
+.content.cards {
+  /* 卡片间距 / 默认栏中不同分类之间的距离 */
+  --cards-gap: 14px;
+  --cards-group-gap: 26px;
   max-width: 1440px;
   margin: 0 auto;
   padding: 10px 2vw 250px;
 }
 
-.content.cards > .card-box {
+/* 默认栏按分类分组：每个分类各占一组并纵向排列，组间距使用 --cards-group-gap */
+.content.cards.grouped-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cards-group-gap);
+}
+
+.cards-group {
+  grid-column: 1 / -1;
+}
+
+.content.cards .card-box {
   width: 100%;
   max-width: none;
 }
@@ -452,11 +471,12 @@ body {
 /* ==================== 精简模式 ==================== */
 
 .content.cards.compact-grid {
-  gap: 8px;
+  --cards-gap: 8px;
+  --cards-group-gap: 18px;
   max-width: 1200px;
 }
 
-.content.cards.compact-grid > .card-box {
+.content.cards.compact-grid .card-box {
   min-height: 48px;
   padding: 8px 12px;
 }
@@ -488,9 +508,13 @@ body {
     padding-top: 40px;
   }
   /* 中等屏幕下每行最多 3 个，避免卡片过窄 */
-  .content.cards {
+  .content.cards,
+  .cards-group {
     grid-template-columns: repeat(var(--cards-per-row-md, 3), minmax(0, 1fr));
-    gap: 12px;
+  }
+  .content.cards {
+    --cards-gap: 12px;
+    --cards-group-gap: 22px;
     padding: 10px 12px 220px;
   }
 }
@@ -502,18 +526,22 @@ body {
   .topbar {
     padding: 0 12px;
   }
-  .content.cards {
+  .content.cards,
+  .cards-group {
     grid-template-columns: repeat(var(--cards-per-row-sm, 2), minmax(0, 1fr));
-    gap: 8px;
+  }
+  .content.cards {
+    --cards-gap: 8px;
+    --cards-group-gap: 18px;
   }
   /* 小屏下卡片内容纵向排列 */
-  .content.cards > .card-box {
+  .content.cards .card-box {
     min-height: 78px;
     padding: 8px 6px;
     flex-direction: column;
     justify-content: center;
   }
-  .content.cards.compact-grid > .card-box {
+  .content.cards.compact-grid .card-box {
     min-height: 46px;
     flex-direction: row;
   }
