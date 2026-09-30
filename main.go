@@ -109,6 +109,10 @@ func main() {
 			admin.GET("/exportTools", handler.ExportToolsHandler)
 			admin.POST("/importTools", handler.ImportToolsHandler)
 
+			// 导入导出：所有工具、分类、搜索引擎与 api token
+			admin.GET("/exportAll", handler.ExportAllHandler)
+			admin.POST("/importAll", handler.ImportAllHandler)
+
 			admin.PUT("/user", handler.UpdateUserHandler)
 			admin.PUT("/setting", handler.UpdateSettingHandler)
 			admin.PUT("/siteConfig", handler.UpdateSiteConfigHandler)
@@ -129,6 +133,7 @@ func main() {
 			// 搜索引擎管理路由
 			admin.GET("/searchEngine", handler.GetAllSearchEnginesHandler)
 			admin.POST("/searchEngine", handler.AddSearchEngineHandler)
+			admin.POST("/searchEngine/logo", handler.SaveSearchEngineLogoHandler)
 			admin.PUT("/searchEngine/:id", handler.UpdateSearchEngineHandler)
 			admin.DELETE("/searchEngine/:id", handler.DeleteSearchEngineHandler)
 			admin.PUT("/searchEngines/sort", handler.UpdateSearchEngineSortHandler)

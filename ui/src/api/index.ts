@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AdminData, ApiResult, Catelog, HomeData, SearchEngine, Token, Tool, UrlInfo, User } from '../types'
+import type { AdminData, ApiResult, BackupData, BackupImportResult, Catelog, HomeData, SearchEngine, Token, Tool, UrlInfo, User } from '../types'
 
 export const http = axios.create({
   baseURL: '/api',
@@ -100,13 +100,15 @@ export const fetchUpdateToolsSort = async (updates: { id: number; sort: number }
   return data
 }
 
-export const fetchExportTools = async (): Promise<Tool[]> => {
-  const { data } = await http.get<ApiResult<Tool[]>>('/admin/exportTools')
+/** 导出全部数据（工具、分类、搜索引擎、api token），图标只包含网址 */
+export const fetchExportAll = async (): Promise<BackupData> => {
+  const { data } = await http.get<ApiResult<BackupData>>('/admin/exportAll')
   return data.data
 }
 
-export const fetchImportTools = async (payload: Tool[]): Promise<ApiResult> => {
-  const { data } = await http.post<ApiResult>('/admin/importTools', payload)
+/** 导入全部数据（工具、分类、搜索引擎、api token），导入后服务端会自动获取图标 */
+export const fetchImportAll = async (payload: BackupData): Promise<ApiResult<BackupImportResult>> => {
+  const { data } = await http.post<ApiResult<BackupImportResult>>('/admin/importAll', payload)
   return data
 }
 
@@ -178,6 +180,12 @@ export const fetchGetAllSearchEngines = async (): Promise<SearchEngine[]> => {
 export const fetchAddSearchEngine = async (payload: Partial<SearchEngine>): Promise<ApiResult> => {
   const { data } = await http.post<ApiResult>('/admin/searchEngine', payload)
   return data
+}
+
+/** 把搜索引擎的 logo 外链下载保存到本地（文件名为搜索引擎名称），返回本地可访问地址 */
+export const fetchSaveSearchEngineLogo = async (payload: { name: string; logo: string }): Promise<string> => {
+  const { data } = await http.post<ApiResult<{ url: string }>>('/admin/searchEngine/logo', payload)
+  return data.data?.url ?? ''
 }
 
 export const fetchUpdateSearchEngine = async (payload: Partial<SearchEngine>): Promise<ApiResult> => {

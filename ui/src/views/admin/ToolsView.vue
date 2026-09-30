@@ -30,10 +30,14 @@
           <el-input v-model="searchString" class="filter-input" placeholder="搜索名称/描述" clearable />
           <el-button type="primary" :icon="Plus" @click="openAdd">添加</el-button>
           <el-button :icon="Refresh" @click="reload">刷新</el-button>
-          <el-upload accept=".json" :show-file-list="false" :before-upload="handleImportFile">
-            <el-button :icon="Upload">导入</el-button>
-          </el-upload>
-          <el-button :icon="Download" @click="handleExport">导出</el-button>
+          <el-tooltip content="导入备份文件（工具、分类、搜索引擎、API Token，同 id 的记录会被覆盖）" placement="top">
+            <el-upload accept=".json" :show-file-list="false" :before-upload="handleImportFile">
+              <el-button :icon="Upload" :loading="importLoading">导入</el-button>
+            </el-upload>
+          </el-tooltip>
+          <el-tooltip content="导出全部数据（工具、分类、搜索引擎、API Token），图标只保存网址" placement="top">
+            <el-button :icon="Download" @click="handleExport">导出</el-button>
+          </el-tooltip>
         </div>
       </div>
     </template>
@@ -241,9 +245,9 @@ import type { FormInstance, FormRules, UploadRawFile } from 'element-plus'
 import {
   fetchAddTool,
   fetchDeleteTool,
-  fetchExportTools,
+  fetchExportAll,
   fetchGetUrlInfo,
-  fetchImportTools,
+  fetchImportAll,
   fetchUpdateTool,
   fetchUpdateToolsSort,
   resolveError,
@@ -252,7 +256,8 @@ import { useAdminStore } from '../../stores/admin'
 import { useTableSortable } from '../../composables/useTableSortable'
 import { multiSearch } from '../../utils/match'
 import { getLogoUrl } from '../../utils/check'
-import type { Tool } from '../../types'
+import { clearSearchEngineCache } from '../../utils/searchEngine'
+import type { BackupData, Tool } from '../../types'
 
 interface ToolForm {
   id?: number
@@ -300,6 +305,8 @@ const page = ref(1)
 const pageSize = ref(10)
 /** 添加工具时是否正在抓取网址信息 */
 const urlInfoLoading = ref(false)
+/** 导入备份时是否正在请求 */
+const importLoading = ref(false)
 
 /** 每行「服务端已保存」的快照，用于判断是否被改动 / 撤销 */
 const snapshotMap = reactive<Record<number, Tool>>({})
@@ -648,6 +655,29 @@ const handleBulkCacheLogo = async () => {
 
 // ==================== 导入导出 ====================
 
+/** 把导入的文件内容整理成备份结构，兼容旧版只有工具数组的导出文件 */
+const normalizeBackup = (raw: unknown): BackupData | null => {
+  if (Array.isArray(raw)) {
+    return { version: 1, tools: raw as Tool[], catelogs: [], searchEngines: [], apiTokens: [] }
+  }
+  if (!raw || typeof raw !== 'object') {
+    return null
+  }
+  const data = raw as Partial<BackupData>
+  const backup: BackupData = {
+    version: data.version ?? 1,
+    exportedAt: data.exportedAt,
+    tools: Array.isArray(data.tools) ? data.tools : [],
+    catelogs: Array.isArray(data.catelogs) ? data.catelogs : [],
+    searchEngines: Array.isArray(data.searchEngines) ? data.searchEngines : [],
+    apiTokens: Array.isArray(data.apiTokens) ? data.apiTokens : [],
+  }
+  if (!backup.tools.length && !backup.catelogs.length && !backup.searchEngines.length && !backup.apiTokens.length) {
+    return null
+  }
+  return backup
+}
+
 const handleImportFile = (file: UploadRawFile) => {
   const reader = new FileReader()
   reader.readAsText(file)
@@ -656,26 +686,50 @@ const handleImportFile = (file: UploadRawFile) => {
     if (!content) {
       return
     }
+    let payload: BackupData | null = null
     try {
-      await fetchImportTools(JSON.parse(content as string))
-      ElMessage.success('导入成功!')
+      payload = normalizeBackup(JSON.parse(content as string))
+    } catch (error) {
+      console.error(error)
+    }
+    if (!payload) {
+      ElMessage.warning('文件内容不是合法的备份数据')
+      return
+    }
+    importLoading.value = true
+    try {
+      const res = await fetchImportAll(payload)
+      const counts = res.data
+      ElMessage.success(
+        `导入成功：工具 ${counts?.tools ?? 0} 条、分类 ${counts?.catelogs ?? 0} 条、搜索引擎 ${counts?.searchEngines ?? 0} 条、API Token ${counts?.apiTokens ?? 0} 条，图标会在后台自动获取`
+      )
     } catch (error) {
       ElMessage.warning(resolveError(error, '导入失败'))
     } finally {
+      importLoading.value = false
+      clearSearchEngineCache()
       await reload()
     }
   }
   return false
 }
 
+/** 导出文件名用的时间戳，例如 20261001-1530 */
+const exportStamp = () => {
+  const now = new Date()
+  const pad = (value: number) => `${value}`.padStart(2, '0')
+  return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`
+}
+
 const handleExport = async () => {
   try {
-    const data = await fetchExportTools()
-    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' })
+    const data = await fetchExportAll()
+    // 图标只保存网址，这里格式化后导出，方便查看与手工调整
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'tools.json'
+    a.download = `van-nav-backup-${exportStamp()}.json`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

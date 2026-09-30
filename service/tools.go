@@ -2,7 +2,6 @@ package service
 
 import (
 	"database/sql"
-	"strings"
 
 	"github.com/mereith/nav/database"
 	"github.com/mereith/nav/logger"
@@ -10,36 +9,9 @@ import (
 	"github.com/mereith/nav/utils"
 )
 
-// ImportTools 批量导入工具
-func ImportTools(data []types.Tool) {
-	var catelogs []string
-	stmt, err := database.DB.Prepare(`
-		INSERT INTO nav_table (id, name, catelog, url, logo, "desc", sort, "hide", "default")
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-		`)
-	if err != nil {
-		utils.CheckErr(err)
-		return
-	}
-	defer stmt.Close()
-
-	for _, v := range data {
-		// 过滤掉空分类，只收集有效的分类名称
-		if strings.TrimSpace(v.Catelog) != "" && !utils.In(v.Catelog, catelogs) {
-			catelogs = append(catelogs, v.Catelog)
-		}
-		_, err = stmt.Exec(v.Id, v.Name, v.Catelog, v.Url, v.Logo, v.Desc, v.Sort, v.Hide, v.Default)
-		utils.CheckErr(err)
-	}
-	for _, catelog := range catelogs {
-		AddCatelog(types.AddCatelogDto{Name: catelog, Sort: -1})
-	}
-	// 转存所有图片，异步
-	go func(data []types.Tool) {
-		for _, v := range data {
-			UpdateImg(v.Logo)
-		}
-	}(data)
+// ImportTools 批量导入工具（兼容旧的 /admin/importTools 接口，只处理工具，其余保留原样）
+func ImportTools(data []types.Tool) error {
+	return ImportBackupData(types.BackupData{Tools: data})
 }
 
 // UpdateTool 更新工具，同时更新图片表

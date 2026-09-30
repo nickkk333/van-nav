@@ -24,6 +24,54 @@ func ExportToolsHandler(c *gin.Context) {
 	})
 }
 
+// ExportAllHandler 导出所有工具、分类、搜索引擎与 api token
+// 图标只保存网址（http 外链或本地图片地址），不包含图片内容
+func ExportAllHandler(c *gin.Context) {
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "导出数据成功",
+		"data":    service.ExportBackupData(),
+	})
+}
+
+// ImportAllHandler 导入备份数据（工具、分类、搜索引擎与 api token）
+// 同 id 的记录会被覆盖，未出现在备份里的记录保持不动；导入后服务端会自动获取图片
+func ImportAllHandler(c *gin.Context) {
+	var data types.BackupData
+	if err := c.ShouldBindJSON(&data); err != nil {
+		utils.CheckErr(err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": err.Error(),
+		})
+		return
+	}
+	if len(data.Tools) == 0 && len(data.Catelogs) == 0 && len(data.SearchEngines) == 0 && len(data.ApiTokens) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": "备份文件内容为空",
+		})
+		return
+	}
+	if err := service.ImportBackupData(data); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success":      false,
+			"errorMessage": err.Error(),
+		})
+		return
+	}
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "导入数据成功",
+		"data": gin.H{
+			"tools":         len(data.Tools),
+			"catelogs":      len(data.Catelogs),
+			"searchEngines": len(data.SearchEngines),
+			"apiTokens":     len(data.ApiTokens),
+		},
+	})
+}
+
 func ImportToolsHandler(c *gin.Context) {
 	var tools []types.Tool
 	err := c.ShouldBindJSON(&tools)
@@ -35,8 +83,14 @@ func ImportToolsHandler(c *gin.Context) {
 		})
 		return
 	}
-	// 导入所有工具
-	service.ImportTools(tools)
+	// 导入所有工具（兼容旧接口，只处理工具）
+	if err := service.ImportTools(tools); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success":      false,
+			"errorMessage": err.Error(),
+		})
+		return
+	}
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "导入工具成功",
@@ -690,6 +744,51 @@ func AddSearchEngineHandler(c *gin.Context) {
 	})
 }
 
+// searchEngineLogoById 查询搜索引擎当前的 logo，用于更新/删除后清理本地图片
+func searchEngineLogoById(id int) string {
+	engines, err := database.GetAllSearchEngines()
+	if err != nil {
+		utils.CheckErr(err)
+		return ""
+	}
+	for _, engine := range engines {
+		if engine.Id == id {
+			return engine.Logo
+		}
+	}
+	return ""
+}
+
+// SaveSearchEngineLogoHandler 下载搜索引擎 logo 并保存到本地（文件名使用搜索引擎名称）
+func SaveSearchEngineLogoHandler(c *gin.Context) {
+	var data types.SaveSearchEngineLogoDto
+	if err := c.ShouldBindJSON(&data); err != nil {
+		utils.CheckErr(err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": err.Error(),
+		})
+		return
+	}
+
+	localUrl, err := service.SaveSearchEngineLogo(data.Name, data.Logo)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "logo 已保存到本地",
+		"data": gin.H{
+			"url": localUrl,
+		},
+	})
+}
+
 // 更新搜索引擎
 func UpdateSearchEngineHandler(c *gin.Context) {
 	var engine types.SearchEngine
@@ -714,6 +813,7 @@ func UpdateSearchEngineHandler(c *gin.Context) {
 	}
 	engine.Id = id
 
+	oldLogo := searchEngineLogoById(id)
 	err = database.UpdateSearchEngine(engine)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -721,6 +821,10 @@ func UpdateSearchEngineHandler(c *gin.Context) {
 			"errorMessage": err.Error(),
 		})
 		return
+	}
+	// logo 换掉（含改名后文件名变化）时删除旧的本地图片
+	if oldLogo != "" && oldLogo != engine.Logo {
+		service.RemoveLocalImage(oldLogo)
 	}
 
 	c.JSON(200, gin.H{
@@ -741,6 +845,7 @@ func DeleteSearchEngineHandler(c *gin.Context) {
 		return
 	}
 
+	oldLogo := searchEngineLogoById(id)
 	err = database.DeleteSearchEngine(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -749,6 +854,8 @@ func DeleteSearchEngineHandler(c *gin.Context) {
 		})
 		return
 	}
+	// 同时删除该搜索引擎保存在本地的 logo 图片
+	service.RemoveLocalImage(oldLogo)
 
 	c.JSON(200, gin.H{
 		"success": true,

@@ -4,9 +4,12 @@ import (
 	"crypto/tls"
 	"database/sql"
 	"encoding/base64"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -69,6 +72,65 @@ func GetImgBase64FromUrl(url string) string {
 func GetSuffixFromUrl(url string) string {
 	suffix := url[strings.LastIndex(url, "."):]
 	return suffix
+}
+
+// downloadImageLimit 单张下载图片的大小上限，避免异常大图占满内存
+const downloadImageLimit = 8 << 20
+
+// DownloadImage 下载图片，返回图片内容与扩展名（优先按 Content-Type 判断，其次按 url 后缀）
+func DownloadImage(imgUrl string) ([]byte, string, error) {
+	req, err := http.NewRequest("GET", imgUrl, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36")
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("下载图片失败，状态码 %d", res.StatusCode)
+	}
+	data, err := ioutil.ReadAll(io.LimitReader(res.Body, downloadImageLimit))
+	if err != nil {
+		return nil, "", err
+	}
+	if len(data) == 0 {
+		return nil, "", fmt.Errorf("下载到的图片内容为空")
+	}
+	return data, imageExt(res.Header.Get("Content-Type"), imgUrl), nil
+}
+
+// imageExt 根据 Content-Type 或 url 后缀推断图片扩展名，无法判断时按 png 处理
+func imageExt(contentType string, imgUrl string) string {
+	ct := strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
+	switch ct {
+	case "image/png":
+		return ".png"
+	case "image/jpeg", "image/jpg":
+		return ".jpg"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	case "image/svg+xml":
+		return ".svg"
+	case "image/x-icon", "image/vnd.microsoft.icon", "image/ico":
+		return ".ico"
+	}
+	suffix := strings.ToLower(filepath.Ext(strings.Split(imgUrl, "?")[0]))
+	switch suffix {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico":
+		return suffix
+	}
+	return ".png"
 }
 func GetMIME(suffix string) string {
 	var t string = "image/x-icon"

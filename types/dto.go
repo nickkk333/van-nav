@@ -31,7 +31,7 @@ type AddCatelogDto struct {
 	Name string `json:"name"`
 	// Sort 新建分类的落点：-1（默认）或负数排到最后；0 或留空排到最前；正数插入到该序号位置
 	// 落位后由后端把所有分类的排序值统一重排成从 1 开始依次递增
-	Sort int `json:"sort"`
+	Sort int  `json:"sort"`
 	Hide bool `json:"hide"`
 	// Default 该分类下的工具是否展示在主页默认栏
 	Default bool `json:"default"`
@@ -59,6 +59,13 @@ type AddToolDto struct {
 	Hide    bool `json:"hide"`
 	Default bool `json:"default"`
 }
+
+// SaveSearchEngineLogoDto 把搜索引擎 logo 下载保存到本地
+type SaveSearchEngineLogoDto struct {
+	Name string `json:"name"`
+	Logo string `json:"logo"`
+}
+
 type UpdateToolsSortDto struct {
 	Id   int `json:"id"`
 	Sort int `json:"sort"`

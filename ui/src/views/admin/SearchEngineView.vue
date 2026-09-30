@@ -60,13 +60,40 @@
         <el-input v-model="form.name" placeholder="例如：百度" />
       </el-form-item>
       <el-form-item label="基础 URL" prop="baseUrl">
-        <el-input v-model="form.baseUrl" placeholder="例如：https://www.baidu.com/s" />
+        <div class="url-field">
+          <el-input
+            v-model="form.baseUrl"
+            placeholder="例如：https://www.baidu.com/s"
+            @change="autoFillLogo()"
+          >
+            <template #suffix>
+              <el-icon v-if="urlInfoLoading" class="is-loading"><Loading /></el-icon>
+            </template>
+          </el-input>
+          <div class="form-tip">
+            <span>输入基础 URL 后会自动获取图标网址</span>
+            <el-button
+              link
+              type="primary"
+              :disabled="!form.baseUrl"
+              :loading="urlInfoLoading"
+              @click="autoFillLogo()"
+            >
+              重新获取
+            </el-button>
+          </div>
+        </div>
       </el-form-item>
       <el-form-item label="查询参数" prop="queryParam">
         <el-input v-model="form.queryParam" placeholder="例如：wd" />
       </el-form-item>
       <el-form-item label="Logo" prop="logo">
-        <el-input v-model="form.logo" placeholder="例如：baidu.ico 或 https://example.com/logo.png" />
+        <div class="url-field">
+          <el-input v-model="form.logo" placeholder="留空则自动获取，保存时会下载到本地" />
+          <div class="form-tip">
+            <span>确定后会把图片保存到本地，并以搜索引擎名称命名；之后都从本地读取</span>
+          </div>
+        </div>
       </el-form-item>
       <el-form-item label="启用">
         <el-switch v-model="form.enabled" inline-prompt active-text="开" inactive-text="关" />
@@ -82,12 +109,14 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Plus, Rank, Refresh } from '@element-plus/icons-vue'
+import { Loading, Plus, Rank, Refresh } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
   fetchAddSearchEngine,
   fetchDeleteSearchEngine,
   fetchGetAllSearchEngines,
+  fetchGetUrlInfo,
+  fetchSaveSearchEngineLogo,
   fetchUpdateSearchEngine,
   fetchUpdateSearchEnginesSort,
   resolveError,
@@ -116,6 +145,7 @@ const createEmptyForm = (): EngineForm => ({
 const engines = ref<SearchEngine[]>([])
 const loading = ref(false)
 const requestLoading = ref(false)
+const urlInfoLoading = ref(false)
 const showDialog = ref(false)
 const editing = ref(false)
 const tableRef = ref<any>()
@@ -148,7 +178,59 @@ const rules: FormRules = {
   ],
 }
 
-const logoUrl = (logo: string) => (logo?.startsWith('http') ? logo : `/api/img?url=${logo}`)
+/** 外链地址、本地保存的地址直接使用；只有历史数据里的「图标文件名」才走后端缓存代理 */
+const logoUrl = (logo: string) => {
+  if (!logo) {
+    return ''
+  }
+  if (logo.startsWith('http') || logo.startsWith('/')) {
+    return logo
+  }
+  return `/api/img?url=${logo}`
+}
+
+/** 输入基础 URL 后自动获取 logo 网址 */
+const autoFillLogo = async () => {
+  const target = form.baseUrl.trim()
+  if (!target) {
+    return
+  }
+  if (!/^https?:\/\//.test(target)) {
+    ElMessage.warning('基础 URL 必须以 http:// 或 https:// 开头')
+    return
+  }
+  urlInfoLoading.value = true
+  try {
+    const info = await fetchGetUrlInfo(target)
+    const logo = (info?.logo || '').trim()
+    if (logo) {
+      form.logo = logo
+      ElMessage.success('已自动获取 logo 网址')
+    } else {
+      ElMessage.warning('没能读取到网站图标，请手动填写 logo')
+    }
+  } catch (error) {
+    ElMessage.warning(resolveError(error, '获取 logo 失败'))
+  } finally {
+    urlInfoLoading.value = false
+  }
+}
+
+/** 确定时把外链 logo 下载保存到本地（文件名使用搜索引擎名称） */
+const saveLogoToLocal = async () => {
+  const logo = (form.logo || '').trim()
+  if (!logo.startsWith('http')) {
+    return
+  }
+  try {
+    const localUrl = await fetchSaveSearchEngineLogo({ name: form.name.trim(), logo })
+    if (localUrl) {
+      form.logo = localUrl
+    }
+  } catch (error) {
+    ElMessage.warning(resolveError(error, 'logo 保存到本地失败，将保留原地址'))
+  }
+}
 
 const loadEngines = async () => {
   loading.value = true
@@ -217,6 +299,8 @@ const handleSubmit = async () => {
   }
   requestLoading.value = true
   try {
+    // 确定时先把外链 logo 下载保存到本地（文件名使用搜索引擎名称）
+    await saveLogoToLocal()
     if (editing.value) {
       await fetchUpdateSearchEngine({ ...form })
       ElMessage.success('更新成功!')

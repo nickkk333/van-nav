@@ -75,6 +75,27 @@ export interface User {
   password?: string
 }
 
+// 导入导出的备份数据：所有工具、分类、搜索引擎与 api token
+// 图标只保存网址（不包含图片内容），导入后服务端会按网址自动获取图片
+export interface BackupData {
+  /** 备份文件格式版本 */
+  version: number
+  /** 导出时间（RFC3339） */
+  exportedAt?: string
+  tools: Tool[]
+  catelogs: Catelog[]
+  searchEngines: SearchEngine[]
+  apiTokens: Token[]
+}
+
+/** 导入结果：各类数据导入的条数 */
+export interface BackupImportResult {
+  tools: number
+  catelogs: number
+  searchEngines: number
+  apiTokens: number
+}
+
 export interface ApiResult<T = any> {
   success: boolean
   message?: string

@@ -66,6 +66,19 @@ type SearchEngine struct {
 	Enabled    bool   `json:"enabled"`
 }
 
+// BackupData 导入导出的备份数据：所有工具、分类、搜索引擎与 api token
+// 图标只保存网址（不包含图片内容），导入后由服务端按网址自动重新获取
+type BackupData struct {
+	// Version 备份文件格式版本
+	Version int `json:"version"`
+	// ExportedAt 导出时间（RFC3339）
+	ExportedAt    string         `json:"exportedAt"`
+	Tools         []Tool         `json:"tools"`
+	Catelogs      []Catelog      `json:"catelogs"`
+	SearchEngines []SearchEngine `json:"searchEngines"`
+	ApiTokens     []Token        `json:"apiTokens"`
+}
+
 // 网站配置模型
 type SiteConfig struct {
 	Id          int  `json:"id"`
