@@ -126,6 +126,11 @@ export const fetchDeleteCatelog = async (id: number): Promise<ApiResult> => {
   return data
 }
 
+export const fetchUpdateCatelogsSort = async (updates: { id: number; sort: number }[]): Promise<ApiResult> => {
+  const { data } = await http.put<ApiResult>('/admin/catelogs/sort', updates)
+  return data
+}
+
 // 设置
 export const fetchUpdateSetting = async (payload: Record<string, unknown>): Promise<ApiResult> => {
   const { data } = await http.put<ApiResult>('/admin/setting', payload)

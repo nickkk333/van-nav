@@ -77,6 +77,9 @@ components:
           type: integer
         hide:
           type: boolean
+        default:
+          type: boolean
+          description: 该分类下的工具是否展示在主页默认栏
 
     UpdateCatelogDto:
       type: object
@@ -87,8 +90,14 @@ components:
           type: integer
         name:
           type: string
-        desc:
-          type: string
+        sort:
+          type: integer
+        hide:
+          type: boolean
+          description: 变化时会同步该分类下所有工具的隐藏状态
+        default:
+          type: boolean
+          description: 变化时会同步该分类下所有工具的默认栏展示状态
 
     Setting:
       type: object
@@ -509,8 +518,16 @@ paths:
               properties:
                 name:
                   type: string
-                desc:
-                  type: string
+                sort:
+                  type: integer
+                  description: >-
+                    新建分类的排序落点：-1（默认）或负数排到最后；0 或留空排到最前；正数插入到该序号位置。
+                    落位后后端会把所有分类的排序值重排成从 1 开始依次递增
+                hide:
+                  type: boolean
+                default:
+                  type: boolean
+                  description: 该分类下的工具是否展示在主页默认栏
       responses:
         "200":
           description: 添加分类成功
@@ -522,6 +539,7 @@ paths:
   /api/admin/catelog/{id}:
     delete:
       summary: 删除分类
+      description: 删除分类时会同步删除该分类下的所有工具
       security:
         - BearerAuth: []
       parameters:
@@ -540,6 +558,7 @@ paths:
 
     put:
       summary: 更新分类
+      description: 分类名称变更时同步修改该分类下工具的分类名称；隐藏状态、默认开关变化时分别同步该分类下所有工具的隐藏状态与默认栏展示状态；保存后自动把所有分类的排序值重排为从 1 开始依次递增
       security:
         - BearerAuth: []
       parameters:
@@ -561,6 +580,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StandardResponse"
+
+  /api/admin/catelogs/sort:
+    put:
+      summary: 批量更新分类排序
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  sort:
+                    type: integer
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse"
+        "400":
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/admin/apiToken:
     post:

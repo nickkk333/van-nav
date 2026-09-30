@@ -493,17 +493,17 @@ func AddCatelogHandler(c *gin.Context) {
 }
 
 func DeleteCatelogHandler(c *gin.Context) {
-	// 删除分类
+	// 删除分类（同时删除该分类下的所有工具）
 	id := c.Param("id")
-	sql_delete_catelog := `
-		DELETE FROM nav_catelog WHERE id = ?;
-		`
-	stmt, err := database.DB.Prepare(sql_delete_catelog)
-	utils.CheckErr(err)
-	res, err := stmt.Exec(id)
-	utils.CheckErr(err)
-	_, err = res.RowsAffected()
-	utils.CheckErr(err)
+	err := service.DeleteCatelog(id)
+	if err != nil {
+		utils.CheckErr(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success":      false,
+			"errorMessage": err.Error(),
+		})
+		return
+	}
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "删除分类成功",
@@ -526,6 +526,33 @@ func UpdateCatelogHandler(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "更新分类成功",
+	})
+}
+
+func UpdateCatelogsSortHandler(c *gin.Context) {
+	var updates []types.UpdateCatelogsSortDto
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		utils.CheckErr(err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": err.Error(),
+		})
+		return
+	}
+
+	err := service.UpdateCatelogsSort(updates)
+	if err != nil {
+		utils.CheckErr(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success":      false,
+			"errorMessage": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "更新排序成功",
 	})
 }
 

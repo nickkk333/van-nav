@@ -32,7 +32,7 @@ func ImportTools(data []types.Tool) {
 		utils.CheckErr(err)
 	}
 	for _, catelog := range catelogs {
-		AddCatelog(types.AddCatelogDto{Name: catelog})
+		AddCatelog(types.AddCatelogDto{Name: catelog, Sort: -1})
 	}
 	// 转存所有图片，异步
 	go func(data []types.Tool) {

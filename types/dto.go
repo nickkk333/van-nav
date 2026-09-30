@@ -23,12 +23,18 @@ type UpdateCatelogDto struct {
 	Name string `json:"name"`
 	Sort int    `json:"sort"`
 	Hide bool   `json:"hide"`
+	// Default 该分类下的工具是否展示在主页默认栏，变化时会同步该分类下所有工具
+	Default bool `json:"default"`
 }
 
 type AddCatelogDto struct {
 	Name string `json:"name"`
-	Sort int    `json:"sort"`
-	Hide bool   `json:"hide"`
+	// Sort 新建分类的落点：-1（默认）或负数排到最后；0 或留空排到最前；正数插入到该序号位置
+	// 落位后由后端把所有分类的排序值统一重排成从 1 开始依次递增
+	Sort int `json:"sort"`
+	Hide bool `json:"hide"`
+	// Default 该分类下的工具是否展示在主页默认栏
+	Default bool `json:"default"`
 }
 type UpdateToolDto struct {
 	Id      int    `json:"id"`
@@ -54,6 +60,12 @@ type AddToolDto struct {
 	Default bool `json:"default"`
 }
 type UpdateToolsSortDto struct {
+	Id   int `json:"id"`
+	Sort int `json:"sort"`
+}
+
+// UpdateCatelogsSortDto 批量更新分类排序
+type UpdateCatelogsSortDto struct {
 	Id   int `json:"id"`
 	Sort int `json:"sort"`
 }

@@ -134,6 +134,22 @@ func InitDB() {
 	if !columnExists("nav_catelog", "hide") {
 		DB.Exec(`ALTER TABLE nav_catelog ADD COLUMN hide BOOLEAN;`)
 	}
+
+	// 分类表表结构升级-20250929-【分类默认栏开关】
+	if !columnExists("nav_catelog", "default") {
+		DB.Exec(`ALTER TABLE nav_catelog ADD COLUMN "default" BOOLEAN;`)
+		// 用该分类下工具的默认状态初始化：没有工具或工具全部开启视为开启
+		DB.Exec(`
+			UPDATE nav_catelog SET "default" = (
+				SELECT CASE
+					WHEN COUNT(*) = 0 THEN 1
+					WHEN SUM(CASE WHEN IFNULL(t."default", 0) = 1 THEN 1 ELSE 0 END) = COUNT(*) THEN 1
+					ELSE 0
+				END
+				FROM nav_table t WHERE t.catelog = nav_catelog.name
+			);
+			`)
+	}
 	migration_2024_12_13() // 只涉及 nav_catelog 表，所以可以放在这里
 
 	// api token 表
