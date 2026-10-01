@@ -57,7 +57,7 @@ const showLoading = ref(true)
 let timer: ReturnType<typeof setTimeout> | null = null
 
 const isToggleCard = computed(() => props.tool.url === 'toggleJumpTarget')
-const imageSrc = computed(() => (isToggleCard.value ? props.tool.logo : getLogoUrl(props.tool.logo, props.tool.url)))
+const imageSrc = computed(() => (isToggleCard.value ? props.tool.logo : getLogoUrl(props.tool.logo)))
 const target = computed(() => (getJumpTarget() === 'blank' ? '_blank' : '_self'))
 const showNumIndex = computed(() => props.index < 10 && props.isSearching)
 

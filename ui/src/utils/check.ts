@@ -2,13 +2,13 @@ export const isLogin = () => {
   return Boolean(localStorage.getItem('_token'))
 }
 
-/** 网络图片走后端代理，避免跨域和加载慢 */
-export const getLogoUrl = (url: string, domain: string) => {
+/** 网络图片走后端代理，避免跨域和加载慢；url 需要转义，否则带 ?a=1&b=2 的地址会被 & 截断 */
+export const getLogoUrl = (url: string) => {
   if (!url) {
-    return 'https://t0.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&size=192&url=' + domain
+    return ''
   }
   if (url.startsWith('http')) {
-    return `/api/img?url=${url}`
+    return `/api/img?url=${encodeURIComponent(url)}`
   }
   return url
 }

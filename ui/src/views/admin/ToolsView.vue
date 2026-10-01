@@ -71,7 +71,7 @@
       <el-table-column label="名称" min-width="160">
         <template #default="{ row }">
           <div class="tool-name-cell">
-            <el-image v-if="row.logo" class="tool-logo" :src="getLogoUrl(row.logo, row.url)" fit="cover" lazy>
+            <el-image v-if="row.logo" class="tool-logo" :src="getLogoUrl(row.logo)" fit="cover" lazy>
               <template #error>
                 <div class="tool-logo-error">🖼️</div>
               </template>
