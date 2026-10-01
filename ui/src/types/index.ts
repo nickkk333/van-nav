@@ -40,7 +40,7 @@ export interface Setting {
   hideGithub: boolean
   hideToggleJumpTarget: boolean
   jumpTargetBlank: boolean
-  /** 首页背景图地址（后台上传返回的 url 或外链地址），留空表示不展示背景图 */
+  /** 首页背景图地址（后台上传返回的 url 或外链地址），留空时前台使用必应每日壁纸作为背景 */
   backgroundImage: string
 }
 

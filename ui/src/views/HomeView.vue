@@ -66,7 +66,7 @@ import { useSiteStore } from '../stores/site'
 import { displayCatelog } from '../utils/check'
 import { multiSearch } from '../utils/match'
 import { generateSearchEngineCards } from '../utils/searchEngine'
-import { DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW, initServerJumpTargetConfig, toggleJumpTarget } from '../utils/setting'
+import { DEFAULT_BACKGROUND_IMAGE, DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW, initServerJumpTargetConfig, toggleJumpTarget } from '../utils/setting'
 import type { Tool } from '../types'
 
 const DEFAULT_TAG = '默认'
@@ -86,10 +86,10 @@ const siteConfig = computed(() => site.data.siteConfig)
 const isSearching = computed(() => searchString.value.trim() !== '')
 const showGithub = computed(() => setting.value.hideGithub !== true)
 
-/** 首页全屏背景图：地址来自后台设置，留空时保持纯色背景 */
+/** 首页全屏背景图：优先使用后台配置的地址，未配置时使用服务端下载的必应每日壁纸 */
 const bgStyle = computed<CSSProperties>(() => {
   // 过滤掉可能破坏 url() 语法的字符，避免异常地址影响整个样式
-  const url = (setting.value.backgroundImage ?? '').replace(/["'()\\\s]/g, '')
+  const url = (setting.value.backgroundImage || DEFAULT_BACKGROUND_IMAGE).replace(/["'()\\\s]/g, '')
   return url ? { backgroundImage: `url("${url}")` } : {}
 })
 

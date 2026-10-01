@@ -134,7 +134,9 @@ components:
           type: boolean
         backgroundImage:
           type: string
-          description: 首页背景图地址，可为后台上传接口返回的 url 或外链地址，留空表示不展示背景图
+          description: >-
+            首页背景图地址，可为后台上传接口返回的 url 或外链地址。
+            留空时前台会使用服务端保存的必应每日壁纸（/api/bingWallpaper）
 
     SiteConfig:
       description: 站点展示配置
@@ -527,6 +529,25 @@ paths:
                 format: binary
         "404":
           description: 图片不存在
+
+  /api/bingWallpaper:
+    get:
+      security: []
+      summary: 获取必应每日壁纸
+      description: >-
+        返回服务端保存到 data 目录的必应每日壁纸（文件名为「必应壁纸 + 图片格式后缀」）。
+        服务端启动时会自动下载当天的壁纸，前台未配置首页背景图时用它作为全屏背景图；
+        本地还没有图片时会先同步下载一次再返回，下载失败返回 404。
+      responses:
+        "200":
+          description: 成功获取必应每日壁纸
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: 壁纸不存在（下载失败或未联网）
 
   /manifest.json:
     get:

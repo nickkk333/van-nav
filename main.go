@@ -20,6 +20,7 @@ import (
 	"github.com/mereith/nav/handler"
 	"github.com/mereith/nav/logger"
 	"github.com/mereith/nav/middleware"
+	"github.com/mereith/nav/service"
 )
 
 const INDEX = "index.html"
@@ -74,6 +75,10 @@ func main() {
 
 	database.InitDB()
 
+	// 启动时下载必应每日壁纸到 data 目录，作为前台首页的默认背景图
+	// 异步执行：离线或下载失败时只记录日志，不阻塞、不影响服务启动
+	go service.DownloadBingWallpaper()
+
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedExtensions([]string{".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".svg"})))
@@ -92,6 +97,8 @@ func main() {
 		api.POST("/login", handler.LoginHandler)
 		api.GET("/logout", handler.LogoutHandler)
 		api.GET("/img", handler.GetLogoImgHandler)
+		// 本地保存的必应每日壁纸（前台未配置背景图时的默认背景）
+		api.GET("/bingWallpaper", handler.GetBingWallpaperHandler)
 		// 后台上传的图片（背景图 / logo 等）
 		api.GET("/uploadedImage/:name", handler.GetUploadedImageHandler)
 

@@ -12,7 +12,7 @@ type Setting struct {
 	HideGithub           bool   `json:"hideGithub"`
 	HideToggleJumpTarget bool   `json:"hideToggleJumpTarget"`
 	JumpTargetBlank      bool   `json:"jumpTargetBlank"`
-	// BackgroundImage 首页背景图地址：后台上传返回的 url 或外链地址，留空表示不显示背景图
+	// BackgroundImage 首页背景图地址：后台上传返回的 url 或外链地址，留空时前台使用必应每日壁纸作为背景
 	BackgroundImage string `json:"backgroundImage"`
 }
 

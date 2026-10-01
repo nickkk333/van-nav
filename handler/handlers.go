@@ -318,6 +318,26 @@ func UploadImageHandler(c *gin.Context) {
 	})
 }
 
+// GetBingWallpaperHandler 输出本地保存的必应每日壁纸（前台未配置背景图时的默认背景）
+func GetBingWallpaperHandler(c *gin.Context) {
+	path, ok := service.GetBingWallpaperPath()
+	if !ok {
+		// 本地还没有壁纸（首次启动且后台下载未完成 / 之前下载失败）时，同步下载一次再返回
+		service.DownloadBingWallpaper()
+		path, ok = service.GetBingWallpaperPath()
+	}
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success":      false,
+			"errorMessage": "必应每日壁纸不存在",
+		})
+		return
+	}
+	// 壁纸每天都会更新，但文件名不变，因此不做长时间缓存
+	c.Header("Cache-Control", "no-cache")
+	c.File(path)
+}
+
 // GetUploadedImageHandler 输出后台上传的图片
 func GetUploadedImageHandler(c *gin.Context) {
 	path, ok := service.GetUploadedImagePath(c.Param("name"))

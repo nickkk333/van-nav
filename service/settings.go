@@ -50,7 +50,7 @@ func GetSetting() types.Setting {
 	if jumpTargetBlank.Valid {
 		setting.JumpTargetBlank = jumpTargetBlank.Bool
 	}
-	// 未设置时前台不展示背景图
+	// 未设置时前台使用必应每日壁纸作为背景图
 	setting.BackgroundImage = backgroundImage.String
 	return setting
 }

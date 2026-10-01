@@ -35,13 +35,13 @@
         </el-form-item>
         <el-form-item label="首页背景图" prop="backgroundImage">
           <el-tooltip
-            content="上传或填写图片地址，前台首页会作为全屏背景图；留空则不展示背景图"
+            content="上传或填写图片地址，前台首页会作为全屏背景图；留空则使用必应每日壁纸"
             placement="top"
           >
             <ImageUploader
               v-model="settingForm.backgroundImage"
               preview
-              placeholder="上传图片或输入图片地址，留空则不展示背景图"
+              placeholder="上传图片或输入图片地址，留空则使用必应每日壁纸"
             />
           </el-tooltip>
         </el-form-item>

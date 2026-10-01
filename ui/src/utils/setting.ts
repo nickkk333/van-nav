@@ -6,6 +6,12 @@ export const DEFAULT_CARDS_PER_ROW = 5
 /** 首页每行展示的网站数量上限（与后端 service.MaxCardsPerRow 保持一致） */
 export const MAX_CARDS_PER_ROW = 12
 
+/**
+ * 首页默认背景图：未在后台配置背景图时使用的必应每日壁纸
+ * 图片由服务端启动时下载保存到 data 目录（必应壁纸.jpg），此处地址与后端路由 /api/bingWallpaper 保持一致
+ */
+export const DEFAULT_BACKGROUND_IMAGE = '/api/bingWallpaper'
+
 const JUMP_TARGET_KEY = 'jumpTarget'
 const INITED_KEY = 'initedServerJumpTarget'
 
