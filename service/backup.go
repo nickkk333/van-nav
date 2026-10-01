@@ -248,25 +248,29 @@ func fetchImportedImages(tools []types.Tool, engines []types.SearchEngine) {
 	}
 }
 
-// refreshImportedToolLogo 按工具 logo 网址重新缓存图片
-// 网址为空或本地图片在本机不存在（换机器导入）时，重新抓取网站图标
+// refreshImportedToolLogo 导入后按统一规则重新获取工具图标
+// logo 为空、图片外链、或本机并不存在的本地图片时走 NormalizeToolLogo：
+// 先抓网站图标（goscraper），失败用 gstatic 兜底，拿到就下载保存到本地并把 logo 改成本地地址，
+// 都拿不到则把 logo 置空（前台显示默认图标 default.png）
 func refreshImportedToolLogo(tool types.Tool) {
 	if tool.Id <= 0 {
 		return
 	}
 	logo := strings.TrimSpace(tool.Logo)
-	if logo == "" || needFetchLogo(logo) {
-		url := strings.TrimSpace(tool.Url)
-		if url == "" {
-			return
-		}
-		LazyFetchLogo(url, int64(tool.Id))
+	if !needRefreshToolLogo(logo) {
 		return
 	}
-	// 外链图片缓存到数据库，首页与后台直接读缓存
-	if strings.HasPrefix(logo, "http://") || strings.HasPrefix(logo, "https://") {
-		UpdateImg(logo)
+	newLogo := NormalizeToolLogo(tool.Name, tool.Url, logo)
+	if newLogo == logo {
+		return
 	}
+	// 只更新 logo 字段，避免覆盖导入后又被改过的其他字段
+	if _, err := database.DB.Exec(`UPDATE nav_table SET logo = ? WHERE id = ?;`, newLogo, tool.Id); err != nil {
+		logger.LogError("导入后更新工具 logo 失败: %s", err)
+		return
+	}
+	// 备份里的本地图片已经不再被这张记录引用（换了后缀等），清理掉，还有别的工具在用时不删
+	RemoveToolLogoIfUnused(logo)
 }
 
 // refreshImportedSearchEngineLogo 按搜索引擎 logo 网址把外链图片下载保存到本地

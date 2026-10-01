@@ -41,29 +41,44 @@ func In(target string, str_array []string) bool {
 	return false
 }
 
+// GetImgBase64FromUrl 下载远程图片并转成 base64，失败时返回空字符串
+// 只用于把外链图片缓存到数据库，网络不通、地址失效等情况属于正常现象，
+// 这里返回空字符串、由调用方跳过缓存即可，不能当成代码异常打印堆栈
 func GetImgBase64FromUrl(url string) string {
 	imgUrl := url
 	//获取远端图片
 	req, err := http.NewRequest("GET", imgUrl, nil)
 	if err != nil {
-		CheckErr(err)
+		logger.LogError("图片地址不合法，跳过缓存：%s", err)
 		return ""
 	}
 	req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36")
 	client := &http.Client{
+		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		CheckErr(err)
+		logger.LogError("下载远程图片失败，跳过缓存：%s", err)
 		return ""
 	}
 	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		logger.LogError("下载远程图片失败（状态码 %d），跳过缓存：%s", res.StatusCode, imgUrl)
+		return ""
+	}
 
-	// 读取获取的[]byte数据
-	data, _ := ioutil.ReadAll(res.Body)
+	// 读取获取的[]byte数据（限制大小，避免异常大图占满内存）
+	data, err := io.ReadAll(io.LimitReader(res.Body, downloadImageLimit))
+	if err != nil {
+		logger.LogError("读取远程图片失败，跳过缓存：%s", err)
+		return ""
+	}
+	if len(data) == 0 {
+		return ""
+	}
 
 	imageBase64 := base64.StdEncoding.EncodeToString(data)
 	return imageBase64

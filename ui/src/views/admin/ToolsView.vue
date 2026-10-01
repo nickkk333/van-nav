@@ -11,14 +11,14 @@
                 <el-button link type="danger">删除</el-button>
               </template>
             </el-popconfirm>
-            <el-popconfirm title="确定重置这些的图标吗？（会自动获取网站默认的）" @confirm="handleBulkResetLogo">
+            <el-popconfirm title="确定重置这些的图标吗？（清空 logo 后按网址重新抓取网站图标，抓不到时显示默认图片 default.png）" @confirm="handleBulkResetLogo">
               <template #reference>
-                <el-button link type="primary">重置默认图标</el-button>
+                <el-button link type="primary" :loading="bulkLoading">重置默认图标</el-button>
               </template>
             </el-popconfirm>
-            <el-popconfirm title="确定重新缓存这些的图标吗？（会自动获取图标缓存到数据库）" @confirm="handleBulkCacheLogo">
+            <el-popconfirm title="确定重新获取这些的图标吗？（会按工具网址重新抓取图标并下载到本地，抓不到时显示默认图片 default.png）" @confirm="handleBulkCacheLogo">
               <template #reference>
-                <el-button link type="primary">重置缓存图标</el-button>
+                <el-button link type="primary" :loading="bulkLoading">重置缓存图标</el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -71,7 +71,8 @@
       <el-table-column label="名称" min-width="160">
         <template #default="{ row }">
           <div class="tool-name-cell">
-            <el-image v-if="row.logo" class="tool-logo" :src="getLogoUrl(row.logo)" fit="cover" lazy>
+            <!-- logo 为空时显示默认图标 default.png（由 getLogoUrl 处理），加载失败再显示占位图 -->
+            <el-image class="tool-logo" :src="getLogoUrl(row.logo)" fit="cover" lazy>
               <template #error>
                 <div class="tool-logo-error">🖼️</div>
               </template>
@@ -107,13 +108,16 @@
         <template #header>
           <span class="column-with-tip">
             logo 网址
-            <el-tooltip content="为空则保存后自动获取网站图标" placement="top">
+            <el-tooltip
+              content="留空、填图片外链（http://、https://、// 开头）或本机不存在的本地图片时，保存后会先抓取网站图标（失败用 gstatic 兜底）并下载到 data 目录（文件名用工具名称），logo 改为本地地址；都拿不到时置空，前台显示默认图片 default.png"
+              placement="top"
+            >
               <el-icon><QuestionFilled /></el-icon>
             </el-tooltip>
           </span>
         </template>
         <template #default="{ row }">
-          <el-input v-model="row.logo" placeholder="留空则自动获取" @change="saveRow(row)" />
+          <el-input v-model="row.logo" placeholder="留空或填外链会按网址重新获取图标" @change="saveRow(row)" />
         </template>
       </el-table-column>
       <el-table-column width="76" align="center">
@@ -200,7 +204,7 @@
         <el-input v-model="addForm.name" placeholder="请输入工具名称" />
       </el-form-item>
       <el-form-item label="logo 网址" prop="logo">
-        <el-input v-model="addForm.logo" placeholder="请输入 logo url，为空则自动获取" />
+        <el-input v-model="addForm.logo" placeholder="留空或填外链都会按网址获取网站图标并保存到本地" />
       </el-form-item>
       <el-form-item label="分类" prop="catelog">
         <el-select v-model="addForm.catelog" placeholder="请选择分类" style="width: 100%">
@@ -300,6 +304,8 @@ const searchString = ref('')
 const catelogName = ref('')
 const selectedRows = ref<Tool[]>([])
 const requestLoading = ref(false)
+// 批量重置/获取图标时逐个请求（每个都要抓取并下载图标），用 loading 避免重复点击
+const bulkLoading = ref(false)
 const showAdd = ref(false)
 const page = ref(1)
 const pageSize = ref(10)
@@ -476,6 +482,10 @@ const saveRow = async (row: Tool) => {
     ElMessage.warning(errorMessage)
     return
   }
+  // logo 为空、图片外链（http://、https://、// 开头）时后端会重新抓取网站图标并下载到本地，
+  // 保存接口返回时 logo 已经是最终地址，重新拉一次列表就能看到
+  const logo = String(row.logo ?? '').trim()
+  const logoNeedRefresh = logo === '' || /^(https?:)?\/\//.test(logo)
   savingMap[row.id] = true
   try {
     const res = await fetchUpdateTool({
@@ -490,13 +500,9 @@ const saveRow = async (row: Tool) => {
     }
     snapshotMap[row.id] = pickRow(row)
     ElMessage({ message: '已保存', type: 'success', grouping: true, duration: 1500 })
-    // logo 为空时后端会去抓取图标，稍后刷新一次拿到新图标
-    if (!row.logo) {
-      setTimeout(() => {
-        if (!isDirty(row)) {
-          reload()
-        }
-      }, 3000)
+    // 后端换掉了 logo（本地地址/置空）时重新拉一次列表同步最新地址
+    if (logoNeedRefresh) {
+      await reload()
     }
   } catch (error) {
     ElMessage.warning(resolveError(error, '更新失败'))
@@ -591,10 +597,10 @@ const handleCreate = async () => {
       ElMessage.warning(res.errorMessage || '添加失败')
       return
     }
-    ElMessage.success('添加成功! Logo 将在 3 秒后刷新并加载！')
+    ElMessage.success('添加成功!')
     showAdd.value = false
+    // 后端保存时已经把 logo 处理好（本地地址或置空），重新拉一次列表即可看到
     await reload()
-    setTimeout(reload, 3000)
   } catch (error) {
     ElMessage.warning(resolveError(error, '添加失败'))
   } finally {
@@ -630,27 +636,40 @@ const handleBulkDelete = async () => {
 }
 
 const handleBulkResetLogo = async () => {
-  for (const each of selectedRows.value) {
-    try {
-      await fetchUpdateTool({ ...each, logo: '' })
-    } catch (error) {
-      console.error(error)
+  bulkLoading.value = true
+  try {
+    for (const each of selectedRows.value) {
+      try {
+        // logo 传空：后端会按工具网址重新抓取图标，抓不到则置空（前台显示默认图标）
+        await fetchUpdateTool({ ...each, logo: '' })
+      } catch (error) {
+        console.error(error)
+      }
     }
+    ElMessage.success('重置成功!')
+    // 每个请求返回时图标已经处理好，重新拉一次列表即可看到
+    await reload()
+  } finally {
+    bulkLoading.value = false
   }
-  ElMessage.success('重置成功!')
-  await reload()
 }
 
 const handleBulkCacheLogo = async () => {
-  for (const each of selectedRows.value) {
-    try {
-      await fetchUpdateTool(each)
-    } catch (error) {
-      console.error(error)
+  bulkLoading.value = true
+  try {
+    for (const each of selectedRows.value) {
+      try {
+        // 原样提交：logo 为空/外链时后端会按网址抓取图标并下载到本地
+        await fetchUpdateTool(each)
+      } catch (error) {
+        console.error(error)
+      }
     }
+    ElMessage.success('获取成功!')
+    await reload()
+  } finally {
+    bulkLoading.value = false
   }
-  ElMessage.success('缓存成功!')
-  await reload()
 }
 
 // ==================== 导入导出 ====================
@@ -701,7 +720,7 @@ const handleImportFile = (file: UploadRawFile) => {
       const res = await fetchImportAll(payload)
       const counts = res.data
       ElMessage.success(
-        `导入成功：工具 ${counts?.tools ?? 0} 条、分类 ${counts?.catelogs ?? 0} 条、搜索引擎 ${counts?.searchEngines ?? 0} 条、API Token ${counts?.apiTokens ?? 0} 条，图标会在后台自动获取`
+        `导入成功：工具 ${counts?.tools ?? 0} 条、分类 ${counts?.catelogs ?? 0} 条、搜索引擎 ${counts?.searchEngines ?? 0} 条、API Token ${counts?.apiTokens ?? 0} 条，图标会在后台按网址重新抓取（抓不到时显示默认图片，稍后点「刷新」查看）`
       )
     } catch (error) {
       ElMessage.warning(resolveError(error, '导入失败'))

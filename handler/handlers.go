@@ -443,7 +443,10 @@ func AddToolHandler(c *gin.Context) {
 		return
 	}
 
-	logger.LogInfo("%s 获取 logo: %s", data.Name, data.Logo)
+	// logo 需要重新获取时（为空、图片外链、本机不存在的本地图片）：
+	// 先抓网站图标，抓不到用 gstatic 兜底，拿到就下载到 data/images 并把 logo 改成本地地址，
+	// 都拿不到则把 logo 置空，前台显示默认图标 default.png
+	data.Logo = service.NormalizeToolLogo(data.Name, data.Url, data.Logo)
 	// 排序落点与全表排序值重排都由 service.AddTool 处理：
 	// -1（默认）或负数排到最后；0 或留空排到最前；正数插入到该序号位置，最终排序值从 1 开始依次递增
 	id, err := service.AddTool(data)
@@ -454,9 +457,6 @@ func AddToolHandler(c *gin.Context) {
 			"errorMessage": err.Error(),
 		})
 		return
-	}
-	if data.Logo == "" {
-		go service.LazyFetchLogo(data.Url, id)
 	}
 	c.JSON(200, gin.H{
 		"success": true,
@@ -470,6 +470,10 @@ func AddToolHandler(c *gin.Context) {
 func DeleteToolHandler(c *gin.Context) {
 	// 删除工具
 	id := c.Param("id")
+	// 先取出 logo，删除记录后就查不到了：数据库里的图片缓存和本地保存的图片都要清理
+	numberId, err := strconv.Atoi(id)
+	utils.CheckErr(err)
+	url1 := service.GetToolLogoUrlById(numberId)
 	sql_delete_tool := `
 		DELETE FROM nav_table WHERE id = ?;
 		`
@@ -480,9 +484,6 @@ func DeleteToolHandler(c *gin.Context) {
 	_, err = res.RowsAffected()
 	utils.CheckErr(err)
 	// 删除工具的 logo，如果有
-	numberId, err := strconv.Atoi(id)
-	utils.CheckErr(err)
-	url1 := service.GetToolLogoUrlById(numberId)
 	urlEncoded := url.QueryEscape(url1)
 	sql_delete_tool_img := `
 		DELETE FROM nav_img WHERE url = ?;
@@ -493,6 +494,8 @@ func DeleteToolHandler(c *gin.Context) {
 	utils.CheckErr(err)
 	_, err = res.RowsAffected()
 	utils.CheckErr(err)
+	// 同时删除该工具保存在本地的 logo 图片（还有别的工具在用时不删）
+	service.RemoveToolLogoIfUnused(url1)
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "删除成功",
@@ -535,10 +538,15 @@ func UpdateToolHandler(c *gin.Context) {
 		})
 		return
 	}
+	// logo 需要重新获取时（为空、图片外链、本机不存在的本地图片）：
+	// 先抓网站图标，抓不到用 gstatic 兜底，拿到就下载到 data/images 并把 logo 改成本地地址，
+	// 都拿不到则把 logo 置空，前台显示默认图标 default.png
+	data.Logo = service.NormalizeToolLogo(data.Name, data.Url, data.Logo)
+	oldLogo := service.GetToolLogoUrlById(data.Id)
 	service.UpdateTool(data)
-	if data.Logo == "" {
-		logger.LogInfo("%s 获取 logo: %s", data.Name, data.Logo)
-		go service.LazyFetchLogo(data.Url, int64(data.Id))
+	// logo 换掉（含改名后文件名变化）时删除旧的本地图片
+	if oldLogo != "" && oldLogo != data.Logo {
+		service.RemoveToolLogoIfUnused(oldLogo)
 	}
 
 	c.JSON(200, gin.H{

@@ -154,33 +154,58 @@ func RemoveLocalImage(url string) {
 // SaveSearchEngineLogo 把搜索引擎的 logo 外链下载保存到本地，文件名使用搜索引擎名称，返回可访问 url
 // 传入的 logo 不是外链（内置图标文件名或已保存到本地的地址）时不做处理，返回空字符串
 func SaveSearchEngineLogo(engineName string, logoUrl string) (string, error) {
-	logoUrl = strings.TrimSpace(logoUrl)
-	if logoUrl == "" {
+	return saveRemoteImageLocal(SafeImageFileName(engineName, "engine"), logoUrl, false)
+}
+
+// SaveToolLogo 把工具 logo 的图片下载保存到本地（data/images），文件名使用工具名称去掉特殊字符后的结果，返回可访问 url
+// 图片后缀保持不变（网址里的后缀优先）；传入的 logo 不是外链（已保存到本地的地址）时不做处理，返回空字符串
+func SaveToolLogo(toolName string, logoUrl string) (string, error) {
+	return saveRemoteImageLocal(SafeImageFileName(toolName, "tool"), logoUrl, true)
+}
+
+// saveRemoteImageLocal 把外链图片下载保存到本地（data/images），返回可直接访问的 url
+// keepUrlExt 为 true 时优先使用网址里的图片后缀（图片后缀不变），否则按下载到的图片格式决定后缀
+func saveRemoteImageLocal(baseName string, imgUrl string, keepUrlExt bool) (string, error) {
+	imgUrl = strings.TrimSpace(imgUrl)
+	if imgUrl == "" {
 		return "", fmt.Errorf("logo 地址不能为空")
 	}
-	if !strings.HasPrefix(logoUrl, "http://") && !strings.HasPrefix(logoUrl, "https://") {
+	if !strings.HasPrefix(imgUrl, "http://") && !strings.HasPrefix(imgUrl, "https://") {
 		return "", nil
 	}
-	data, ext, err := utils.DownloadImage(logoUrl)
+	data, ext, err := utils.DownloadImage(imgUrl)
 	if err != nil {
-		logger.LogError("下载搜索引擎 logo 失败: %s", err)
+		logger.LogError("下载 logo 失败: %s", err)
 		return "", fmt.Errorf("下载 logo 失败：%s", err)
 	}
 	if int64(len(data)) > MaxUploadSize {
 		return "", fmt.Errorf("图片大小不能超过 %d MB", MaxUploadSize>>20)
 	}
+	if keepUrlExt {
+		ext = urlImageExt(imgUrl, ext)
+	}
 	utils.PathExistsOrCreate(UploadDir)
-	name := SafeImageFileName(engineName) + ext
+	name := baseName + ext
 	if err := os.WriteFile(filepath.Join(UploadDir, name), data, 0o644); err != nil {
-		logger.LogError("保存搜索引擎 logo 失败: %s", err)
+		logger.LogError("保存 logo 失败: %s", err)
 		return "", fmt.Errorf("保存 logo 失败")
 	}
-	logger.LogInfo("搜索引擎 logo 已保存到本地: %s", name)
+	logger.LogInfo("logo 已保存到本地: %s", name)
 	return UploadUrlPrefix + name, nil
 }
 
-// SafeImageFileName 把搜索引擎名称清洗成安全的文件名（去掉路径分隔符、Windows 非法字符与首尾空白）
-func SafeImageFileName(name string) string {
+// urlImageExt 取网址里的图片后缀（保证「图片后缀不变」），网址里没有合法后缀时用下载内容判断出的后缀
+func urlImageExt(imgUrl string, fallback string) string {
+	suffix := strings.ToLower(filepath.Ext(strings.Split(imgUrl, "?")[0]))
+	if allowedUploadExt[suffix] {
+		return suffix
+	}
+	return fallback
+}
+
+// SafeImageFileName 把名称清洗成安全的文件名（去掉路径分隔符、Windows 非法字符与首尾空白）
+// 清洗后为空时使用 fallback
+func SafeImageFileName(name string, fallback string) string {
 	cleaned := strings.Map(func(r rune) rune {
 		if r < 0x20 || strings.ContainsRune(`/\:*?"<>|`, r) {
 			return -1
@@ -194,7 +219,7 @@ func SafeImageFileName(name string) string {
 	}
 	cleaned = strings.Trim(cleaned, " .")
 	if cleaned == "" {
-		return "engine"
+		return fallback
 	}
 	// 文件名不宜过长（多数文件系统单个文件名上限 255 字节）
 	if runes := []rune(cleaned); len(runes) > 50 {

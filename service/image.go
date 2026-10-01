@@ -1,47 +1,71 @@
 package service
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/mereith/nav/database"
-	"github.com/mereith/nav/goscraper"
 	"github.com/mereith/nav/logger"
 	"github.com/mereith/nav/types"
 	"github.com/mereith/nav/utils"
 )
 
-func getIcon(url string) string {
-	logger.LogInfo("getIcon: %s", url)
-	s, err := goscraper.Scrape(url, 5)
-	if err != nil {
-		logger.LogError("getIcon: %s", err)
+// gstaticFaviconSize gstatic 图标接口请求的图标尺寸（goscraper 抓不到图标时的兜底）
+const gstaticFaviconSize = 128
+
+// normalizeSiteUrl 补全站点地址：没有协议（例如 example.com）时补上 http://
+// goscraper 抓取与 gstatic 接口都需要带协议、带域名的地址
+func normalizeSiteUrl(rawUrl string) string {
+	rawUrl = strings.TrimSpace(rawUrl)
+	if rawUrl == "" {
 		return ""
 	}
-	var result string = ""
-	if strings.Contains(s.Preview.Icon, "http:") || strings.Contains(s.Preview.Icon, "https:") {
-		result = s.Preview.Icon
-	} else {
-		//  如果 link 最后一个是 /
-		var first string = s.Preview.Link
-		var second string = s.Preview.Icon
-		if !strings.Contains(s.Preview.Link[len(s.Preview.Link)-1:len(s.Preview.Link)], "/") {
-			first = s.Preview.Link + "/"
-		}
-		// 如果 icon 第一个是 /
-		if strings.Contains(s.Preview.Icon[0:1], "/") {
-			second = s.Preview.Icon[1:len(s.Preview.Icon)]
-		}
-		result = first + second
+	// 协议相对地址（//example.com）补上 http:
+	if strings.HasPrefix(rawUrl, "//") {
+		return "http:" + rawUrl
 	}
-	logger.LogInfo("getIcon: %s", result)
-	return result
+	if parsed, err := url.Parse(rawUrl); err == nil && parsed.Hostname() != "" {
+		return rawUrl
+	}
+	if strings.Contains(rawUrl, "://") {
+		return rawUrl
+	}
+	return "http://" + rawUrl
 }
 
-func LazyFetchLogo(url string, id int64) {
-	// 如果 logo 为空，就去获取 logo
-	logo := getIcon(url)
-	UpdateToolIcon(id, logo)
+// GstaticFaviconUrl 使用 gstatic 的接口按站点域名取图标地址，域名解析不出来时返回空字符串
+func GstaticFaviconUrl(rawUrl string) string {
+	parsed, err := url.Parse(normalizeSiteUrl(rawUrl))
+	if err != nil || parsed.Hostname() == "" {
+		return ""
+	}
+	return fmt.Sprintf(
+		"https://t0.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://%s&size=%d",
+		parsed.Hostname(), gstaticFaviconSize)
+}
+
+// getIcon 抓取网站图标地址：先解析页面（goscraper），页面打不开或页面里没有图标时用 gstatic 兜底，
+// 都拿不到才返回空字符串
+func getIcon(rawUrl string) string {
+	siteUrl := normalizeSiteUrl(rawUrl)
+	if siteUrl == "" {
+		logger.LogError("获取图标失败：网址为空")
+		return ""
+	}
+	logger.LogInfo("getIcon: %s", siteUrl)
+	document, ok := scrapeDocument(siteUrl)
+	if !ok {
+		logger.LogError("getIcon: 页面抓取失败，使用 gstatic 兜底: %s", siteUrl)
+		return GstaticFaviconUrl(siteUrl)
+	}
+	icon := absoluteIconUrl(siteUrl, document.Preview.Link, document.Preview.Icon)
+	if icon == "" {
+		logger.LogInfo("getIcon: 页面里没有图标，使用 gstatic 兜底: %s", siteUrl)
+		return GstaticFaviconUrl(siteUrl)
+	}
+	logger.LogInfo("getIcon: %s", icon)
+	return icon
 }
 
 func GetImgFromDB(url1 string) types.Img {
@@ -79,6 +103,14 @@ func GetImgFromDB(url1 string) types.Img {
 func UpdateImg(url1 string) {
 	// 除了更新工具本身之外，也要更新 img 表
 	// 先看有没有，有的话就不管了，没有的话就创建
+	// logo 为空时不需要缓存（前台显示默认图标 default.png）
+	if strings.TrimSpace(url1) == "" {
+		return
+	}
+	// 本地保存的图片直接读磁盘，不需要再缓存到数据库
+	if LocalImageName(url1) != "" {
+		return
+	}
 	urlEncoded := url.QueryEscape(url1)
 	base64ImgValue := utils.GetImgBase64FromUrl(url1)
 	if base64ImgValue == "" {

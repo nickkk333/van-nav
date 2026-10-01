@@ -10,36 +10,56 @@ import (
 	"github.com/mereith/nav/types"
 )
 
-// 抓取网址信息的最长等待时间，避免前端一直转圈
-const urlInfoTimeout = 10 * time.Second
+// 抓取页面的最长等待时间：避免前端一直转圈，也避免保存工具时因为目标站点不响应而卡住
+const scrapeTimeout = 10 * time.Second
 
-// GetUrlInfo 抓取网址的名称/标题/描述/图标，供后台添加工具时自动填充
-func GetUrlInfo(rawUrl string) types.UrlInfoDto {
-	ch := make(chan types.UrlInfoDto, 1)
+// scrapeDocument 带超时抓取页面（goscraper 自带的 http 客户端没有超时，需要自己兜一层）
+// 第二个返回值为 false 表示抓取失败或超时
+func scrapeDocument(rawUrl string) (*goscraper.Document, bool) {
+	ch := make(chan *goscraper.Document, 1)
 	go func() {
-		ch <- scrapeUrlInfo(rawUrl)
+		document, err := goscraper.Scrape(rawUrl, 5)
+		if err != nil {
+			logger.LogError("抓取页面失败: %s", err)
+			ch <- nil
+			return
+		}
+		ch <- document
 	}()
 	select {
-	case info := <-ch:
-		return info
-	case <-time.After(urlInfoTimeout):
-		logger.LogError("GetUrlInfo 超时: %s", rawUrl)
-		return types.UrlInfoDto{}
+	case document := <-ch:
+		return document, document != nil
+	case <-time.After(scrapeTimeout):
+		logger.LogError("抓取页面超时: %s", rawUrl)
+		return nil, false
 	}
 }
 
+// GetUrlInfo 抓取网址的名称/标题/描述/图标，供后台添加工具时自动填充
+func GetUrlInfo(rawUrl string) types.UrlInfoDto {
+	return scrapeUrlInfo(rawUrl)
+}
+
 func scrapeUrlInfo(rawUrl string) types.UrlInfoDto {
-	document, err := goscraper.Scrape(rawUrl, 5)
-	if err != nil {
-		logger.LogError("GetUrlInfo 抓取失败: %s", err)
-		return types.UrlInfoDto{}
+	// 网址没有协议时补上 http://，保证抓取与 gstatic 兜底都能正常工作
+	siteUrl := normalizeSiteUrl(rawUrl)
+	document, ok := scrapeDocument(siteUrl)
+	if !ok {
+		logger.LogError("GetUrlInfo 抓取失败: %s", siteUrl)
+		// 抓取失败时用 gstatic 兜底，至少能把图标填上
+		return types.UrlInfoDto{Logo: GstaticFaviconUrl(siteUrl)}
 	}
 	preview := document.Preview
+	logo := absoluteIconUrl(siteUrl, preview.Link, preview.Icon)
+	if logo == "" {
+		// 页面能打开但没有图标，走 gstatic 兜底
+		logo = GstaticFaviconUrl(siteUrl)
+	}
 	return types.UrlInfoDto{
 		Name:        strings.TrimSpace(preview.Name),
 		Title:       strings.TrimSpace(preview.Title),
 		Description: strings.TrimSpace(preview.Description),
-		Logo:        absoluteIconUrl(rawUrl, preview.Link, preview.Icon),
+		Logo:        logo,
 	}
 }
 
