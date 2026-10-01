@@ -270,7 +270,7 @@ body {
   line-height: 18px;
   color: var(--text-secondary);
   user-select: none;
-  /* 色相循环：让文字、光晕与彩虹横线一起在整条光谱上流转 */
+  /* 色相循环：让文字、光晕与彩虹横线一起在整条光谱上流转 可调参数:6s(彩色流转快慢)*/
   animation: cards-divider-hue 6s linear infinite;
 }
 
@@ -290,17 +290,17 @@ body {
     #a855f7,
     #ff4d6d
   );
-  animation: cards-divider-line-breath 2.4s ease-in-out infinite;
+  animation: cards-divider-line-breath 2.4s ease-in-out infinite;/*可调参数:2.4s(呼吸快慢)*/
 }
 
-/* 光晕：复用横线的彩虹渐变做模糊，颜色自然与横线一致，无需额外的 box-shadow */
+/* 光晕：复用横线的彩虹渐变做模糊，颜色自然与横线一致，无需额外的 box-shadow 可调参数:blur(5px)/inset(光晕范围)*/
 .cards-group-divider-line::after {
   content: '';
   position: absolute;
   inset: -2px 0;
   border-radius: inherit;
   background-image: inherit;
-  filter: blur(5px);
+  filter: blur(3px);
 }
 
 /* 分类名：颜色与光晕随呼吸灯往返变化，叠加父级色相循环后呈现五彩效果 */
@@ -333,7 +333,7 @@ body {
 @keyframes cards-divider-line-breath {
   0%,
   100% {
-    opacity: 0.35;
+    opacity: 0.35;/*可调参数:opacity.35(最暗程度)*/
   }
   50% {
     opacity: 1;
@@ -362,14 +362,13 @@ body {
   max-width: none;
 }
 
+/* 空状态提示：纯文字无框模式，直接浮在背景图上 */
 .empty-tip {
   width: fit-content;
   margin: 40px auto;
-  padding: 8px 20px;
-  border-radius: 20px;
-  background-color: var(--card-bg);
-  color: var(--text-secondary);
-  box-shadow: var(--card-shadow);
+  padding: 0;                   /* 纯文字模式通常不需要内边距，移除后定位更精准 */
+  background-color: transparent; /* 背景完全透明 */
+  color: var(--text-secondary); /* 维持你原本的文字颜色 */
 }
 
 .loading-wrapper {

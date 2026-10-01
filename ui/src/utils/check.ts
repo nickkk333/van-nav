@@ -3,9 +3,9 @@ export const isLogin = () => {
 }
 
 /** 网络图片走后端代理，避免跨域和加载慢 */
-export const getLogoUrl = (url: string) => {
+export const getLogoUrl = (url: string, domain: string) => {
   if (!url) {
-    return ''
+    return 'https://t0.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&size=192&url=' + domain
   }
   if (url.startsWith('http')) {
     return `/api/img?url=${url}`

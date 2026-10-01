@@ -1,7 +1,7 @@
 <template>
   <a
     class="github-link-box"
-    href="https://github.com/mereithhh/van-nav"
+    href="https://github.com/nickkk333/van-nav"
     target="_blank"
     rel="noopener noreferrer"
   >

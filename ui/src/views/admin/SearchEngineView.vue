@@ -20,7 +20,7 @@
       </el-table-column>
       <el-table-column label="Logo" width="80">
         <template #default="{ row }">
-          <el-image class="engine-logo" :src="logoUrl(row.logo)" fit="contain">
+          <el-image class="engine-logo" :src="logoUrl(row.logo, row.url)" fit="contain">
             <template #error>
               <div class="tool-logo-error">️</div>
             </template>
@@ -179,14 +179,14 @@ const rules: FormRules = {
 }
 
 /** 外链地址、本地保存的地址直接使用；只有历史数据里的「图标文件名」才走后端缓存代理 */
-const logoUrl = (logo: string) => {
+const logoUrl = (logo: string, domain: string) => {
   if (!logo) {
-    return ''
+    return 'https://t0.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&size=192&url=' + domain
   }
-  if (logo.startsWith('http') || logo.startsWith('/')) {
-    return logo
+  if (logo.startsWith('http')) {
+    return `/api/img?url=${logo}`
   }
-  return `/api/img?url=${logo}`
+  return logo
 }
 
 /** 输入基础 URL 后自动获取 logo 网址 */
