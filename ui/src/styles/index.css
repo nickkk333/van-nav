@@ -228,6 +228,7 @@ body {
 
 /* 卡片区：网格布局，每行数量由 --cards-per-row 控制，所有卡片等宽等高 */
 /* .cards-group 为卡片分组容器（默认栏中每个分类一组），列数与间距和整页网格保持一致 */
+/* .cards-group-wraper 为分组块容器（分隔栏 + 分组），默认栏中由它承载分类分隔栏 */
 .content.cards,
 .cards-group {
   display: grid;
@@ -246,12 +247,111 @@ body {
   padding: 10px 2vw 250px;
 }
 
-/* 默认栏按分类分组：每个分类各占一组并纵向排列，组间距使用 --cards-group-gap */
+/* 默认栏按分类分组：每个分类各占一块并纵向排列，块间距使用 --cards-group-gap */
 .content.cards.grouped-grid {
   display: flex;
   flex-direction: column;
   gap: var(--cards-group-gap);
 }
+
+/* 分组块：分隔栏 + 该分类的卡片，作为网格 / 纵向排列中的一项 */
+.cards-group-wraper {
+  grid-column: 1 / -1;
+}
+
+/* 默认栏中的分类分隔栏：形如 ---分类名---，分类名两侧各一条横线 */
+/* 炫彩呼吸灯：整体色相循环（filter: hue-rotate）+ 明暗呼吸 + 横线彩虹渐变同色光晕 */
+.cards-group-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text-secondary);
+  user-select: none;
+  /* 色相循环：让文字、光晕与彩虹横线一起在整条光谱上流转 */
+  animation: cards-divider-hue 6s linear infinite;
+}
+
+/* 横线：彩虹渐变，靠一层同色模糊光晕发光（亮度随呼吸灯变化） */
+.cards-group-divider-line {
+  position: relative;
+  flex: 1;
+  height: 1px;
+  border-radius: 1px;
+  background-image: linear-gradient(
+    90deg,
+    #ff4d6d,
+    #ffa41b,
+    #f9e04b,
+    #34d399,
+    #38bdf8,
+    #a855f7,
+    #ff4d6d
+  );
+  animation: cards-divider-line-breath 2.4s ease-in-out infinite;
+}
+
+/* 光晕：复用横线的彩虹渐变做模糊，颜色自然与横线一致，无需额外的 box-shadow */
+.cards-group-divider-line::after {
+  content: '';
+  position: absolute;
+  inset: -2px 0;
+  border-radius: inherit;
+  background-image: inherit;
+  filter: blur(5px);
+}
+
+/* 分类名：颜色与光晕随呼吸灯往返变化，叠加父级色相循环后呈现五彩效果 */
+.cards-group-divider-name {
+  flex-shrink: 0;
+  max-width: 60%;
+  /* padding + 负 margin：给 text-shadow 光晕留出绘制空间，避免被 overflow: hidden 直接切断 */
+  padding: 4px 6px;
+  margin: -4px -6px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  animation: cards-divider-breath 2.4s ease-in-out infinite;
+}
+
+/* 呼吸灯：由暗到亮再回到暗 */
+@keyframes cards-divider-breath {
+  0%,
+  100% {
+    color: var(--text-secondary);
+    text-shadow: 0 0 0 rgba(var(--el-color-primary-rgb), 0);
+  }
+  50% {
+    color: var(--el-color-primary);
+    text-shadow: 0 0 10px rgba(var(--el-color-primary-rgb), 0.6);
+  }
+}
+
+/* 呼吸灯：横线亮度（含光晕）由暗到亮再回到暗 */
+@keyframes cards-divider-line-breath {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* 炫彩：整块分隔栏的色相循环一整周 */
+@keyframes cards-divider-hue {
+  from {
+    filter: hue-rotate(0deg);
+  }
+  to {
+    filter: hue-rotate(360deg);
+  }
+}
+
+/* 说明：.cards-group 现在始终位于 .cards-group-wraper 内部，
+   占满整行（grid-column: 1 / -1）的职责由分组块容器承担 */
 
 .cards-group {
   grid-column: 1 / -1;
@@ -499,6 +599,13 @@ body {
 
 .content.cards.compact-grid .card-right-title {
   font-size: 13px;
+}
+
+/* 精简模式下分隔栏更紧凑 */
+.content.cards.compact-grid .cards-group-divider {
+  margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 16px;
 }
 
 /* ==================== 响应式 ==================== */

@@ -18,17 +18,24 @@
           :style="gridStyle"
         >
           <Loading v-if="loading" />
-          <div v-for="group in cardGroups" :key="group.key" class="cards-group">
-            <ToolCard
-              v-for="item in group.items"
-              :key="item.tool.id + '-' + item.index"
-              :tool="item.tool"
-              :index="item.index"
-              :is-searching="isSearching"
-              :no-image-mode="siteConfig.noImageMode"
-              :compact-mode="siteConfig.compactMode"
-              @click="handleCardClick"
-            />
+          <div v-for="group in cardGroups" :key="group.key" class="cards-group-wraper">
+            <div v-if="group.name" class="cards-group-divider" aria-hidden="true">
+              <span class="cards-group-divider-line"></span>
+              <span class="cards-group-divider-name">{{ displayCatelog(group.name) }}</span>
+              <span class="cards-group-divider-line"></span>
+            </div>
+            <div class="cards-group">
+              <ToolCard
+                v-for="item in group.items"
+                :key="item.tool.id + '-' + item.index"
+                :tool="item.tool"
+                :index="item.index"
+                :is-searching="isSearching"
+                :no-image-mode="siteConfig.noImageMode"
+                :compact-mode="siteConfig.compactMode"
+                @click="handleCardClick"
+              />
+            </div>
           </div>
         </div>
         <div v-if="!loading && filteredData.length === 0" class="empty-tip">没有找到匹配的结果</div>
@@ -56,6 +63,7 @@ import AdminLink from '../components/AdminLink.vue'
 import DarkSwitch from '../components/DarkSwitch.vue'
 import Loading from '../components/Loading.vue'
 import { useSiteStore } from '../stores/site'
+import { displayCatelog } from '../utils/check'
 import { multiSearch } from '../utils/match'
 import { generateSearchEngineCards } from '../utils/searchEngine'
 import { DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW, initServerJumpTargetConfig, toggleJumpTarget } from '../utils/setting'
@@ -140,6 +148,8 @@ interface CardItem {
 /** 卡片分组：默认栏中每个分类为一组，其余情况只有一组 */
 interface CardGroup {
   key: string
+  /** 分组名称（分类名）；仅默认栏分组时存在，用于渲染 “---分类名---” 分隔栏 */
+  name?: string
   items: CardItem[]
 }
 
@@ -147,8 +157,8 @@ interface CardGroup {
 const groupByCatelog = computed(() => !isSearching.value && currTag.value === DEFAULT_TAG)
 
 /**
- * 默认栏按分类顺序分组：同一分类的工具排在一起，不同分类各占一组
- * （每组单独换行，组与组之间的距离由样式中的 --cards-group-gap 加大）。
+ * 默认栏按分类顺序分组：同一分类的工具排在一起，不同分类各占一块并用 “---分类名---” 分隔栏区分
+ * （每组单独换行，块与块之间的距离由样式中的 --cards-group-gap 加大）。
  * 分类顺序以接口返回的 catelogs（后台排序后的顺序）为准；
  * 不在分类列表中的工具（例如未分类）统一追加到最后。
  */
@@ -176,11 +186,11 @@ const cardGroups = computed<CardGroup[]>(() => {
 
   const result: CardGroup[] = []
   const appendGroup = (name: string, tools: Tool[]) => {
-    // 空分类不渲染，避免产生多余的组间距
+    // 空分类不渲染，避免产生多余的分隔栏与组间距
     if (!tools.length) {
       return
     }
-    result.push({ key: `${result.length}-${name}`, items: toItems(tools) })
+    result.push({ key: `${result.length}-${name}`, name, items: toItems(tools) })
   }
   groups.forEach((tools, name) => appendGroup(name, tools))
   appendGroup('未分类', rest)
