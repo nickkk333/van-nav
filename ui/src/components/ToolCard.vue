@@ -37,7 +37,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { displayCatelog, getLogoUrl } from '../utils/check'
+import { displayCatelog, DEFAULT_LOGO_URL, getToolLogoUrl } from '../utils/check'
 import { getJumpTarget } from '../utils/setting'
 import type { Tool } from '../types'
 
@@ -57,7 +57,10 @@ const showLoading = ref(true)
 let timer: ReturnType<typeof setTimeout> | null = null
 
 const isToggleCard = computed(() => props.tool.url === 'toggleJumpTarget')
-const imageSrc = computed(() => (isToggleCard.value ? props.tool.logo : getLogoUrl(props.tool.logo)))
+// 跳转方式卡片用的是内置图片（相对路径），直接取原值；其余卡片优先读保存到本机的图片
+const imageSrc = computed(() =>
+  isToggleCard.value ? props.tool.logo || DEFAULT_LOGO_URL : getToolLogoUrl(props.tool)
+)
 const target = computed(() => (getJumpTarget() === 'blank' ? '_blank' : '_self'))
 const showNumIndex = computed(() => props.index < 10 && props.isSearching)
 

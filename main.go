@@ -75,6 +75,10 @@ func main() {
 
 	database.InitDB()
 
+	// 启动时把当前数据自动导出到 data 目录（文件名 van-nav-backup.json，同名覆盖）
+	// 异步执行：导出失败只记录日志，不阻塞、不影响服务启动
+	go service.ExportBackupToDataDir()
+
 	// 启动时下载必应每日壁纸到 data 目录，作为前台首页的默认背景图
 	// 异步执行：离线或下载失败时只记录日志，不阻塞、不影响服务启动
 	go service.DownloadBingWallpaper()

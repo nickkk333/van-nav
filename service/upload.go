@@ -76,9 +76,9 @@ func copyUploadedFile(file *multipart.FileHeader, dst string) error {
 	return err
 }
 
-// GetUploadedImagePath 校验并返回本地图片的磁盘路径（后台上传的图片、搜索引擎 logo 等）
+// GetUploadedImagePath 校验并返回本地图片的磁盘路径（后台上传的图片、搜索引擎 logo、工具 logo 等）
 func GetUploadedImagePath(name string) (string, bool) {
-	if LocalImageName(UploadUrlPrefix+name) == "" {
+	if !isSafeImageFileName(name) {
 		return "", false
 	}
 	path := filepath.Join(UploadDir, name)
@@ -104,8 +104,13 @@ func LocalImageName(url string) string {
 // LocalImageExist 判断 url 是否指向本机实际存在的本地图片（上传的图片、按名称保存的 logo 等）
 // 换机器导入备份后，本地图片文件并不存在，需要用这个判断决定是否重新获取图片
 func LocalImageExist(url string) bool {
-	name := LocalImageName(url)
-	if name == "" {
+	return LocalImageNameExist(LocalImageName(url))
+}
+
+// LocalImageNameExist 判断 data/images 下是否存在该文件名的图片
+// 工具表里的 logo_name 字段存的就是文件名，用它判断本机有没有这张图片
+func LocalImageNameExist(name string) bool {
+	if !isSafeImageFileName(name) {
 		return false
 	}
 	_, ok := GetUploadedImagePath(name)
@@ -142,8 +147,13 @@ func RemoveUploadedImage(url string) {
 
 // RemoveLocalImage 删除本地保存的图片（上传的图片、搜索引擎 logo 等），外链地址不做处理
 func RemoveLocalImage(url string) {
-	name := LocalImageName(url)
-	if name == "" {
+	RemoveLocalImageByName(LocalImageName(url))
+}
+
+// RemoveLocalImageByName 按文件名删除 data/images 下的图片（工具表 logo_name 字段的清理方式），
+// 文件名为空或不合法时不做处理
+func RemoveLocalImageByName(name string) {
+	if !isSafeImageFileName(name) {
 		return
 	}
 	if err := os.Remove(filepath.Join(UploadDir, name)); err != nil && !os.IsNotExist(err) {
@@ -154,16 +164,21 @@ func RemoveLocalImage(url string) {
 // SaveSearchEngineLogo 把搜索引擎的 logo 外链下载保存到本地，文件名使用搜索引擎名称，返回可访问 url
 // 传入的 logo 不是外链（内置图标文件名或已保存到本地的地址）时不做处理，返回空字符串
 func SaveSearchEngineLogo(engineName string, logoUrl string) (string, error) {
-	return saveRemoteImageLocal(SafeImageFileName(engineName, "engine"), logoUrl, false)
+	name, err := saveRemoteImageLocal(SafeImageFileName(engineName, "engine"), logoUrl, false)
+	if err != nil || name == "" {
+		return "", err
+	}
+	return UploadUrlPrefix + name, nil
 }
 
-// SaveToolLogo 把工具 logo 的图片下载保存到本地（data/images），文件名使用工具名称去掉特殊字符后的结果，返回可访问 url
-// 图片后缀保持不变（网址里的后缀优先）；传入的 logo 不是外链（已保存到本地的地址）时不做处理，返回空字符串
+// SaveToolLogo 把工具 logo 的图片下载保存到本地（data/images），文件名使用工具名称去掉特殊字符后的结果，
+// 返回保存后的文件名（工具表的 logo_name 字段），图片后缀保持不变（网址里的后缀优先）
+// 传入的 logo 不是外链（已保存到本地的地址）时不做处理，返回空字符串
 func SaveToolLogo(toolName string, logoUrl string) (string, error) {
 	return saveRemoteImageLocal(SafeImageFileName(toolName, "tool"), logoUrl, true)
 }
 
-// saveRemoteImageLocal 把外链图片下载保存到本地（data/images），返回可直接访问的 url
+// saveRemoteImageLocal 把外链图片下载保存到本地（data/images），返回保存后的文件名
 // keepUrlExt 为 true 时优先使用网址里的图片后缀（图片后缀不变），否则按下载到的图片格式决定后缀
 func saveRemoteImageLocal(baseName string, imgUrl string, keepUrlExt bool) (string, error) {
 	imgUrl = strings.TrimSpace(imgUrl)
@@ -191,7 +206,7 @@ func saveRemoteImageLocal(baseName string, imgUrl string, keepUrlExt bool) (stri
 		return "", fmt.Errorf("保存 logo 失败")
 	}
 	logger.LogInfo("logo 已保存到本地: %s", name)
-	return UploadUrlPrefix + name, nil
+	return name, nil
 }
 
 // urlImageExt 取网址里的图片后缀（保证「图片后缀不变」），网址里没有合法后缀时用下载内容判断出的后缀

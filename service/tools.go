@@ -15,69 +15,96 @@ func ImportTools(data []types.Tool) error {
 	return ImportBackupData(types.BackupData{Tools: data})
 }
 
-// needRefreshToolLogo 保存工具（新增/修改/导入）时判断 logo 是否需要重新获取图标
-// 需要重新获取的情况：
-//   - logo 为空
-//   - logo 是可下载的图片链接（http://、https:// 或 // 开头的外链）
-//   - logo 指向本机保存的图片，但文件在本机并不存在（换机器导入备份）
+// isRemoteImageUrl 判断 logo 是否是可下载的图片外链（http://、https://、// 开头）
+func isRemoteImageUrl(logo string) bool {
+	return strings.HasPrefix(logo, "//") || strings.HasPrefix(logo, "http://") || strings.HasPrefix(logo, "https://")
+}
+
+// needRefreshToolLogo 保存工具（新增/修改/导入）时判断图标是否需要重新获取，需要重新获取的情况：
+//   - logo_name 指向的图片在 data/images 里并不存在（还没有本地图片，或换机器导入备份）
+//   - logo_name 为空，且 logo 为空 / 是可下载的图片外链 / 是指向本机但文件不存在的本地地址
 //
-// 用户上传保存到本机的图片、站内相对路径等其他地址不需要处理
-func needRefreshToolLogo(logo string) bool {
+// 本机已经有图片（logo_name 指向的文件存在，例如后台上传的图片）时保持不动
+func needRefreshToolLogo(logo string, logoName string) bool {
+	logoName = strings.TrimSpace(logoName)
+	if logoName != "" {
+		return !LocalImageNameExist(logoName)
+	}
+	return needRefreshToolLogoUrl(logo)
+}
+
+// needRefreshToolLogoUrl 只按 logo 网址判断图标是否需要重新获取
+func needRefreshToolLogoUrl(logo string) bool {
 	logo = strings.TrimSpace(logo)
 	if logo == "" {
 		return true
 	}
-	if strings.HasPrefix(logo, "//") || strings.HasPrefix(logo, "http://") || strings.HasPrefix(logo, "https://") {
+	if isRemoteImageUrl(logo) {
 		return true
 	}
 	return needFetchLogo(logo)
 }
 
-// NormalizeToolLogo 保存工具（新增/修改/导入）时统一处理 logo，需要重新获取时按下面的顺序兜底：
-//  1. 先用 goscraper 抓取工具网址的网站图标
-//  2. 抓不到再用 gstatic 的图标接口
-//  3. 拿到图标地址就下载保存到 data/images（文件名使用工具名称），logo 改为本地地址，之后都从本地读取
-//  4. 两步都拿不到、或图片下载失败时把 logo 置空，前台会显示默认图标 default.png
+// ToolLogo 工具图标的处理结果：
+// Logo 是图标网址（可以下载到图片的 url 地址），LogoName 是下载保存到 data 目录（data/images）的图片文件名
+type ToolLogo struct {
+	Logo     string `json:"logo"`
+	LogoName string `json:"logoName"`
+}
+
+// ResolveToolLogo 保存工具（新增/修改/导入）时统一处理图标：
+//  1. 本机已经有图片（logo_name 指向的文件存在）时保持不动，原样返回
+//  2. 需要重新获取时先按工具网址抓取网站图标（goscraper），抓不到再用 gstatic 的图标接口兜底
+//  3. 拿到图标网址就下载保存到 data/images（文件名使用工具名称），logo 存图标网址、logoName 存文件名
+//  4. 都拿不到、或图片下载失败时把两个字段都置空，前台会显示默认图标 default.png
 //
-// 不需要重新获取的 logo（用户上传的本地图片等）原样返回；工具没有填写网址时也保留原值
-func NormalizeToolLogo(name string, siteUrl string, logo string) string {
+// 工具没有填写网址时保留原有的 logo 网址（图片名留空，前台按网址显示或退化为默认图标）
+func ResolveToolLogo(name string, siteUrl string, logo string, logoName string) ToolLogo {
 	logo = strings.TrimSpace(logo)
-	if !needRefreshToolLogo(logo) {
-		return logo
+	logoName = strings.TrimSpace(logoName)
+	// 图片名必须是合法的文件名，非法值（手填了路径等）直接丢掉，避免读到别的文件
+	if logoName != "" && !isSafeImageFileName(logoName) {
+		logger.LogError("工具 %s 的图标图片名不合法，已忽略: %s", name, logoName)
+		logoName = ""
+	}
+	if !needRefreshToolLogo(logo, logoName) {
+		return ToolLogo{Logo: logo, LogoName: logoName}
 	}
 	siteUrl = strings.TrimSpace(siteUrl)
 	if siteUrl == "" {
-		// 没有网址可抓，保留原值（外链仍可以通过后端代理显示，空值由前台显示默认图标）
 		logger.LogError("工具 %s 没有填写网址，无法获取图标", name)
-		return logo
+		return ToolLogo{Logo: logo}
 	}
 	iconUrl := getIcon(siteUrl)
 	if iconUrl == "" {
-		logger.LogError("工具 %s 未能获取到图标，logo 置空，前台显示默认图标", name)
-		return ""
+		logger.LogError("工具 %s 未能获取到图标，图标置空，前台显示默认图标", name)
+		return ToolLogo{}
 	}
-	localUrl, err := SaveToolLogo(name, iconUrl)
+	savedName, err := SaveToolLogo(name, iconUrl)
 	if err != nil {
-		logger.LogError("工具 %s 的图标下载失败，logo 置空，前台显示默认图标: %s", name, err)
-		return ""
+		logger.LogError("工具 %s 的图标下载失败，图标置空，前台显示默认图标: %s", name, err)
+		return ToolLogo{}
 	}
-	if localUrl == "" {
-		logger.LogError("工具 %s 的图标保存失败，logo 置空，前台显示默认图标: %s", name, iconUrl)
-		return ""
+	if savedName == "" {
+		logger.LogError("工具 %s 的图标保存失败，图标置空，前台显示默认图标: %s", name, iconUrl)
+		return ToolLogo{}
 	}
-	logger.LogInfo("工具 %s 的 logo 已保存到本地: %s", name, localUrl)
-	return localUrl
+	logger.LogInfo("工具 %s 的图标已保存到本地: %s（来源 %s）", name, savedName, iconUrl)
+	return ToolLogo{Logo: iconUrl, LogoName: savedName}
 }
 
 // UpdateTool 更新工具，同时更新图片表
 func UpdateTool(data types.UpdateToolDto) {
 	_, err := database.DB.Exec(`
 		UPDATE nav_table
-		SET name = ?, url = ?, logo = ?, catelog = ?, "desc" = ?, sort = ?, "hide" = ?, "default" = ?
+		SET name = ?, url = ?, logo = ?, logo_name = ?, catelog = ?, "desc" = ?, sort = ?, "hide" = ?, "default" = ?
 		WHERE id = ?;
-		`, data.Name, data.Url, data.Logo, data.Catelog, data.Desc, data.Sort, data.Hide, data.Default, data.Id)
+		`, data.Name, data.Url, data.Logo, data.LogoName, data.Catelog, data.Desc, data.Sort, data.Hide, data.Default, data.Id)
 	utils.CheckErr(err)
-	UpdateImg(data.Logo)
+	// 图片已经下载到 data/images 时不需要再缓存到数据库，前台直接读本地图片
+	if strings.TrimSpace(data.LogoName) == "" {
+		UpdateImg(data.Logo)
+	}
 }
 
 // ResolveToolInsertIndex 计算新工具在排序中的插入位置（count 为插入前的工具总数）
@@ -134,9 +161,9 @@ func AddTool(data types.AddToolDto) (int64, error) {
 	}
 
 	res, err := tx.Exec(`
-		INSERT INTO nav_table (name, url, logo, catelog, "desc", sort, "hide", "default")
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-		`, data.Name, data.Url, data.Logo, data.Catelog, data.Desc, data.Sort, data.Hide, data.Default)
+		INSERT INTO nav_table (name, url, logo, logo_name, catelog, "desc", sort, "hide", "default")
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+		`, data.Name, data.Url, data.Logo, data.LogoName, data.Catelog, data.Desc, data.Sort, data.Hide, data.Default)
 	if err != nil {
 		return 0, err
 	}
@@ -169,7 +196,8 @@ func AddTool(data types.AddToolDto) (int64, error) {
 	}
 	logger.LogInfo("新增工具: %s", data.Name)
 
-	if data.Logo != "" {
+	// 图片已经下载到 data/images 时不需要再缓存到数据库，前台直接读本地图片
+	if strings.TrimSpace(data.LogoName) == "" && data.Logo != "" {
 		UpdateImg(data.Logo)
 	}
 	return id, nil
@@ -178,7 +206,7 @@ func AddTool(data types.AddToolDto) (int64, error) {
 // GetAllTool 获取全部工具（按排序升序）
 func GetAllTool() []types.Tool {
 	rows, err := database.DB.Query(`
-		SELECT id, name, url, logo, catelog, "desc", sort, "hide", "default"
+		SELECT id, name, url, logo, logo_name, catelog, "desc", sort, "hide", "default"
 		FROM nav_table ORDER BY sort;
 		`)
 	if err != nil {
@@ -191,14 +219,16 @@ func GetAllTool() []types.Tool {
 	for rows.Next() {
 		var tool types.Tool
 		var (
-			sortVal sql.NullInt64
-			hide    sql.NullBool
-			defVal  sql.NullBool
+			logoName sql.NullString
+			sortVal  sql.NullInt64
+			hide     sql.NullBool
+			defVal   sql.NullBool
 		)
-		if err = rows.Scan(&tool.Id, &tool.Name, &tool.Url, &tool.Logo, &tool.Catelog, &tool.Desc, &sortVal, &hide, &defVal); err != nil {
+		if err = rows.Scan(&tool.Id, &tool.Name, &tool.Url, &tool.Logo, &logoName, &tool.Catelog, &tool.Desc, &sortVal, &hide, &defVal); err != nil {
 			utils.CheckErr(err)
 			continue
 		}
+		tool.LogoName = logoName.String
 		tool.Sort = int(sortVal.Int64)
 		tool.Hide = hide.Bool
 		tool.Default = defVal.Bool
@@ -207,31 +237,42 @@ func GetAllTool() []types.Tool {
 	return results
 }
 
-// GetToolLogoUrlById 根据 id 获取工具的 logo 地址
-func GetToolLogoUrlById(id int) string {
-	var logo string
-	err := database.DB.QueryRow(`SELECT logo FROM nav_table WHERE id = ?;`, id).Scan(&logo)
+// GetToolLogoById 根据 id 取出工具的图标网址与保存到本地的图片名（更新/删除前用于清理旧的本地图片）
+func GetToolLogoById(id int) (string, string) {
+	var (
+		logo     sql.NullString
+		logoName sql.NullString
+	)
+	err := database.DB.QueryRow(`SELECT logo, logo_name FROM nav_table WHERE id = ?;`, id).Scan(&logo, &logoName)
 	if err != nil && err != sql.ErrNoRows {
 		utils.CheckErr(err)
 	}
-	return logo
+	return logo.String, logoName.String
 }
 
 // RemoveToolLogoIfUnused 清理工具换掉或删除后的本地旧图片，还有别的工具在用同一张图片时不删
-// 需要在更新/删除数据库记录之后调用，外链地址不做处理
-func RemoveToolLogoIfUnused(logo string) {
-	if LocalImageName(logo) == "" {
+// 需要在更新/删除数据库记录之后调用；图标网址等非本地图片不做处理
+// logoName 为工具原来的图片名（logo_name），为空时兼容老数据从 logo 里取本地图片地址
+func RemoveToolLogoIfUnused(logo string, logoName string) {
+	name := strings.TrimSpace(logoName)
+	if !isSafeImageFileName(name) {
+		name = LocalImageName(logo)
+	}
+	if name == "" {
 		return
 	}
+	// 还有别的工具在引用这张图片（logo_name 指向它，或老数据把本地地址存在 logo 里）时不删
 	var count int
-	if err := database.DB.QueryRow(`SELECT COUNT(*) FROM nav_table WHERE logo = ?;`, logo).Scan(&count); err != nil {
+	if err := database.DB.QueryRow(
+		`SELECT COUNT(*) FROM nav_table WHERE logo_name = ? OR logo = ?;`,
+		name, UploadUrlPrefix+name).Scan(&count); err != nil {
 		utils.CheckErr(err)
 		return
 	}
 	if count > 0 {
 		return
 	}
-	RemoveLocalImage(logo)
+	RemoveLocalImageByName(name)
 }
 
 // UpdateToolsSort 批量更新工具排序

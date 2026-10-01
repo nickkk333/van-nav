@@ -75,6 +75,8 @@ export const generateSearchEngineCards = async (searchString: string): Promise<T
         url: generateSearchUrl(engine.baseUrl, engine.queryParam, keyword),
         desc: `在 ${engine.name} 中搜索 「${keyword}」`,
         logo: engine.logo,
+        // 虚拟卡片没有本机图片名，直接按搜索引擎的 logo 地址显示
+        logoName: '',
         catelog: '默认',
         sort: engine.sort,
         hide: false,

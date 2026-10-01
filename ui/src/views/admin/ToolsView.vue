@@ -11,12 +11,12 @@
                 <el-button link type="danger">删除</el-button>
               </template>
             </el-popconfirm>
-            <el-popconfirm title="确定重置这些的图标吗？（清空 logo 后按网址重新抓取网站图标，抓不到时显示默认图片 default.png）" @confirm="handleBulkResetLogo">
+            <el-popconfirm title="确定重置这些的图标吗？（清空图标网址与图片名后按网址重新抓取网站图标，抓不到时显示默认图片 default.png）" @confirm="handleBulkResetLogo">
               <template #reference>
                 <el-button link type="primary" :loading="bulkLoading">重置默认图标</el-button>
               </template>
             </el-popconfirm>
-            <el-popconfirm title="确定重新获取这些的图标吗？（会按工具网址重新抓取图标并下载到本地，抓不到时显示默认图片 default.png）" @confirm="handleBulkCacheLogo">
+            <el-popconfirm title="确定重新获取这些的图标吗？（会按工具网址重新抓取图标并下载到 data 目录，抓不到时显示默认图片 default.png）" @confirm="handleBulkCacheLogo">
               <template #reference>
                 <el-button link type="primary" :loading="bulkLoading">重置缓存图标</el-button>
               </template>
@@ -35,7 +35,7 @@
               <el-button :icon="Upload" :loading="importLoading">导入</el-button>
             </el-upload>
           </el-tooltip>
-          <el-tooltip content="导出全部数据（工具、分类、搜索引擎、API Token），图标只保存网址" placement="top">
+          <el-tooltip content="导出全部数据（工具、分类、搜索引擎、API Token），图标只导出图标网址（工具的图片名与搜索引擎的图标不导出），导入后按网址重新获取" placement="top">
             <el-button :icon="Download" @click="handleExport">导出</el-button>
           </el-tooltip>
         </div>
@@ -71,8 +71,8 @@
       <el-table-column label="名称" min-width="160">
         <template #default="{ row }">
           <div class="tool-name-cell">
-            <!-- logo 为空时显示默认图标 default.png（由 getLogoUrl 处理），加载失败再显示占位图 -->
-            <el-image class="tool-logo" :src="getLogoUrl(row.logo)" fit="cover" lazy>
+            <!-- 有图片名时读 data 目录里的本地图片，否则按图标网址显示，两者都没有时显示默认图标 default.png（由 getToolLogoUrl 处理），加载失败再显示占位图 -->
+            <el-image class="tool-logo" :src="getToolLogoUrl(row)" fit="cover" lazy>
               <template #error>
                 <div class="tool-logo-error">🖼️</div>
               </template>
@@ -109,7 +109,7 @@
           <span class="column-with-tip">
             logo 网址
             <el-tooltip
-              content="留空、填图片外链（http://、https://、// 开头）或本机不存在的本地图片时，保存后会先抓取网站图标（失败用 gstatic 兜底）并下载到 data 目录（文件名用工具名称），logo 改为本地地址；都拿不到时置空，前台显示默认图片 default.png"
+              content="图标网址：保存可以下载到图片的 url 地址。留空、填图片外链（http://、https://、// 开头）或本机还没有图片时，保存后会先抓取网站图标（失败用 gstatic 兜底）并下载到 data 目录（文件名用工具名称），网址改为抓到的图标地址、logo 图片名改为本地文件名；都拿不到时都置空，前台显示默认图片 default.png"
               placement="top"
             >
               <el-icon><QuestionFilled /></el-icon>
@@ -118,6 +118,22 @@
         </template>
         <template #default="{ row }">
           <el-input v-model="row.logo" placeholder="留空或填外链会按网址重新获取图标" @change="saveRow(row)" />
+        </template>
+      </el-table-column>
+      <el-table-column label="logo 图片名" min-width="150">
+        <template #header>
+          <span class="column-with-tip">
+            logo 图片名
+            <el-tooltip
+              content="图标图片保存到 data 目录（data/images）后的文件名，前台优先按它读本地图片；留空或本机不存在这个文件时，保存后会按工具网址重新抓取图标并下载"
+              placement="top"
+            >
+              <el-icon><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </span>
+        </template>
+        <template #default="{ row }">
+          <el-input v-model="row.logoName" placeholder="留空会按网址获取图标" @change="saveRow(row)" />
         </template>
       </el-table-column>
       <el-table-column width="76" align="center">
@@ -204,7 +220,10 @@
         <el-input v-model="addForm.name" placeholder="请输入工具名称" />
       </el-form-item>
       <el-form-item label="logo 网址" prop="logo">
-        <el-input v-model="addForm.logo" placeholder="留空或填外链都会按网址获取网站图标并保存到本地" />
+        <el-input v-model="addForm.logo" placeholder="留空或填外链都会按网址获取网站图标并下载到 data 目录" />
+      </el-form-item>
+      <el-form-item label="logo 图片名" prop="logoName">
+        <el-input v-model="addForm.logoName" placeholder="图标图片保存到 data 目录后的文件名，留空会自动获取" />
       </el-form-item>
       <el-form-item label="分类" prop="catelog">
         <el-select v-model="addForm.catelog" placeholder="请选择分类" style="width: 100%">
@@ -259,7 +278,7 @@ import {
 import { useAdminStore } from '../../stores/admin'
 import { useTableSortable } from '../../composables/useTableSortable'
 import { multiSearch } from '../../utils/match'
-import { getLogoUrl } from '../../utils/check'
+import { getToolLogoUrl } from '../../utils/check'
 import { clearSearchEngineCache } from '../../utils/searchEngine'
 import type { BackupData, Tool } from '../../types'
 
@@ -267,7 +286,10 @@ interface ToolForm {
   id?: number
   name: string
   url: string
+  /** 图标网址：可以下载到图片的 url 地址 */
   logo: string
+  /** 图标图片名：图片保存到 data 目录（data/images）后的文件名 */
+  logoName: string
   catelog: string
   desc: string
   sort: number
@@ -279,6 +301,7 @@ const createEmptyForm = (): ToolForm => ({
   name: '',
   url: '',
   logo: '',
+  logoName: '',
   catelog: '',
   desc: '',
   // -1 表示新增后自动排到最后；0 或留空表示排到最前；正数表示插入到该序号位置
@@ -420,6 +443,7 @@ const pickRow = (row: Tool): Tool => ({
   name: row.name,
   url: row.url,
   logo: row.logo,
+  logoName: row.logoName,
   catelog: row.catelog,
   desc: row.desc,
   sort: row.sort,
@@ -446,6 +470,7 @@ const isDirty = (row: Tool) => {
     row.name !== snap.name ||
     row.url !== snap.url ||
     row.logo !== snap.logo ||
+    row.logoName !== snap.logoName ||
     row.catelog !== snap.catelog ||
     row.desc !== snap.desc ||
     row.sort !== snap.sort ||
@@ -482,10 +507,11 @@ const saveRow = async (row: Tool) => {
     ElMessage.warning(errorMessage)
     return
   }
-  // logo 为空、图片外链（http://、https://、// 开头）时后端会重新抓取网站图标并下载到本地，
-  // 保存接口返回时 logo 已经是最终地址，重新拉一次列表就能看到
+  // 图标网址为空/外链、或本机还没有图标图片（图片名为空）时，后端会重新抓取网站图标并下载到 data 目录，
+  // 保存接口返回时 logo 与 logoName 已经是最终值，重新拉一次列表就能看到
   const logo = String(row.logo ?? '').trim()
-  const logoNeedRefresh = logo === '' || /^(https?:)?\/\//.test(logo)
+  const logoName = String(row.logoName ?? '').trim()
+  const logoNeedRefresh = logoName === '' || logo === '' || /^(https?:)?\/\//.test(logo)
   savingMap[row.id] = true
   try {
     const res = await fetchUpdateTool({
@@ -529,7 +555,7 @@ const openAdd = () => {
 }
 
 /**
- * 根据填写的网址抓取信息：先清空名称/描述/logo 网址，再填入抓取到的内容
+ * 根据填写的网址抓取信息：先清空名称/描述/图标网址/图标图片名，再填入抓取到的内容
  * 名称直接用接口返回的 title
  */
 const autoFillFromUrl = async () => {
@@ -545,6 +571,7 @@ const autoFillFromUrl = async () => {
   addForm.name = ''
   addForm.desc = ''
   addForm.logo = ''
+  addForm.logoName = ''
   urlInfoLoading.value = true
   try {
     const info = (await fetchGetUrlInfo(target)) ?? { name: '', title: '', description: '', logo: '' }
@@ -599,7 +626,7 @@ const handleCreate = async () => {
     }
     ElMessage.success('添加成功!')
     showAdd.value = false
-    // 后端保存时已经把 logo 处理好（本地地址或置空），重新拉一次列表即可看到
+    // 后端保存时已经把图标处理好（下载到 data 目录或置空），重新拉一次列表即可看到
     await reload()
   } catch (error) {
     ElMessage.warning(resolveError(error, '添加失败'))
@@ -640,8 +667,8 @@ const handleBulkResetLogo = async () => {
   try {
     for (const each of selectedRows.value) {
       try {
-        // logo 传空：后端会按工具网址重新抓取图标，抓不到则置空（前台显示默认图标）
-        await fetchUpdateTool({ ...each, logo: '' })
+        // 图标网址与图片名都传空：后端会按工具网址重新抓取图标，抓不到则都置空（前台显示默认图标）
+        await fetchUpdateTool({ ...each, logo: '', logoName: '' })
       } catch (error) {
         console.error(error)
       }
@@ -659,8 +686,8 @@ const handleBulkCacheLogo = async () => {
   try {
     for (const each of selectedRows.value) {
       try {
-        // 原样提交：logo 为空/外链时后端会按网址抓取图标并下载到本地
-        await fetchUpdateTool(each)
+        // 图片名传空：强制按工具网址重新抓取图标并下载到 data 目录（本机已有图片时原样提交不会重新获取）
+        await fetchUpdateTool({ ...each, logoName: '' })
       } catch (error) {
         console.error(error)
       }
@@ -720,7 +747,7 @@ const handleImportFile = (file: UploadRawFile) => {
       const res = await fetchImportAll(payload)
       const counts = res.data
       ElMessage.success(
-        `导入成功：工具 ${counts?.tools ?? 0} 条、分类 ${counts?.catelogs ?? 0} 条、搜索引擎 ${counts?.searchEngines ?? 0} 条、API Token ${counts?.apiTokens ?? 0} 条，图标会在后台按网址重新抓取（抓不到时显示默认图片，稍后点「刷新」查看）`
+        `导入成功：工具 ${counts?.tools ?? 0} 条、分类 ${counts?.catelogs ?? 0} 条、搜索引擎 ${counts?.searchEngines ?? 0} 条、API Token ${counts?.apiTokens ?? 0} 条，图标会在后台按网址重新抓取并保存到 data 目录（抓不到时显示默认图片，稍后点「刷新」查看）`
       )
     } catch (error) {
       ElMessage.warning(resolveError(error, '导入失败'))
@@ -743,7 +770,7 @@ const exportStamp = () => {
 const handleExport = async () => {
   try {
     const data = await fetchExportAll()
-    // 图标只保存网址，这里格式化后导出，方便查看与手工调整
+    // 图标只导出图标网址（工具的图片名与搜索引擎的图标都是空值），这里格式化后导出，方便查看与手工调整
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

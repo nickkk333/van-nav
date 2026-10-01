@@ -35,15 +35,18 @@ type Img struct {
 }
 
 type Tool struct {
-	Id      int    `json:"id"`
-	Name    string `json:"name"`
-	Url     string `json:"url"`
-	Logo    string `json:"logo"`
-	Catelog string `json:"catelog"`
-	Desc    string `json:"desc"`
-	Sort    int    `json:"sort"`
-	Hide    bool   `json:"hide"`
-	Default bool   `json:"default"`
+	Id   int    `json:"id"`
+	Name string `json:"name"`
+	Url  string `json:"url"`
+	// Logo 图标网址：保存可以下载到图片的 url 地址（抓取到的网站图标地址等）
+	Logo string `json:"logo"`
+	// LogoName 图标图片名：图片下载保存到 data 目录（data/images）后的文件名，前台优先用它读本地图片
+	LogoName string `json:"logoName"`
+	Catelog  string `json:"catelog"`
+	Desc     string `json:"desc"`
+	Sort     int    `json:"sort"`
+	Hide     bool   `json:"hide"`
+	Default  bool   `json:"default"`
 }
 
 type Catelog struct {
@@ -67,7 +70,7 @@ type SearchEngine struct {
 }
 
 // BackupData 导入导出的备份数据：所有工具、分类、搜索引擎与 api token
-// 图标只保存网址（不包含图片内容），导入后由服务端按网址自动重新获取
+// 图标只保存图标网址（工具的图片名与搜索引擎的图标不导出），导入后由服务端按网址自动重新获取
 type BackupData struct {
 	// Version 备份文件格式版本
 	Version int `json:"version"`

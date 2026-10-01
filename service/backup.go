@@ -2,6 +2,9 @@ package service
 
 import (
 	"database/sql"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,24 +15,60 @@ import (
 )
 
 // backupVersion 备份文件格式版本，格式变化时递增，便于后续做兼容处理
-const backupVersion = 1
+// 1：初版
+// 2：工具图标拆成 logo（图标网址）与 logoName（保存到 data 目录的图片名）
+const backupVersion = 2
+
+const (
+	// BackupDir 备份文件的存放目录（与 nav.db 同级，docker 部署挂载 ./data 即可持久化）
+	BackupDir = "./data"
+	// BackupFileName 启动时自动导出的备份文件名（每次启动覆盖，避免 data 目录里堆积旧备份）
+	BackupFileName = "van-nav-backup.json"
+)
 
 // ExportBackupData 导出所有工具、分类、搜索引擎与 api token
-// 图标只导出网址（不导出图片内容），导入后由服务端按网址自动重新获取
+// 图标只导出图标网址（不导出图片内容）：工具的 logoName（保存到 data 目录的图片名）与搜索引擎的 logo 都置空，
+// 导入后由服务端按网址重新获取图片并保存到 data 目录
 func ExportBackupData() types.BackupData {
 	engines, err := database.GetAllSearchEngines()
 	if err != nil {
 		utils.CheckErr(err)
 		engines = make([]types.SearchEngine, 0)
 	}
+	tools := GetAllTool()
+	for i := range tools {
+		tools[i].LogoName = ""
+	}
+	for i := range engines {
+		engines[i].Logo = ""
+	}
 	return types.BackupData{
 		Version:       backupVersion,
 		ExportedAt:    time.Now().Format(time.RFC3339),
-		Tools:         GetAllTool(),
+		Tools:         tools,
 		Catelogs:      GetAllCatelog(),
 		SearchEngines: engines,
 		ApiTokens:     GetApiTokens(),
 	}
+}
+
+// ExportBackupToDataDir 把当前数据导出保存到 data 目录（文件名 BackupFileName，同名直接覆盖）
+// 启动时自动调用，失败只记录日志，不影响服务启动
+func ExportBackupToDataDir() {
+	data := ExportBackupData()
+	content, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		logger.LogError("自动导出备份数据失败: %s", err)
+		return
+	}
+	utils.PathExistsOrCreate(BackupDir)
+	path := filepath.Join(BackupDir, BackupFileName)
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		logger.LogError("自动导出备份数据失败: %s", err)
+		return
+	}
+	logger.LogInfo("已自动导出备份数据到 %s（工具 %d 条，分类 %d 条，搜索引擎 %d 条，api token %d 条）",
+		path, len(data.Tools), len(data.Catelogs), len(data.SearchEngines), len(data.ApiTokens))
 }
 
 // ImportBackupData 导入备份数据（工具、分类、搜索引擎、api token）
@@ -104,12 +143,13 @@ func importCatelogs(tx *sql.Tx, catelogs []types.Catelog) error {
 // importTools 导入工具：同 id 覆盖，没出现在备份里的工具保持不动
 func importTools(tx *sql.Tx, tools []types.Tool) error {
 	stmt, err := tx.Prepare(`
-		INSERT INTO nav_table (id, name, url, logo, catelog, "desc", sort, "hide", "default")
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO nav_table (id, name, url, logo, logo_name, catelog, "desc", sort, "hide", "default")
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			url = excluded.url,
 			logo = excluded.logo,
+			logo_name = excluded.logo_name,
 			catelog = excluded.catelog,
 			"desc" = excluded."desc",
 			sort = excluded.sort,
@@ -127,7 +167,7 @@ func importTools(tx *sql.Tx, tools []types.Tool) error {
 			continue
 		}
 		if tool.Id > 0 {
-			if _, err = stmt.Exec(tool.Id, name, tool.Url, tool.Logo, tool.Catelog, tool.Desc,
+			if _, err = stmt.Exec(tool.Id, name, tool.Url, tool.Logo, tool.LogoName, tool.Catelog, tool.Desc,
 				tool.Sort, tool.Hide, tool.Default); err != nil {
 				return err
 			}
@@ -135,9 +175,9 @@ func importTools(tx *sql.Tx, tools []types.Tool) error {
 		}
 		// 手工编辑过的备份可能没有 id，按新增处理，交给自增主键分配
 		if _, err = tx.Exec(`
-			INSERT INTO nav_table (name, url, logo, catelog, "desc", sort, "hide", "default")
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-			`, name, tool.Url, tool.Logo, tool.Catelog, tool.Desc, tool.Sort, tool.Hide, tool.Default); err != nil {
+			INSERT INTO nav_table (name, url, logo, logo_name, catelog, "desc", sort, "hide", "default")
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+			`, name, tool.Url, tool.Logo, tool.LogoName, tool.Catelog, tool.Desc, tool.Sort, tool.Hide, tool.Default); err != nil {
 			return err
 		}
 	}
@@ -249,28 +289,30 @@ func fetchImportedImages(tools []types.Tool, engines []types.SearchEngine) {
 }
 
 // refreshImportedToolLogo 导入后按统一规则重新获取工具图标
-// logo 为空、图片外链、或本机并不存在的本地图片时走 NormalizeToolLogo：
-// 先抓网站图标（goscraper），失败用 gstatic 兜底，拿到就下载保存到本地并把 logo 改成本地地址，
-// 都拿不到则把 logo 置空（前台显示默认图标 default.png）
+// logo_name 指向的图片在本机不存在（换机器导入，或备份里只有图标网址）时走 ResolveToolLogo：
+// 先抓网站图标（goscraper），失败用 gstatic 兜底，拿到就下载保存到 data/images（logo 存图标网址、logo_name 存文件名），
+// 都拿不到则两个字段都置空（前台显示默认图标 default.png）
 func refreshImportedToolLogo(tool types.Tool) {
 	if tool.Id <= 0 {
 		return
 	}
 	logo := strings.TrimSpace(tool.Logo)
-	if !needRefreshToolLogo(logo) {
+	logoName := strings.TrimSpace(tool.LogoName)
+	if !needRefreshToolLogo(logo, logoName) {
 		return
 	}
-	newLogo := NormalizeToolLogo(tool.Name, tool.Url, logo)
-	if newLogo == logo {
+	resolved := ResolveToolLogo(tool.Name, tool.Url, logo, logoName)
+	if resolved.Logo == logo && resolved.LogoName == logoName {
 		return
 	}
-	// 只更新 logo 字段，避免覆盖导入后又被改过的其他字段
-	if _, err := database.DB.Exec(`UPDATE nav_table SET logo = ? WHERE id = ?;`, newLogo, tool.Id); err != nil {
-		logger.LogError("导入后更新工具 logo 失败: %s", err)
+	// 只更新图标相关字段，避免覆盖导入后又被改过的其他字段
+	if _, err := database.DB.Exec(`UPDATE nav_table SET logo = ?, logo_name = ? WHERE id = ?;`,
+		resolved.Logo, resolved.LogoName, tool.Id); err != nil {
+		logger.LogError("导入后更新工具图标失败: %s", err)
 		return
 	}
-	// 备份里的本地图片已经不再被这张记录引用（换了后缀等），清理掉，还有别的工具在用时不删
-	RemoveToolLogoIfUnused(logo)
+	// 备份里带过来的本地图片在本机已经不再被这张记录引用（文件名不同等），清理掉，还有别的工具在用时不删
+	RemoveToolLogoIfUnused(logo, logoName)
 }
 
 // refreshImportedSearchEngineLogo 按搜索引擎 logo 网址把外链图片下载保存到本地

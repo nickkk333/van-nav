@@ -97,6 +97,7 @@ func InitDB() {
 			'name' TEXT,
 			url TEXT,
 			logo TEXT,
+			logo_name TEXT,
 			catelog TEXT,
 			'desc' TEXT,
 			'default' BOOLEAN NOT NULL DEFAULT 0
@@ -113,6 +114,18 @@ func InitDB() {
 	// tools数据表结构升级-20230627
 	if !columnExists("nav_table", "hide") {
 		DB.Exec(`ALTER TABLE nav_table ADD COLUMN hide BOOLEAN;`)
+	}
+
+	// tools数据表结构升级-20261001：图标拆成「图标网址（logo）+ 保存到 data 目录的图片名（logo_name）」
+	if !columnExists("nav_table", "logo_name") {
+		DB.Exec(`ALTER TABLE nav_table ADD COLUMN logo_name TEXT;`)
+		// 老数据里 logo 直接存的是本地图片地址（/api/uploadedImage/xxx.png），把文件名补进 logo_name，
+		// 前台会优先按 logo_name 读本地图片，logo 保持原值不动
+		DB.Exec(`UPDATE nav_table
+			SET logo_name = REPLACE(logo, '/api/uploadedImage/', '')
+			WHERE logo LIKE '/api/uploadedImage/%' AND (logo_name IS NULL OR logo_name = '');`)
+		// 其余老记录没有图片名，统一置成空字符串，避免出现 NULL
+		DB.Exec(`UPDATE nav_table SET logo_name = '' WHERE logo_name IS NULL;`)
 	}
 
 	// 分类表

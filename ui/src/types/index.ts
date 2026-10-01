@@ -4,7 +4,10 @@ export interface Tool {
   id: number
   name: string
   url: string
+  /** 图标网址：保存可以下载到图片的 url 地址 */
   logo: string
+  /** 图标图片名：图片下载保存到 data 目录（data/images）后的文件名，前台优先按它读本地图片 */
+  logoName: string
   catelog: string
   desc: string
   sort: number

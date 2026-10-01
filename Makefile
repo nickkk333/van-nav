@@ -14,6 +14,8 @@ BINARY     := van-nav
 DIST_DIR   := bin
 PUBLIC_DIR := public
 UI_DIR     := ui
+# 需要清理的构建产物目录（clean 目标使用）
+CLEAN_DIRS := $(DIST_DIR) $(PUBLIC_DIR) $(UI_DIR)/dist
 
 GIT_TAG    := $(shell git describe --tags --always --dirty)
 GIT_COMMIT := $(shell git rev-parse --short HEAD)
@@ -31,39 +33,55 @@ ARCH       ?= amd64
 NPM        ?= npm
 
 # 跨平台目录操作
+# 删除目录：$(call RMDIR,目录1 目录2 ...)
+# Windows 下 PowerShell 的 -Path 只接受一个值，多个目录要拆成数组逐个删除，所以这里把空格分隔的目录列表
+# 在 PowerShell 里 Split 成数组；目录不存在时不能只靠 -ErrorAction SilentlyContinue
+# （PowerShell 仍会返回非 0 退出码让 make 报错），所以用 Test-Path 先判断存在再删除，保证 make clean 可重复执行
+# 创建目录：$(MKDIR) 目录
 ifeq ($(OS),Windows_NT)
-RMDIR = powershell -NoProfile -Command "Remove-Item -Recurse -Force -ErrorAction SilentlyContinue -Path"
+RMDIR = powershell -NoProfile -Command "foreach ($$p in '$(strip $1)'.Split(' ')) { if (Test-Path -Path $$p) { Remove-Item -Recurse -Force -Path $$p } }"
 MKDIR = powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path"
 LINUX_AMD64_ENV = set "CGO_ENABLED=0" && set "GOOS=linux" && set "GOARCH=amd64" &&
 LINUX_ARM64_ENV = set "CGO_ENABLED=0" && set "GOOS=linux" && set "GOARCH=arm64" &&
 else
-RMDIR = rm -rf
+RMDIR = rm -rf $1
 MKDIR = mkdir -p
 LINUX_AMD64_ENV = CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 LINUX_ARM64_ENV = CGO_ENABLED=0 GOOS=linux GOARCH=arm64
 endif
 
+# 控制台提示信息：Windows 的 cmd echo 会把引号原样打印出来（Unix 的 sh 不会），而 Unix 下括号要用引号转义，
+# 所以按平台分别拼提示命令；文本本身用英文，因为 Windows 控制台默认 GBK 代码页，输出中文会乱码
+ifeq ($(OS),Windows_NT)
+MSG = echo $(1)
+else
+MSG = echo '$(1)'
+endif
+
 .DEFAULT_GOAL := help
 
 # ------------------------------------------------------------- 帮助
+# 注意：Windows 控制台默认是 GBK(936) 代码页，Makefile 是 UTF-8，cmd 直接 echo 中文会乱码
+# （例如「已清理构建产物」会显示成「宸叉竻鐞嗘瀯寤轰骇鐗?」），所以面向控制台的输出一律用 ASCII 英文，
+# 中文说明只写在注释里
 .PHONY: help
 help: ## 显示所有可用命令
-	@echo Van Nav 构建命令:
-	@echo "  make install            安装前后端依赖"
-	@echo "  make ui-dev             启动前端开发服务器(端口 2333)"
-	@echo "  make ui-build           构建前端(输出到 ./public)"
-	@echo "  make ui-check           前端类型检查"
-	@echo "  make build              本地构建可执行文件 bin/$(BINARY)"
-	@echo "  make build-linux        构建 Linux amd64 静态二进制(Docker 使用)"
-	@echo "  make build-linux-arm64  构建 Linux arm64 静态二进制"
-	@echo "  make run                本地运行(默认端口 $(PORT))"
-	@echo "  make dev                同时启动后端与前端开发服务器"
-	@echo "  make docker             构建 Docker 镜像 $(IMAGE_NAME):$(IMAGE_TAG)"
-	@echo "  make docker-tar         导出可离线加载的镜像 tar（bin/$(BINARY)-docker-$(ARCH).tar）"
-	@echo "  make docker-multiarch   构建并推送多架构镜像(amd64/arm64)"
-	@echo "  make docker-run         运行 Docker 容器"
-	@echo "  make fmt vet test       格式化 / 静态检查 / 测试"
-	@echo "  make clean              清理构建产物"
+	@$(call MSG,Van Nav build commands:)
+	@$(call MSG,  make install            Install backend and frontend dependencies)
+	@$(call MSG,  make ui-dev             Start frontend dev server (port 2333))
+	@$(call MSG,  make ui-build           Build frontend into ./public)
+	@$(call MSG,  make ui-check           Frontend type check)
+	@$(call MSG,  make build              Build local binary bin/$(BINARY))
+	@$(call MSG,  make build-linux        Build Linux amd64 static binary (for Docker))
+	@$(call MSG,  make build-linux-arm64  Build Linux arm64 static binary)
+	@$(call MSG,  make run                Run locally (default port $(PORT)))
+	@$(call MSG,  make dev                Start backend and frontend dev servers together)
+	@$(call MSG,  make docker             Build Docker image $(IMAGE_NAME):$(IMAGE_TAG))
+	@$(call MSG,  make docker-tar         Export offline-loadable image tar ($(DIST_DIR)/$(BINARY)-docker-$(ARCH).tar))
+	@$(call MSG,  make docker-multiarch   Build and push multi-arch image (amd64/arm64))
+	@$(call MSG,  make docker-run         Run Docker container)
+	@$(call MSG,  make fmt vet test       Format / static check / test)
+	@$(call MSG,  make clean              Clean build artifacts)
 
 # ------------------------------------------------------------- 依赖
 .PHONY: install
@@ -146,7 +164,7 @@ docker-tar: ## 导出可离线 docker load 的镜像 tar（平台由 ARCH 控制
 		--build-arg COMMIT=$(COMMIT) \
 		-t $(IMAGE_NAME):$(IMAGE_TAG) -t $(IMAGE_NAME):$(VERSION) \
 		--output type=docker,dest=$(DIST_DIR)/$(BINARY)-docker-$(ARCH).tar .
-	@echo 镜像已导出到 $(DIST_DIR)/$(BINARY)-docker-$(ARCH).tar
+	@$(call MSG,Image exported to $(DIST_DIR)/$(BINARY)-docker-$(ARCH).tar)
 
 .PHONY: docker-run
 docker-run: ## 运行 Docker 容器
@@ -175,5 +193,5 @@ check: fmt vet ui-check ## 完整检查
 
 .PHONY: clean
 clean: ## 清理构建产物
-	@$(RMDIR) $(DIST_DIR) $(PUBLIC_DIR) $(UI_DIR)/dist
-	@echo 已清理构建产物
+	@$(call RMDIR,$(CLEAN_DIRS))
+	@$(call MSG,Cleaned build artifacts: $(CLEAN_DIRS))

@@ -100,7 +100,7 @@ export const fetchUpdateToolsSort = async (updates: { id: number; sort: number }
   return data
 }
 
-/** 导出全部数据（工具、分类、搜索引擎、api token），图标只包含网址 */
+/** 导出全部数据（工具、分类、搜索引擎、api token），图标只导出图标网址（工具的图片名与搜索引擎的图标不导出） */
 export const fetchExportAll = async (): Promise<BackupData> => {
   const { data } = await http.get<ApiResult<BackupData>>('/admin/exportAll')
   return data.data

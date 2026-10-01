@@ -37,22 +37,28 @@ type AddCatelogDto struct {
 	Default bool `json:"default"`
 }
 type UpdateToolDto struct {
-	Id      int    `json:"id"`
-	Name    string `json:"name"`
-	Url     string `json:"url"`
-	Logo    string `json:"logo"`
-	Catelog string `json:"catelog"`
-	Desc    string `json:"desc"`
-	Sort    int    `json:"sort"`
-	Hide    bool   `json:"hide"`
-	Default bool   `json:"default"`
+	Id   int    `json:"id"`
+	Name string `json:"name"`
+	Url  string `json:"url"`
+	// Logo 图标网址（可以下载到图片的 url），留空/外链/本机不存在的本地图片时保存会重新获取
+	Logo string `json:"logo"`
+	// LogoName 保存到 data 目录的图片名（data/images 下的文件名），留空表示还没有本地图片
+	LogoName string `json:"logoName"`
+	Catelog  string `json:"catelog"`
+	Desc     string `json:"desc"`
+	Sort     int    `json:"sort"`
+	Hide     bool   `json:"hide"`
+	Default  bool   `json:"default"`
 }
 type AddToolDto struct {
-	Name    string `json:"name"`
-	Url     string `json:"url"`
-	Logo    string `json:"logo"`
-	Catelog string `json:"catelog"`
-	Desc    string `json:"desc"`
+	Name string `json:"name"`
+	Url  string `json:"url"`
+	// Logo 图标网址（可以下载到图片的 url），留空/外链时保存会按网址自动获取
+	Logo string `json:"logo"`
+	// LogoName 保存到 data 目录的图片名（data/images 下的文件名），留空表示还没有本地图片
+	LogoName string `json:"logoName"`
+	Catelog  string `json:"catelog"`
+	Desc     string `json:"desc"`
 	// Sort 新建工具的落点：-1（默认）或负数排到最后；0 或留空排到最前；正数插入到该序号位置
 	// 落位后由后端把所有工具的排序值统一重排成从 1 开始依次递增
 	Sort    int  `json:"sort"`
