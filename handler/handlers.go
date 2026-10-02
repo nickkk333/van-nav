@@ -567,6 +567,66 @@ func UpdateToolHandler(c *gin.Context) {
 	})
 }
 
+// UploadToolLogoHandler 给工具上传本地图标：图片按「工具名称 + 图片后缀」命名保存到 data 目录
+// （data/images，与按网址自动下载的图标命名一致），并更新该工具的图标网址与 logo 图片名
+func UploadToolLogoHandler(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": "无效的ID",
+		})
+		return
+	}
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		logger.LogError("解析上传文件失败: %s", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": "请选择要上传的图片",
+		})
+		return
+	}
+	// 图片名用工具名称生成，所以先取出名称；原图标用于上传后清理被替换掉的旧图片
+	name, oldLogo, oldLogoName, ok := service.GetToolNameAndLogoById(id)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success":      false,
+			"errorMessage": "工具不存在",
+		})
+		return
+	}
+	savedName, err := service.SaveToolLogoFromUpload(name, fileHeader)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": err.Error(),
+		})
+		return
+	}
+	logo := service.UploadUrlPrefix + savedName
+	if err := service.UpdateToolLogo(id, logo, savedName); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success":      false,
+			"errorMessage": "更新工具图标失败",
+		})
+		return
+	}
+	// 图标换掉（文件名变化）时删除旧的本地图片，还有别的工具在用时不删
+	if oldLogoName != savedName || oldLogo != logo {
+		service.RemoveToolLogoIfUnused(oldLogo, oldLogoName)
+	}
+	logger.LogInfo("工具 %s 的图标已上传到本地: %s", name, savedName)
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "图片已保存到 data 目录",
+		"data": gin.H{
+			"name": savedName,
+			"url":  logo,
+		},
+	})
+}
+
 func AddCatelogHandler(c *gin.Context) {
 	// 添加分类
 	var data types.AddCatelogDto

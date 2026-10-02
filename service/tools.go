@@ -268,6 +268,35 @@ func GetToolLogoById(id int) (string, string) {
 	return logo.String, logoName.String
 }
 
+// GetToolNameAndLogoById 根据 id 取出工具名称与图标信息（图标网址、保存到本地的图片名）
+// 给工具上传本地图标时用：名称用于生成图片文件名，原图标用于上传后清理被替换掉的旧图片
+// 工具不存在时最后一个返回值为 false
+func GetToolNameAndLogoById(id int) (string, string, string, bool) {
+	var (
+		name     sql.NullString
+		logo     sql.NullString
+		logoName sql.NullString
+	)
+	err := database.DB.QueryRow(`SELECT name, logo, logo_name FROM nav_table WHERE id = ?;`, id).
+		Scan(&name, &logo, &logoName)
+	if err == sql.ErrNoRows {
+		return "", "", "", false
+	}
+	if err != nil {
+		utils.CheckErr(err)
+		return "", "", "", false
+	}
+	return name.String, logo.String, logoName.String, true
+}
+
+// UpdateToolLogo 只更新工具的图标（图标网址与保存到本地的图片名），其余字段不动
+// 用于给工具上传本地图标：logo 存本地图片地址，logoName 存文件名
+func UpdateToolLogo(id int, logo string, logoName string) error {
+	_, err := database.DB.Exec(`UPDATE nav_table SET logo = ?, logo_name = ? WHERE id = ?;`, logo, logoName, id)
+	utils.CheckErr(err)
+	return err
+}
+
 // RemoveToolLogoIfUnused 清理工具换掉或删除后的本地旧图片，还有别的工具在用同一张图片时不删
 // 需要在更新/删除数据库记录之后调用；图标网址等非本地图片不做处理
 // logoName 为工具原来的图片名（logo_name），为空时兼容老数据从 logo 里取本地图片地址

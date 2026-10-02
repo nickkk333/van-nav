@@ -89,6 +89,17 @@ export const fetchDeleteTool = async (id: number): Promise<ApiResult> => {
   return data
 }
 
+/**
+ * 给工具上传本地图标：图片按工具名称命名保存到 data 目录（data/images，与按网址自动下载的图标命名一致），
+ * 后端同时把该工具的图标网址与 logo 图片名改成这张图片，返回图标图片名与本地地址
+ */
+export const fetchUploadToolLogo = async (id: number, file: File): Promise<{ name: string; url: string }> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await http.post<ApiResult<{ name: string; url: string }>>(`/admin/tool/${id}/logo`, formData)
+  return data.data ?? { name: '', url: '' }
+}
+
 /** 抓取网址信息（标题/描述/图标），用于添加工具时自动填充 */
 export const fetchGetUrlInfo = async (url: string): Promise<UrlInfo> => {
   const { data } = await http.get<ApiResult<UrlInfo>>('/admin/urlInfo', { params: { url } })

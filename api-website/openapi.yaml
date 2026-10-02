@@ -649,6 +649,61 @@ paths:
               schema:
                 $ref: "#/components/schemas/StandardResponse"
 
+  /api/admin/tool/{id}/logo:
+    post:
+      summary: 给工具上传本地图标
+      description: >-
+        给指定工具上传一张本地图片当图标，后端按「工具名称 + 图片后缀」把图片保存到 data/images 目录
+        （命名规则与按网址自动下载的图标一致），并把该工具的图标网址（logo）改成本地图片地址
+        （/api/uploadedImage/{name}）、logo 图片名（logo_name）改成保存后的文件名。
+        单张图片不超过 5MB，支持 png / jpg / jpeg / webp / gif / svg / ico；
+        上传后原来保存的本地图标图片如果没有别的工具在用，会被清理掉。
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 工具 id
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 图标图片文件
+      responses:
+        "200":
+          description: 上传成功（图标网址与 logo 图片名已更新）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/StandardResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                            description: 保存到 data/images 后的图片文件名（工具表的 logo_name）
+                          url:
+                            type: string
+                            description: 图片的本地访问地址（/api/uploadedImage/{name}）
+        "400":
+          description: 未选择图片、格式不支持或图片过大
+        "404":
+          description: 工具不存在
+
   /api/admin/catelog:
     post:
       summary: 添加新分类

@@ -40,6 +40,22 @@ var allowedUploadExt = map[string]bool{
 
 // SaveUploadedImage 保存上传的图片，返回可直接访问的 url
 func SaveUploadedImage(file *multipart.FileHeader) (string, error) {
+	ext, err := validateUploadedImage(file)
+	if err != nil {
+		return "", err
+	}
+	utils.PathExistsOrCreate(UploadDir)
+	name := fmt.Sprintf("%s%d%s", uploadNamePrefix, time.Now().UnixNano(), ext)
+	if err := copyUploadedFile(file, filepath.Join(UploadDir, name)); err != nil {
+		logger.LogError("保存上传图片失败: %s", err)
+		return "", fmt.Errorf("保存图片失败")
+	}
+	logger.LogInfo("图片上传成功: %s", name)
+	return UploadUrlPrefix + name, nil
+}
+
+// validateUploadedImage 校验上传的图片（非空、大小、格式），返回小写的图片后缀
+func validateUploadedImage(file *multipart.FileHeader) (string, error) {
 	if file == nil || file.Size == 0 {
 		return "", fmt.Errorf("请选择要上传的图片")
 	}
@@ -50,14 +66,7 @@ func SaveUploadedImage(file *multipart.FileHeader) (string, error) {
 	if !allowedUploadExt[ext] {
 		return "", fmt.Errorf("不支持的图片格式 %s，仅支持 %s", ext, uploadExtTips)
 	}
-	utils.PathExistsOrCreate(UploadDir)
-	name := fmt.Sprintf("%s%d%s", uploadNamePrefix, time.Now().UnixNano(), ext)
-	if err := copyUploadedFile(file, filepath.Join(UploadDir, name)); err != nil {
-		logger.LogError("保存上传图片失败: %s", err)
-		return "", fmt.Errorf("保存图片失败")
-	}
-	logger.LogInfo("图片上传成功: %s", name)
-	return UploadUrlPrefix + name, nil
+	return ext, nil
 }
 
 // copyUploadedFile 把上传的文件写入目标路径
@@ -200,6 +209,31 @@ func SaveToolLogoFromImageUrl(toolName string, logoUrl string) (string, error) {
 		return "", nil
 	}
 	return writeLocalImage(SafeImageFileName(toolName, "tool"), data, ext)
+}
+
+// SaveToolLogoFromUpload 把后台上传的图片保存成工具的图标，返回保存后的文件名（工具表的 logo_name 字段）
+// 文件名与按网址下载的图标保持一致（工具名称去掉特殊字符 + 图片后缀），保存在 data 目录（data/images）
+func SaveToolLogoFromUpload(toolName string, file *multipart.FileHeader) (string, error) {
+	ext, err := validateUploadedImage(file)
+	if err != nil {
+		return "", err
+	}
+	data, err := readUploadedFile(file)
+	if err != nil {
+		logger.LogError("读取上传的图标失败: %s", err)
+		return "", fmt.Errorf("读取图片失败")
+	}
+	return writeLocalImage(SafeImageFileName(toolName, "tool"), data, ext)
+}
+
+// readUploadedFile 读出上传文件的内容（图片有 5MB 上限，直接读进内存）
+func readUploadedFile(file *multipart.FileHeader) ([]byte, error) {
+	src, err := file.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer src.Close()
+	return io.ReadAll(src)
 }
 
 // isImageFileUrl 判断地址是否是以允许的图片格式结尾的 http(s) 地址（忽略查询串与 hash）

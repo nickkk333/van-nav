@@ -134,6 +134,8 @@ func main() {
 			admin.GET("/urlInfo", handler.GetUrlInfoHandler)
 			admin.DELETE("/tool/:id", handler.DeleteToolHandler)
 			admin.PUT("/tool/:id", handler.UpdateToolHandler)
+			// 给工具上传本地图标（表单字段名为 file）：图片按工具名称命名保存到 data 目录（data/images）
+			admin.POST("/tool/:id/logo", handler.UploadToolLogoHandler)
 			admin.PUT("/tools/sort", handler.UpdateToolsSortHandler)
 
 			admin.POST("/catelog", handler.AddCatelogHandler)

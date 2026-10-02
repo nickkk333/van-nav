@@ -4,7 +4,7 @@
       <div class="card-header">
         <div class="card-header-left">
           <span class="card-header-title">{{ `当前共 ${allTools.length} 条` }}</span>
-          <span class="card-header-tip">名称、分类、描述、logo 网址可直接修改，失焦/回车后自动保存；网址与 logo 图片名为只读</span>
+          <span class="card-header-tip">名称、分类、描述、logo 网址可直接修改，失焦/回车后自动保存；网址与 logo 图片名为只读，没有本地图标图片的行可以直接上传一张</span>
           <template v-if="selectedRows.length">
             <el-popconfirm title="确定删除这些吗？" @confirm="handleBulkDelete">
               <template #reference>
@@ -137,7 +137,7 @@
           <span class="column-with-tip">
             logo 图片名
             <el-tooltip
-              content="图标图片保存到 data 目录（data/images）后的文件名，由 logo 网址下载图片时自动生成，这里只读展示；前台优先按它读本地图片"
+              content="图标图片保存到 data 目录（data/images）后的文件名，由 logo 网址下载图片或后台上传图片时自动生成，这里只读展示；前台优先按它读本地图片"
               placement="top"
             >
               <el-icon><QuestionFilled /></el-icon>
@@ -145,9 +145,19 @@
           </span>
         </template>
         <template #default="{ row }">
-          <span class="readonly-cell" :class="{ 'is-empty': !row.logoName }" :title="row.logoName || ''">
-            {{ row.logoName || '未保存' }}
-          </span>
+          <span v-if="row.logoName" class="readonly-cell" :title="row.logoName">{{ row.logoName }}</span>
+          <!-- 还没有本地图标图片（抓取不到图标）的行可以直接上传一张：图片按工具名称命名保存到 data 目录（data/images），与自动抓取的图标命名一致 -->
+          <el-upload
+            v-else
+            class="logo-upload"
+            accept=".png,.jpg,.jpeg,.webp,.gif,.svg,.ico"
+            :show-file-list="false"
+            :before-upload="(file: UploadRawFile) => handleUploadLogo(row, file)"
+          >
+            <el-tooltip content="这一行还没有本地图标图片，可以上传一张（按工具名称命名保存到 data 目录，保存后自动更新图标）" placement="top">
+              <el-button link type="primary" :loading="isUploadingLogo(row)">上传图片</el-button>
+            </el-tooltip>
+          </el-upload>
         </template>
       </el-table-column>
       <el-table-column width="76" align="center">
@@ -287,6 +297,7 @@ import {
   fetchImportAll,
   fetchUpdateTool,
   fetchUpdateToolsSort,
+  fetchUploadToolLogo,
   resolveError,
 } from '../../api'
 import { useAdminStore } from '../../stores/admin'
@@ -578,6 +589,38 @@ const revertRow = (row: Tool) => {
   }
   Object.assign(row, pickRow(snap))
   ElMessage.info('已撤销未保存的修改')
+}
+
+// ==================== 上传图标（没有本地图标图片的行） ====================
+
+/** 每行是否正在上传图标（上传期间按钮显示 loading，避免重复上传） */
+const logoUploadingMap = reactive<Record<number, boolean>>({})
+
+const isUploadingLogo = (row: Tool) => logoUploadingMap[row.id] === true
+
+/**
+ * 给该行上传一张本地图片当图标：图片按工具名称命名保存到 data 目录（data/images），
+ * 与按网址自动抓取的图标命名一致（工具名称 + 图片后缀），后端同时更新该行的图标网址与 logo 图片名
+ */
+const handleUploadLogo = async (row: Tool, file: UploadRawFile) => {
+  if (logoUploadingMap[row.id]) {
+    return false
+  }
+  logoUploadingMap[row.id] = true
+  try {
+    const saved = await fetchUploadToolLogo(row.id, file)
+    // 图标文件名变了（logo 图片名由空变成文件名），版本号 +1 后表格里的图标会立刻重新取图
+    bumpLogoVersion(row.id)
+    ElMessage.success(saved.name ? `图片已保存到 data 目录：${saved.name}` : '图片已保存到 data 目录')
+    // 图标网址与图片名已由后端更新，重新拉一次列表同步这一行
+    await reload()
+  } catch (error) {
+    ElMessage.warning(resolveError(error, '上传图片失败'))
+  } finally {
+    logoUploadingMap[row.id] = false
+  }
+  // 交给 before-upload 返回 false：不让 el-upload 自己发请求，由上面的接口上传
+  return false
 }
 
 // ==================== 增删改 ====================
