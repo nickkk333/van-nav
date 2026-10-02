@@ -404,6 +404,15 @@ body {
   background-color: var(--card-hover-bg);
 }
 
+/* 登录后首页卡片支持分类内拖拽排序与右键删除，用光标提示可拖动 */
+.content.cards .card-box.card-editable {
+  cursor: grab;
+}
+
+.content.cards .card-box.card-editable:active {
+  cursor: grabbing;
+}
+
 .card-content {
   display: flex;
   align-items: center;

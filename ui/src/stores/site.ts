@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { fetchList } from '../api'
 import { DEFAULT_CARDS_PER_ROW } from '../utils/setting'
-import type { HomeData, Setting, SiteConfig } from '../types'
+import type { HomeData, Setting, SiteConfig, Tool } from '../types'
 
 const defaultSetting: Setting = {
   id: 0,
@@ -34,6 +34,11 @@ export const useSiteStore = defineStore('site', () => {
   })
   const loading = ref(false)
 
+  /** 用新的工具列表覆盖本地数据（首页拖拽排序 / 右键删除后即时刷新界面） */
+  const setTools = (tools: Tool[]) => {
+    data.value = { ...data.value, tools }
+  }
+
   const load = async () => {
     loading.value = true
     try {
@@ -50,5 +55,5 @@ export const useSiteStore = defineStore('site', () => {
     }
   }
 
-  return { data, loading, load }
+  return { data, loading, load, setTools }
 })

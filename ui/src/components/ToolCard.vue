@@ -1,10 +1,12 @@
 <template>
   <a
     class="card-box"
+    :class="{ 'card-editable': editable }"
     :href="isToggleCard ? undefined : tool.url"
     :target="target"
     rel="noreferrer"
     @click="emit('click', tool)"
+    @contextmenu="onContextMenu"
   >
     <span v-if="showNumIndex" class="card-index">{{ index + 1 }}</span>
     <div class="card-content" :class="{ 'compact-mode': compactMode }">
@@ -47,9 +49,14 @@ const props = defineProps<{
   isSearching: boolean
   noImageMode?: boolean
   compactMode?: boolean
+  /** 登录后首页卡片支持拖拽排序与右键删除 */
+  editable?: boolean
 }>()
 
-const emit = defineEmits<{ (e: 'click', tool: Tool): void }>()
+const emit = defineEmits<{
+  (e: 'click', tool: Tool): void
+  (e: 'contextmenu', tool: Tool): void
+}>()
 
 const imageLoaded = ref(false)
 const imageError = ref(false)
@@ -57,6 +64,16 @@ const showLoading = ref(true)
 let timer: ReturnType<typeof setTimeout> | null = null
 
 const isToggleCard = computed(() => props.tool.url === 'toggleJumpTarget')
+
+/** 登录后拦截右键菜单用于删除工具，未登录时保留浏览器默认菜单（可新标签页打开等） */
+const onContextMenu = (event: MouseEvent) => {
+  if (!props.editable) {
+    return
+  }
+  event.preventDefault()
+  emit('contextmenu', props.tool)
+}
+
 // 跳转方式卡片用的是内置图片（相对路径），直接取原值；其余卡片优先读保存到本机的图片
 const imageSrc = computed(() =>
   isToggleCard.value ? props.tool.logo || DEFAULT_LOGO_URL : getToolLogoUrl(props.tool)

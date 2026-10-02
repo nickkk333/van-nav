@@ -24,7 +24,7 @@
               <span class="cards-group-divider-name">{{ displayCatelog(group.name) }}</span>
               <span class="cards-group-divider-line"></span>
             </div>
-            <div class="cards-group">
+            <div class="cards-group" :ref="(el) => setGroupEl(group.key, el)">
               <ToolCard
                 v-for="item in group.items"
                 :key="item.tool.id + '-' + item.index"
@@ -33,7 +33,9 @@
                 :is-searching="isSearching"
                 :no-image-mode="siteConfig.noImageMode"
                 :compact-mode="siteConfig.compactMode"
+                :editable="canEdit"
                 @click="handleCardClick"
+                @contextmenu="handleCardContextMenu"
               />
             </div>
           </div>
@@ -62,8 +64,11 @@ import GithubLink from '../components/GithubLink.vue'
 import AdminLink from '../components/AdminLink.vue'
 import DarkSwitch from '../components/DarkSwitch.vue'
 import Loading from '../components/Loading.vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { fetchDeleteTool, fetchUpdateToolsSort, resolveError } from '../api'
+import { useCardSortable } from '../composables/useCardSortable'
 import { useSiteStore } from '../stores/site'
-import { displayCatelog } from '../utils/check'
+import { displayCatelog, isLogin } from '../utils/check'
 import { multiSearch } from '../utils/match'
 import { generateSearchEngineCards } from '../utils/searchEngine'
 import { DEFAULT_BACKGROUND_IMAGE, DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW, initServerJumpTargetConfig, toggleJumpTarget } from '../utils/setting'
@@ -197,6 +202,114 @@ const cardGroups = computed<CardGroup[]>(() => {
   return result
 })
 
+// ==================== 首页管理（登录后可用：分类内拖拽排序 / 右键删除） ====================
+
+/** 登录后首页卡片支持拖拽排序与右键删除，未登录时保持只读 */
+const canEdit = ref(isLogin())
+/** 搜索结果是临时的（还包含搜索引擎虚拟卡片），搜索时不参与拖拽排序 */
+const canSort = computed(() => canEdit.value && !isSearching.value)
+
+/** 首页全部工具（服务端已按排序值升序返回） */
+const tools = computed<Tool[]>(() => site.data.tools ?? [])
+
+/** 各分组容器：分组 key -> DOM 元素，拖拽只在分组内部进行 */
+const groupEls = new Map<string, HTMLElement>()
+const setGroupEl = (key: string, el: unknown) => {
+  if (el instanceof HTMLElement) {
+    groupEls.set(key, el)
+  } else {
+    groupEls.delete(key)
+  }
+}
+
+/** 本地按新的排序值刷新工具列表（排序值相同时保持原有顺序） */
+const applyToolsSort = (updates: { id: number; sort: number }[]) => {
+  const sortMap = new Map(updates.map((item) => [item.id, item.sort]))
+  const next = tools.value.map((tool) => {
+    const sort = sortMap.get(tool.id)
+    return sort === undefined ? tool : { ...tool, sort }
+  })
+  next.sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
+  site.setTools(next)
+}
+
+/**
+ * 计算拖拽后要提交的排序数据：
+ * 优先把该分组原有的排序值按从小到大依次分配给新顺序（只改该分组，其他分类不受影响）；
+ * 分组内排序值有重复时（例如手工改过数据库）改用整表顺序重排成 1 开始依次递增，保证新顺序能保存下来。
+ */
+const buildSortUpdates = (order: Tool[], values: number[]) => {
+  if (new Set(values).size === values.length) {
+    return order.map((tool, index) => ({ id: tool.id, sort: values[index] }))
+  }
+  const ids = new Set(order.map((tool) => tool.id))
+  const queue = [...order]
+  const list = tools.value.map((tool) => (ids.has(tool.id) ? (queue.shift() as Tool) : tool))
+  return list.map((tool, index) => ({ id: tool.id, sort: index + 1 }))
+}
+
+/** 分组内拖拽结束：先按新顺序刷新本地，再把该分组的排序提交到服务端 */
+const persistSort = async (key: string, oldIndex: number, newIndex: number) => {
+  const group = cardGroups.value.find((item) => item.key === key)
+  if (!group) {
+    return
+  }
+  const order = group.items.map((item) => item.tool)
+  const [moved] = order.splice(oldIndex, 1)
+  if (!moved) {
+    return
+  }
+  order.splice(newIndex, 0, moved)
+
+  const values = group.items.map((item) => item.tool.sort ?? 0).sort((a, b) => a - b)
+  const updates = buildSortUpdates(order, values)
+  applyToolsSort(updates)
+  try {
+    await fetchUpdateToolsSort(updates)
+    ElMessage({ message: '排序已更新', type: 'success', grouping: true, duration: 1200 })
+  } catch (error) {
+    ElMessage.error(resolveError(error, '排序更新失败'))
+    // 失败时以服务端数据为准
+    await site.load()
+  }
+}
+
+useCardSortable({
+  source: cardGroups,
+  enabled: canSort,
+  getContainers: () => groupEls,
+  onEnd: persistSort,
+})
+
+/** 右键删除工具（内置的跳转方式卡片、搜索引擎虚拟卡片不参与删除） */
+const handleCardContextMenu = async (tool: Tool) => {
+  if (!canEdit.value || tool.url === 'toggleJumpTarget') {
+    return
+  }
+  // 搜索时展示的搜索引擎卡片是虚拟数据，没有对应的工具记录
+  if (!tools.value.some((item) => item.id === tool.id)) {
+    return
+  }
+  try {
+    await ElMessageBox.confirm(`确定删除「${tool.name}」吗？`, '删除工具', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    // 取消删除
+    return
+  }
+  try {
+    await fetchDeleteTool(tool.id)
+    // 用剩余工具覆盖本地列表，界面立即去掉这张卡片
+    ElMessage.success('删除成功')
+    site.setTools(tools.value.filter((item) => item.id !== tool.id))
+  } catch (error) {
+    ElMessage.error(resolveError(error, '删除失败'))
+  }
+}
+
 // 关键字变化时生成搜索引擎卡片
 watch(searchString, async (value) => {
   try {
@@ -306,6 +419,8 @@ const applySiteMeta = () => {
 
 const init = async () => {
   loading.value = true
+  // 登录状态决定首页是否提供拖拽排序 / 右键删除
+  canEdit.value = isLogin()
   try {
     await site.load()
     initServerJumpTargetConfig(site.data.setting)

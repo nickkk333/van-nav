@@ -331,7 +331,7 @@ const requestLoading = ref(false)
 const bulkLoading = ref(false)
 const showAdd = ref(false)
 const page = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(100)
 /** 添加工具时是否正在抓取网址信息 */
 const urlInfoLoading = ref(false)
 /** 导入备份时是否正在请求 */
