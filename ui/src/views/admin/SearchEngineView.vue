@@ -20,9 +20,9 @@
       </el-table-column>
       <el-table-column label="Logo" width="80">
         <template #default="{ row }">
-          <!-- 没填 logo 的搜索引擎在前台会退回默认图标，这里直接显示名称首字符占位图，加载失败也走同一个占位 -->
+          <!-- 没填 logo 的搜索引擎在前台会退回默认图标，这里直接显示名称首字符占位图；加载失败也走同一个占位 -->
           <LogoFallback v-if="!row.logo" class="engine-logo" :name="row.name" />
-          <el-image v-else class="engine-logo" :src="logoUrl(row.logo)" fit="contain">
+          <el-image v-else class="engine-logo" :src="logoUrl(row.logo)" fit="contain" @error="handleLogoError(row.logo)">
             <template #error>
               <LogoFallback class="tool-logo-error" :name="row.name" />
             </template>
@@ -91,9 +91,12 @@
       </el-form-item>
       <el-form-item label="Logo" prop="logo">
         <div class="url-field">
-          <el-input v-model="form.logo" placeholder="留空则自动获取，保存时会下载到本地" />
+          <el-input v-model="form.logo" placeholder="可留空，留空时用名称首字符占位" />
           <div class="form-tip">
-            <span>确定后会把图片保存到本地，并以搜索引擎名称命名；之后都从本地读取</span>
+            <span>填网址时确定后会把图片下载保存到本地，并以搜索引擎名称命名；之后都从本地读取</span>
+          </div>
+          <div class="form-tip">
+            <span>也可以填随站点一起内嵌的图标文件名（例如 /default.png）或者/api/uploadedImage/拼接logo图片名</span>
           </div>
         </div>
       </el-form-item>
@@ -162,8 +165,8 @@ const rules: FormRules = {
     { pattern: /^https?:\/\//, message: '基础 URL 必须以 http:// 或 https:// 开头', trigger: 'blur' },
   ],
   queryParam: [{ required: true, message: '请输入查询参数', trigger: 'blur' }],
+  // logo 为选填：留空时后台表格与前台都显示名称首字符占位，填了才校验格式
   logo: [
-    { required: true, message: '请输入 Logo 文件名或网址', trigger: 'blur' },
     {
       validator: (_rule, value: string, callback) => {
         if (!value) {
@@ -181,15 +184,33 @@ const rules: FormRules = {
   ],
 }
 
-/** 外链地址、本地保存的地址直接使用；只有历史数据里的「图标文件名」才走后端缓存代理（url 需转义，避免 & 截断） */
+/** 静态资源里找不到的图标文件名（理论上只可能是缓存到数据库的历史数据）改走后端缓存代理再试一次 */
+const logoCacheFallback = reactive<Record<string, boolean>>({})
+
+/** 图标地址：外链地址、本机保存的地址（/api/uploadedImage/xxx.png）直接使用；
+ *  只填文件名的内置图标（例如 baidu.ico，图片随前端一起内嵌，源文件在 ui/public）按静态资源路径解析，
+ *  和前台 getLogoUrl 的处理保持一致：这类图标不在数据库图片缓存里，交给 /api/img 取不到图 */
 const logoUrl = (logo: string) => {
-  if (!logo) {
+  const value = (logo || '').trim()
+  if (!value) {
     return ''
   }
-  if (logo.startsWith('http') || logo.startsWith('/')) {
-    return logo
+  if (value.startsWith('http') || value.startsWith('/')) {
+    return value
   }
-  return `/api/img?url=${encodeURIComponent(logo)}`
+  if (logoCacheFallback[value]) {
+    return `/api/img?url=${encodeURIComponent(value)}`
+  }
+  return `${import.meta.env.BASE_URL}${value}`
+}
+
+/** 静态资源里没有这个文件（历史数据里可能存在缓存在数据库的图标文件名），回落到后端缓存代理（url 需转义，避免 & 截断） */
+const handleLogoError = (logo: string) => {
+  const value = (logo || '').trim()
+  if (!value || value.startsWith('http') || value.startsWith('/')) {
+    return
+  }
+  logoCacheFallback[value] = true
 }
 
 /** 输入基础 URL 后自动获取 logo 网址 */
@@ -210,7 +231,7 @@ const autoFillLogo = async () => {
       form.logo = logo
       ElMessage.success('已自动获取 logo 网址')
     } else {
-      ElMessage.warning('没能读取到网站图标，请手动填写 logo')
+      ElMessage.warning('没能读取到网站图标，可以手动填写或留空')
     }
   } catch (error) {
     ElMessage.warning(resolveError(error, '获取 logo 失败'))

@@ -246,9 +246,9 @@ func InitDB() {
 			logo       string
 			sort       int
 		}{
-			{"百度", "https://www.baidu.com/s", "wd", "", 1},
-			{"Bing", "https://cn.bing.com/search", "q", "", 2},
-			{"Google", "https://www.google.com/search", "q", "", 3},
+			{"百度", "https://www.baidu.com/s", "wd", "/baidu.ico", 1},
+			{"Bing", "https://cn.bing.com/search", "q", "/bing.ico", 2},
+			{"Google", "https://www.google.com/search", "q", "/google.ico", 3},
 		}
 
 		sql_add_search_engine := `

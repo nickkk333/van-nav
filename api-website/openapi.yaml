@@ -493,6 +493,11 @@ paths:
     get:
       security: []
       summary: 获取 logo 图片
+      description: >-
+        只从数据库的图片缓存里取图标（外链图标在保存工具时下载并缓存到数据库），缓存里没有图片时返回 404，
+        前台 <img> 会触发 error 事件并用名称首字符占位。
+        内置图标文件名（例如 baidu.ico）是随前端一起内嵌的静态资源（源文件在 ui/public 目录），
+        前端按网站根目录的相对路径直接请求静态资源，不经过这个接口。
       parameters:
         - name: url
           in: query
@@ -507,6 +512,8 @@ paths:
               schema:
                 type: string
                 format: binary
+        "404":
+          description: 图片不存在（缓存里没有，例如外链失效或没下载成功）
 
   /api/uploadedImage/{name}:
     get:

@@ -265,6 +265,7 @@ func GetLogoImgHandler(c *gin.Context) {
 	// 只从图片缓存里取图标（外链图标在保存工具时下载并缓存到数据库）：缓存里没有就返回 404，
 	// 前台 <img> 会触发 error 事件并用名称首字符占位（ui/src/components/LogoFallback.vue）；
 	// 这里不能返回内置的灰圈占位图，否则前台会以为图片加载成功，把占位图当成网站图标显示
+	// 内置图标文件名（例如 baidu.ico）随前端一起内嵌在 public 里，前端按静态资源路径直接请求，不走这个接口
 	img := service.GetImgFromDB(url)
 	if img.Value == "" {
 		c.JSON(http.StatusNotFound, gin.H{
