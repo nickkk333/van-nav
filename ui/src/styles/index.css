@@ -65,6 +65,25 @@ body {
   background: #a8a8a8;
 }
 
+/* ==================== 图标占位 ==================== */
+
+/* 图标加载失败时的占位图（LogoFallback 组件）：显示名称首字符，比统一的表情符号更容易分辨是哪个网站 */
+/* 尺寸由使用处的容器决定（首页卡片 48px、后台表格 28px），字体大小也由容器传入 */
+.logo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  background-color: var(--tag-bg);
+  color: var(--el-color-primary);
+  font-weight: 600;
+  line-height: 1;
+  overflow: hidden;
+  user-select: none;
+}
+
 /* ==================== 首页布局 ==================== */
 
 .app {
@@ -439,9 +458,12 @@ body {
   transition: opacity 0.3s ease;
 }
 
+/* 首页卡片图标加载失败时的占位容器：与正常图标保持同样的尺寸与字号 */
 .card-image-error {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
   font-size: 20px;
-  opacity: 0.6;
 }
 
 .card-loading-spinner {
@@ -951,12 +973,13 @@ body {
   flex-shrink: 0;
 }
 
+/* 后台表格图标加载失败时的占位容器：撑满图标框，字号由这里决定 */
 .tool-logo-error {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 100%;
+  height: 100%;
   font-size: 14px;
 }
 

@@ -77,6 +77,8 @@ export const generateSearchEngineCards = async (searchString: string): Promise<T
         logo: engine.logo,
         // 虚拟卡片没有本机图片名，直接按搜索引擎的 logo 地址显示
         logoName: '',
+        // 图标缺失或加载失败时用引擎名首字符占位（卡片名是「使用 xxx 搜索」，直接用会一直是「使」）
+        logoText: engine.name,
         catelog: '默认',
         sort: engine.sort,
         hide: false,

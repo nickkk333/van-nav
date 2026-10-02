@@ -71,10 +71,11 @@
       <el-table-column label="名称" min-width="160">
         <template #default="{ row }">
           <div class="tool-name-cell">
-            <!-- 有图片名时读 data 目录里的本地图片，否则按图标网址显示，两者都没有时显示默认图标 default.png（由 getToolLogoUrl 处理），加载失败再显示占位图 -->
-            <el-image class="tool-logo" :src="getToolLogoUrl(row)" fit="cover" lazy>
+            <!-- 有图片名时读 data 目录里的本地图片，其次按图标网址显示；两者都没有时显示名称首字符占位图，有图标但加载失败也显示占位图 -->
+            <LogoFallback v-if="!hasToolLogo(row)" class="tool-logo tool-logo-error" :name="row.name" />
+            <el-image v-else class="tool-logo" :src="getToolLogoUrl(row)" fit="cover" lazy>
               <template #error>
-                <div class="tool-logo-error">🖼️</div>
+                <LogoFallback class="tool-logo-error" :name="row.name" />
               </template>
             </el-image>
             <el-input v-model="row.name" placeholder="请输入名称" @change="saveRow(row)" />
@@ -277,8 +278,9 @@ import {
 } from '../../api'
 import { useAdminStore } from '../../stores/admin'
 import { useTableSortable } from '../../composables/useTableSortable'
+import LogoFallback from '../../components/LogoFallback.vue'
 import { multiSearch } from '../../utils/match'
-import { getToolLogoUrl } from '../../utils/check'
+import { getToolLogoUrl, hasToolLogo } from '../../utils/check'
 import { clearSearchEngineCache } from '../../utils/searchEngine'
 import type { BackupData, Tool } from '../../types'
 

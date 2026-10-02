@@ -11,7 +11,7 @@
     <span v-if="showNumIndex" class="card-index">{{ index + 1 }}</span>
     <div class="card-content" :class="{ 'compact-mode': compactMode }">
       <div v-if="!noImageMode" class="card-left">
-        <div v-if="imageError" class="card-image-error">🖼️</div>
+        <LogoFallback v-if="imageError || showNameInitial" class="card-image-error" :name="initialName" />
         <template v-else>
           <span v-if="showLoading" class="card-loading-spinner" />
           <img
@@ -39,7 +39,8 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { displayCatelog, DEFAULT_LOGO_URL, getToolLogoUrl } from '../utils/check'
+import LogoFallback from './LogoFallback.vue'
+import { displayCatelog, DEFAULT_LOGO_URL, getToolLogoUrl, hasToolLogo } from '../utils/check'
 import { getJumpTarget } from '../utils/setting'
 import type { Tool } from '../types'
 
@@ -78,6 +79,12 @@ const onContextMenu = (event: MouseEvent) => {
 const imageSrc = computed(() =>
   isToggleCard.value ? props.tool.logo || DEFAULT_LOGO_URL : getToolLogoUrl(props.tool)
 )
+// 没配置图标（本地图片名和图标网址都为空）的卡片不显示内置的 default.png，直接用名称首字符占位
+// 跳转方式卡片一定用内置图片，不参与该逻辑
+const showNameInitial = computed(() => (isToggleCard.value ? false : !hasToolLogo(props.tool)))
+// 占位字符：虚拟卡片（如搜索引擎卡片）可用 logoText 指定，缺省取名称首字符
+const initialName = computed(() => props.tool.logoText || props.tool.name)
+
 const target = computed(() => (getJumpTarget() === 'blank' ? '_blank' : '_self'))
 const showNumIndex = computed(() => props.index < 10 && props.isSearching)
 

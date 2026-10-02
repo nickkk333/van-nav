@@ -8,6 +8,8 @@ export interface Tool {
   logo: string
   /** 图标图片名：图片下载保存到 data 目录（data/images）后的文件名，前台优先按它读本地图片 */
   logoName: string
+  /** 图标占位字符：图标缺失或加载失败时显示的字符，只在前台虚拟卡片上使用（如搜索引擎卡片取引擎名），缺省时用 name 的首字符 */
+  logoText?: string
   catelog: string
   desc: string
   sort: number

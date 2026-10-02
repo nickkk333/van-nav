@@ -20,9 +20,11 @@
       </el-table-column>
       <el-table-column label="Logo" width="80">
         <template #default="{ row }">
-          <el-image class="engine-logo" :src="logoUrl(row.logo)" fit="contain">
+          <!-- 没填 logo 的搜索引擎在前台会退回默认图标，这里直接显示名称首字符占位图，加载失败也走同一个占位 -->
+          <LogoFallback v-if="!row.logo" class="engine-logo tool-logo-error" :name="row.name" />
+          <el-image v-else class="engine-logo" :src="logoUrl(row.logo)" fit="contain">
             <template #error>
-              <div class="tool-logo-error">️</div>
+              <LogoFallback class="tool-logo-error" :name="row.name" />
             </template>
           </el-image>
         </template>
@@ -122,6 +124,7 @@ import {
   resolveError,
 } from '../../api'
 import { useTableSortable } from '../../composables/useTableSortable'
+import LogoFallback from '../../components/LogoFallback.vue'
 import { clearSearchEngineCache } from '../../utils/searchEngine'
 import type { SearchEngine } from '../../types'
 
