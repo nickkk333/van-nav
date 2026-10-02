@@ -971,6 +971,8 @@ body {
   height: 28px;
   border-radius: 4px;
   flex-shrink: 0;
+  /* 占位字符（没配图标的行）的字号，图标本身不受影响 */
+  font-size: 14px;
 }
 
 /* 后台表格图标加载失败时的占位容器：撑满图标框，字号由这里决定 */
@@ -1011,6 +1013,8 @@ body {
 .engine-logo {
   width: 24px;
   height: 24px;
+  /* 占位字符（没填 logo）的字号，图标本身不受影响 */
+  font-size: 14px;
 }
 
 .token-value {

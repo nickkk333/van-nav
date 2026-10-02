@@ -72,7 +72,7 @@
         <template #default="{ row }">
           <div class="tool-name-cell">
             <!-- 有图片名时读 data 目录里的本地图片，其次按图标网址显示；两者都没有时显示名称首字符占位图，有图标但加载失败也显示占位图 -->
-            <LogoFallback v-if="!hasToolLogo(row)" class="tool-logo tool-logo-error" :name="row.name" />
+            <LogoFallback v-if="!hasToolLogo(row)" class="tool-logo" :name="row.name" />
             <el-image v-else class="tool-logo" :src="getToolLogoUrl(row)" fit="cover" lazy>
               <template #error>
                 <LogoFallback class="tool-logo-error" :name="row.name" />

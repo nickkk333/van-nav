@@ -247,12 +247,14 @@ func SafeImageFileName(name string, fallback string) string {
 func CleanupReplacedUploadedImages(oldSetting types.Setting, newSetting types.Setting) {
 	inUse := []string{
 		newSetting.BackgroundImage,
+		newSetting.DefaultLogo,
 		newSetting.Favicon,
 		newSetting.Logo192,
 		newSetting.Logo512,
 	}
 	for _, url := range []string{
 		oldSetting.BackgroundImage,
+		oldSetting.DefaultLogo,
 		oldSetting.Favicon,
 		oldSetting.Logo192,
 		oldSetting.Logo512,

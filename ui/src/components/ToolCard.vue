@@ -11,7 +11,7 @@
     <span v-if="showNumIndex" class="card-index">{{ index + 1 }}</span>
     <div class="card-content" :class="{ 'compact-mode': compactMode }">
       <div v-if="!noImageMode" class="card-left">
-        <LogoFallback v-if="imageError || showNameInitial" class="card-image-error" :name="initialName" />
+        <LogoFallback v-if="showNameInitial" class="card-image-error" :name="initialName" />
         <template v-else>
           <span v-if="showLoading" class="card-loading-spinner" />
           <img
@@ -40,7 +40,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import LogoFallback from './LogoFallback.vue'
-import { displayCatelog, DEFAULT_LOGO_URL, getToolLogoUrl, hasToolLogo } from '../utils/check'
+import { displayCatelog, customDefaultLogo, DEFAULT_LOGO_URL, getToolLogoUrl, hasToolLogo } from '../utils/check'
 import { getJumpTarget } from '../utils/setting'
 import type { Tool } from '../types'
 
@@ -75,13 +75,17 @@ const onContextMenu = (event: MouseEvent) => {
   emit('contextmenu', props.tool)
 }
 
-// 跳转方式卡片用的是内置图片（相对路径），直接取原值；其余卡片优先读保存到本机的图片
-const imageSrc = computed(() =>
-  isToggleCard.value ? props.tool.logo || DEFAULT_LOGO_URL : getToolLogoUrl(props.tool)
-)
-// 没配置图标（本地图片名和图标网址都为空）的卡片不显示内置的 default.png，直接用名称首字符占位
+// 跳转方式卡片用的是内置图片（相对路径），直接取原值；
+// 其余卡片优先读保存到本机的图片，没配置图标的卡片用后台上传的默认图标（相当于替换内置的 default.png）
+const imageSrc = computed(() => {
+  if (isToggleCard.value) {
+    return props.tool.logo || DEFAULT_LOGO_URL
+  }
+  return hasToolLogo(props.tool) ? getToolLogoUrl(props.tool) : customDefaultLogo.value
+})
+// 名称首字符占位：没有图标也没有上传默认图标（图片地址为空），或图片加载失败（含默认图标加载失败）时显示
 // 跳转方式卡片一定用内置图片，不参与该逻辑
-const showNameInitial = computed(() => (isToggleCard.value ? false : !hasToolLogo(props.tool)))
+const showNameInitial = computed(() => (isToggleCard.value ? false : !imageSrc.value || imageError.value))
 // 占位字符：虚拟卡片（如搜索引擎卡片）可用 logoText 指定，缺省取名称首字符
 const initialName = computed(() => props.tool.logoText || props.tool.name)
 

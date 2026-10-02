@@ -55,7 +55,8 @@ func InitDB() {
 		hideGithub BOOLEAN,
 		hideToggleJumpTarget BOOLEAN,
 		jumpTargetBlank BOOLEAN,
-		backgroundImage TEXT
+		backgroundImage TEXT,
+		defaultLogo TEXT
 	);
 	`
 	_, err = DB.Exec(sql_create_table)
@@ -88,6 +89,11 @@ func InitDB() {
 	// 设置表表结构升级-20250923【首页背景图，存放后台上传返回的 url 或外链地址】
 	if !columnExists("nav_setting", "backgroundImage") {
 		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN backgroundImage TEXT;`)
+	}
+	// 设置表表结构升级-20261002【默认图标，存放后台上传返回的 url 或外链地址，相当于替换内置的 default.png】
+	// 工具/搜索引擎没有自己的图标时前台显示它，留空时前台用名称首字符占位
+	if !columnExists("nav_setting", "defaultLogo") {
+		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN defaultLogo TEXT;`)
 	}
 
 	// 默认 tools 用的 表

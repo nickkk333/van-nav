@@ -47,6 +47,9 @@ export interface Setting {
   jumpTargetBlank: boolean
   /** 首页背景图地址（后台上传返回的 url 或外链地址），留空时前台使用必应每日壁纸作为背景 */
   backgroundImage: string
+  /** 默认图标地址（后台上传返回的 url 或外链地址，相当于替换内置的 default.png）：
+   *  工具/搜索引擎没有自己的图标时前台显示它，留空时前台用名称首字符占位 */
+  defaultLogo: string
 }
 
 export interface SiteConfig {

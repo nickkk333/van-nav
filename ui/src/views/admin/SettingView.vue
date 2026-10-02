@@ -45,6 +45,19 @@
             />
           </el-tooltip>
         </el-form-item>
+        <el-form-item label="默认图标" prop="defaultLogo">
+          <el-tooltip
+            content="工具或搜索引擎没有自己的图标时显示的图片（相当于替换内置的 default.png）；留空则用名称首字符占位"
+            placement="top"
+          >
+            <ImageUploader
+              v-model="settingForm.defaultLogo"
+              accept=".png,.svg,.webp"
+              preview
+              placeholder="上传图片或输入图片地址（推荐 png），留空则用名称首字符占位"
+            />
+          </el-tooltip>
+        </el-form-item>
         <el-form-item label="默认跳转方式" prop="jumpTargetBlank">
           <el-tooltip content="选择点击卡片后默认的跳转方式" placement="top">
             <el-select v-model="settingForm.jumpTargetBlank" style="width: 100%">
@@ -141,6 +154,7 @@ const defaultSettingForm = () => ({
   hideToggleJumpTarget: false,
   jumpTargetBlank: true,
   backgroundImage: '',
+  defaultLogo: '',
 })
 
 const adminStore = useAdminStore()

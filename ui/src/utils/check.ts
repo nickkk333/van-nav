@@ -1,3 +1,4 @@
+import { ref } from 'vue'
 import type { Tool } from '../types'
 
 export const isLogin = () => {
@@ -6,6 +7,18 @@ export const isLogin = () => {
 
 /** 默认图标：前端公共资源 default.png（源文件在 ui/public/default.png，构建时拷贝到 ./public 供 go:embed 内嵌） */
 export const DEFAULT_LOGO_URL = `${import.meta.env.BASE_URL}default.png`
+
+/**
+ * 后台上传的自定义默认图标（设置里的 defaultLogo）：上传后相当于替换内置的 default.png，
+ * 工具/搜索引擎没有自己的图标时前台显示它；没有上传时前台用名称首字符占位（LogoFallback）
+ * 用 ref 存放，设置加载完成后已经渲染出来的卡片会自动更新
+ */
+export const customDefaultLogo = ref('')
+
+/** 设置加载后同步自定义默认图标地址（空串表示前台改用名称首字符占位） */
+export const setCustomDefaultLogo = (url?: string | null) => {
+  customDefaultLogo.value = (url || '').trim()
+}
 
 /** 本机图片的访问前缀（图片保存在 data/images 下），与后端 service.UploadUrlPrefix 保持一致 */
 export const UPLOADED_IMAGE_PREFIX = '/api/uploadedImage/'

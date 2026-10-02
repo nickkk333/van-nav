@@ -21,7 +21,7 @@
       <el-table-column label="Logo" width="80">
         <template #default="{ row }">
           <!-- 没填 logo 的搜索引擎在前台会退回默认图标，这里直接显示名称首字符占位图，加载失败也走同一个占位 -->
-          <LogoFallback v-if="!row.logo" class="engine-logo tool-logo-error" :name="row.name" />
+          <LogoFallback v-if="!row.logo" class="engine-logo" :name="row.name" />
           <el-image v-else class="engine-logo" :src="logoUrl(row.logo)" fit="contain">
             <template #error>
               <LogoFallback class="tool-logo-error" :name="row.name" />

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { fetchList } from '../api'
+import { setCustomDefaultLogo } from '../utils/check'
 import { DEFAULT_CARDS_PER_ROW } from '../utils/setting'
 import type { HomeData, Setting, SiteConfig, Tool } from '../types'
 
@@ -16,6 +17,7 @@ const defaultSetting: Setting = {
   hideToggleJumpTarget: false,
   jumpTargetBlank: true,
   backgroundImage: '',
+  defaultLogo: '',
 }
 
 const defaultSiteConfig: SiteConfig = {
@@ -43,10 +45,13 @@ export const useSiteStore = defineStore('site', () => {
     loading.value = true
     try {
       const res = await fetchList()
+      const setting = { ...defaultSetting, ...(res?.setting ?? {}) }
+      // 同步后台上传的默认图标：卡片没配图标时用它显示，没上传时用名称首字符占位（见 utils/check.ts）
+      setCustomDefaultLogo(setting.defaultLogo)
       data.value = {
         tools: res?.tools ?? [],
         catelogs: res?.catelogs ?? [],
-        setting: { ...defaultSetting, ...(res?.setting ?? {}) },
+        setting,
         siteConfig: { ...defaultSiteConfig, ...(res?.siteConfig ?? {}) },
       }
       return data.value
