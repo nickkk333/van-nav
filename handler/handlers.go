@@ -547,12 +547,11 @@ func UpdateToolHandler(c *gin.Context) {
 		})
 		return
 	}
-	// 先取出旧的图标网址与本地图片名，用于判断 logo 网址是否被改成了新的图片地址
+	// 先取出旧的图标网址与本地图片名：用于判断 logo 网址有没有被改动（没改动时图标按原有规则处理）
 	oldLogo, oldLogoName := service.GetToolLogoById(data.Id)
-	// 图标需要重新获取时（本机还没有这张图片、或图标网址为空/外链/指向本机不存在的图片）：
-	// 先抓网站图标，抓不到用 gstatic 兜底，拿到就下载到 data/images：
+	// 处理图标：logo 网址被改成图片外链时先按填写的地址下载这张图片（下载不到则回退），
+	// 改成空与其他内容时按工具网址抓取网站图标（抓不到用 gstatic 兜底），拿到图标就下载到 data/images：
 	// logo 存图标网址、logoName 存图片名；都拿不到则都置空，前台显示默认图标 default.png
-	// logo 网址被改成新的图片地址时，直接下载这张图片并更新 logo 图片名
 	resolved := service.ResolveUpdatedToolLogo(data.Name, data.Url, data.Logo, data.LogoName, oldLogo)
 	data.Logo, data.LogoName = resolved.Logo, resolved.LogoName
 	service.UpdateTool(data)

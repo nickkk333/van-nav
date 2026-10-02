@@ -70,10 +70,23 @@ func ResolveToolLogo(name string, siteUrl string, logo string, logoName string) 
 	if !needRefreshToolLogo(logo, logoName) {
 		return ToolLogo{Logo: logo, LogoName: logoName}
 	}
+	// 工具没有填写网址时没法按网址抓图标，保留原有的 logo 网址（图片名留空，前台按网址显示或退化为默认图标）
+	if strings.TrimSpace(siteUrl) == "" {
+		logger.LogError("工具 %s 没有填写网址，无法获取图标", name)
+		return ToolLogo{Logo: logo}
+	}
+	return FetchToolLogoBySiteUrl(name, siteUrl)
+}
+
+// FetchToolLogoBySiteUrl 按工具网址获取图标并下载保存到本地：
+// 先用 goscraper 抓网站图标，抓不到再用 gstatic 的图标接口兜底；拿到图标网址就下载保存到
+// data 目录（data/images，文件名使用工具名称），返回图标网址与保存后的文件名
+// 工具没有填写网址、抓不到图标、图片下载或保存失败时都返回空值（两个字段都置空，前台显示默认图标 default.png）
+func FetchToolLogoBySiteUrl(name string, siteUrl string) ToolLogo {
 	siteUrl = strings.TrimSpace(siteUrl)
 	if siteUrl == "" {
 		logger.LogError("工具 %s 没有填写网址，无法获取图标", name)
-		return ToolLogo{Logo: logo}
+		return ToolLogo{}
 	}
 	iconUrl := getIcon(siteUrl)
 	if iconUrl == "" {
@@ -93,13 +106,22 @@ func ResolveToolLogo(name string, siteUrl string, logo string, logoName string) 
 	return ToolLogo{Logo: iconUrl, LogoName: savedName}
 }
 
-// ResolveUpdatedToolLogo 更新工具时处理图标：
-// 在 ResolveToolLogo 的基础上，logo 网址被改成了新的图片地址（http://、https:// 开头的图片链接）时，
-// 直接下载这张图片保存到 data/images 并把文件名写入 logo 图片名（logo 网址保持填写值不变）；
-// 下载失败、或网址不是图片地址时，回退到 ResolveToolLogo 的规则（按工具网址抓取网站图标）
+// ResolveUpdatedToolLogo 更新工具时处理图标（表格里改 logo 网址后的规则）：
+//  1. logo 网址没有改动：按 ResolveToolLogo 的规则处理（本机已经有这张图片就原样不动）
+//  2. 改成图片外链（http://、https:// 开头）：先按填写的地址下载这张图片保存到 data/images，
+//     保存成功时 logo 网址保持填写的地址
+//  3. 按填写的地址拿不到图片（下载失败、地址不是图片）、或改成了空与其他内容：
+//     改按工具网址走 FetchToolLogoBySiteUrl 获取网站图标（goscraper，抓不到用 gstatic 兜底）
+//
+// 获取成功时 logo 存拿到的图标网址、logoName 存保存的图片文件名；都拿不到时两个字段都置空（前台显示默认图标 default.png）
 func ResolveUpdatedToolLogo(name string, siteUrl string, logo string, logoName string, oldLogo string) ToolLogo {
 	logo = strings.TrimSpace(logo)
-	if isRemoteImageUrl(logo) && logo != strings.TrimSpace(oldLogo) {
+	// logo 网址没改动时按原有规则处理
+	if logo == strings.TrimSpace(oldLogo) {
+		return ResolveToolLogo(name, siteUrl, logo, logoName)
+	}
+	// 改成图片外链时先按填写的地址下载这张图片
+	if isRemoteImageUrl(logo) {
 		savedName, err := SaveToolLogoFromImageUrl(name, logo)
 		if err != nil {
 			logger.LogError("工具 %s 的图标下载失败，改按工具网址重新获取: %s", name, err)
@@ -108,7 +130,8 @@ func ResolveUpdatedToolLogo(name string, siteUrl string, logo string, logoName s
 			return ToolLogo{Logo: logo, LogoName: savedName}
 		}
 	}
-	return ResolveToolLogo(name, siteUrl, logo, logoName)
+	// 改成空或其他内容、或按填写的地址拿不到图片时：按工具网址重新获取网站图标
+	return FetchToolLogoBySiteUrl(name, siteUrl)
 }
 
 // UpdateTool 更新工具，同时更新图片表

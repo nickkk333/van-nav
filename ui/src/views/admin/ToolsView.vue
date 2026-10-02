@@ -121,7 +121,7 @@
           <span class="column-with-tip">
             logo 网址
             <el-tooltip
-              content="图标网址：填图片地址（http://、https:// 开头的图片链接）时，保存后会把这张图片下载到 data 目录（文件名用工具名称）并自动更新 logo 图片名；留空或本机还没有图片时，会按工具网址抓取网站图标（失败用 gstatic 兜底）并下载。都拿不到时都置空，前台显示默认图片 default.png"
+              content="图标网址：修改后保存时会重新获取图标——填图片地址（http://、https:// 开头的图片链接）时先按这个地址下载这张图片（文件名用工具名称）并保留填写的网址；按填写的地址拿不到图片、或改成空与其他内容时，改按工具网址抓取网站图标（失败用 gstatic 兜底）并下载，获取成功时这里会写入抓到的图标网址。都拿不到时两个字段都置空，前台显示默认图片 default.png"
               placement="top"
             >
               <el-icon><QuestionFilled /></el-icon>
@@ -129,7 +129,7 @@
           </span>
         </template>
         <template #default="{ row }">
-          <el-input v-model="row.logo" placeholder="留空或填外链会按网址重新获取图标" @change="saveRow(row)" />
+          <el-input v-model="row.logo" placeholder="修改后会重新获取图标（图片外链优先下载该图片）" @change="saveRow(row)" />
         </template>
       </el-table-column>
       <el-table-column label="logo 图片名" min-width="150">
@@ -548,12 +548,13 @@ const saveRow = async (row: Tool) => {
     ElMessage.warning(errorMessage)
     return
   }
-  // 图标网址填的是图片地址（http/https 图片链接）时，后端会下载这张图片并更新 logo 图片名；
-  // 图标网址为空/外链、或本机还没有图标图片（图片名为空）时，后端会按工具网址抓取网站图标并下载，
-  // 保存接口返回时 logo 与 logoName 已经是最终值，重新拉一次列表就能看到
+  // logo 网址改动后后端会重新获取图标：图片外链先按填写的地址下载这张图片，下载不到、或改成空与
+  // 其他内容时改按工具网址抓取网站图标；接口返回时 logo 与 logoName 已经是最终值，拉一次列表就能更新到表格
   const logo = String(row.logo ?? '').trim()
   const logoName = String(row.logoName ?? '').trim()
-  const logoNeedRefresh = logoName === '' || logo === '' || /^(https?:)?\/\//.test(logo)
+  const before = snapshotMap[row.id]
+  const logoChanged =
+    !before || logo !== String(before.logo ?? '').trim() || logoName !== String(before.logoName ?? '').trim()
   savingMap[row.id] = true
   try {
     const res = await fetchUpdateTool({
@@ -568,8 +569,9 @@ const saveRow = async (row: Tool) => {
     }
     snapshotMap[row.id] = pickRow(row)
     ElMessage({ message: '已保存', type: 'success', grouping: true, duration: 1500 })
-    // 后端换掉了 logo（本地地址/置空）时重新拉一次列表同步最新地址
-    if (logoNeedRefresh) {
+    // logo 网址/图片名被改动时后端会重新获取图标（logo 网址可能被改写成抓到的图标网址、也可能被置空），
+    // 重新拉一次列表把最终值更新到表格
+    if (logoChanged) {
       // 图标是覆盖保存的（文件名不变），版本号 +1 后表格里的图标会重新取图，不会显示成旧图或占位图
       bumpLogoVersion(row.id)
       await reload()
