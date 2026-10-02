@@ -4,7 +4,7 @@
       <div class="card-header">
         <div class="card-header-left">
           <span class="card-header-title">{{ `当前共 ${allTools.length} 条` }}</span>
-          <span class="card-header-tip">点击单元格即可直接修改，失焦/回车后自动保存</span>
+          <span class="card-header-tip">名称、分类、描述、logo 网址可直接修改，失焦/回车后自动保存；网址与 logo 图片名为只读</span>
           <template v-if="selectedRows.length">
             <el-popconfirm title="确定删除这些吗？" @confirm="handleBulkDelete">
               <template #reference>
@@ -73,7 +73,8 @@
           <div class="tool-name-cell">
             <!-- 有图片名时读 data 目录里的本地图片，其次按图标网址显示；两者都没有时显示名称首字符占位图，有图标但加载失败也显示占位图 -->
             <LogoFallback v-if="!hasToolLogo(row)" class="tool-logo" :name="row.name" />
-            <el-image v-else class="tool-logo" :src="getToolLogoUrl(row)" fit="cover" lazy>
+            <!-- 地址带版本号并作为 key：logo 图片重新下载时文件名不变（覆盖同名文件），靠版本号强制重新取图，避免显示旧图或占位图 -->
+            <el-image v-else :key="logoCellUrl(row)" class="tool-logo" :src="logoCellUrl(row)" fit="cover" lazy>
               <template #error>
                 <LogoFallback class="tool-logo-error" :name="row.name" />
               </template>
@@ -96,8 +97,18 @@
         </template>
       </el-table-column>
       <el-table-column label="网址" min-width="190">
+        <template #header>
+          <span class="column-with-tip">
+            网址
+            <el-tooltip content="工具网址由添加时填写，这里只读展示，不能直接修改" placement="top">
+              <el-icon><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </span>
+        </template>
         <template #default="{ row }">
-          <el-input v-model="row.url" placeholder="https://" @change="saveRow(row)" />
+          <span class="readonly-cell" :class="{ 'is-empty': !row.url }" :title="row.url || ''">
+            {{ row.url || '-' }}
+          </span>
         </template>
       </el-table-column>
       <el-table-column label="描述" min-width="150">
@@ -110,7 +121,7 @@
           <span class="column-with-tip">
             logo 网址
             <el-tooltip
-              content="图标网址：保存可以下载到图片的 url 地址。留空、填图片外链（http://、https://、// 开头）或本机还没有图片时，保存后会先抓取网站图标（失败用 gstatic 兜底）并下载到 data 目录（文件名用工具名称），网址改为抓到的图标地址、logo 图片名改为本地文件名；都拿不到时都置空，前台显示默认图片 default.png"
+              content="图标网址：填图片地址（http://、https:// 开头的图片链接）时，保存后会把这张图片下载到 data 目录（文件名用工具名称）并自动更新 logo 图片名；留空或本机还没有图片时，会按工具网址抓取网站图标（失败用 gstatic 兜底）并下载。都拿不到时都置空，前台显示默认图片 default.png"
               placement="top"
             >
               <el-icon><QuestionFilled /></el-icon>
@@ -126,7 +137,7 @@
           <span class="column-with-tip">
             logo 图片名
             <el-tooltip
-              content="图标图片保存到 data 目录（data/images）后的文件名，前台优先按它读本地图片；留空或本机不存在这个文件时，保存后会按工具网址重新抓取图标并下载"
+              content="图标图片保存到 data 目录（data/images）后的文件名，由 logo 网址下载图片时自动生成，这里只读展示；前台优先按它读本地图片"
               placement="top"
             >
               <el-icon><QuestionFilled /></el-icon>
@@ -134,7 +145,9 @@
           </span>
         </template>
         <template #default="{ row }">
-          <el-input v-model="row.logoName" placeholder="留空会按网址获取图标" @change="saveRow(row)" />
+          <span class="readonly-cell" :class="{ 'is-empty': !row.logoName }" :title="row.logoName || ''">
+            {{ row.logoName || '未保存' }}
+          </span>
         </template>
       </el-table-column>
       <el-table-column width="76" align="center">
@@ -344,6 +357,21 @@ const snapshotMap = reactive<Record<number, Tool>>({})
 /** 每行是否正在保存 */
 const savingMap = reactive<Record<number, boolean>>({})
 
+/** 每行图标地址的版本号：logo 图片重新下载时文件名不变（覆盖同名文件），靠它给图标地址加 ?v= 强制重新取图 */
+const logoVersionMap = reactive<Record<number, number>>({})
+
+/** 表格里的图标地址：带版本号后地址会变，<el-image> 的 key 也跟着变，会重新加载一次图片 */
+const logoCellUrl = (row: Tool) => {
+  const url = getToolLogoUrl(row)
+  const version = logoVersionMap[row.id] ?? 0
+  return version ? `${url}${url.includes('?') ? '&' : '?'}v=${version}` : url
+}
+
+/** 图标可能被重新下载（同名文件被覆盖）时调用：版本号 +1，表格里的图标会立刻重新取图 */
+const bumpLogoVersion = (id: number) => {
+  logoVersionMap[id] = (logoVersionMap[id] ?? 0) + 1
+}
+
 const toolRules: FormRules = {
   name: [{ required: true, message: '请填写名称', trigger: 'blur' }],
   url: [
@@ -509,7 +537,8 @@ const saveRow = async (row: Tool) => {
     ElMessage.warning(errorMessage)
     return
   }
-  // 图标网址为空/外链、或本机还没有图标图片（图片名为空）时，后端会重新抓取网站图标并下载到 data 目录，
+  // 图标网址填的是图片地址（http/https 图片链接）时，后端会下载这张图片并更新 logo 图片名；
+  // 图标网址为空/外链、或本机还没有图标图片（图片名为空）时，后端会按工具网址抓取网站图标并下载，
   // 保存接口返回时 logo 与 logoName 已经是最终值，重新拉一次列表就能看到
   const logo = String(row.logo ?? '').trim()
   const logoName = String(row.logoName ?? '').trim()
@@ -530,6 +559,8 @@ const saveRow = async (row: Tool) => {
     ElMessage({ message: '已保存', type: 'success', grouping: true, duration: 1500 })
     // 后端换掉了 logo（本地地址/置空）时重新拉一次列表同步最新地址
     if (logoNeedRefresh) {
+      // 图标是覆盖保存的（文件名不变），版本号 +1 后表格里的图标会重新取图，不会显示成旧图或占位图
+      bumpLogoVersion(row.id)
       await reload()
     }
   } catch (error) {
@@ -671,6 +702,8 @@ const handleBulkResetLogo = async () => {
       try {
         // 图标网址与图片名都传空：后端会按工具网址重新抓取图标，抓不到则都置空（前台显示默认图标）
         await fetchUpdateTool({ ...each, logo: '', logoName: '' })
+        // 图标重新下载会覆盖同名文件，版本号 +1 让表格里的图标重新取图
+        bumpLogoVersion(each.id)
       } catch (error) {
         console.error(error)
       }
@@ -690,6 +723,8 @@ const handleBulkCacheLogo = async () => {
       try {
         // 图片名传空：强制按工具网址重新抓取图标并下载到 data 目录（本机已有图片时原样提交不会重新获取）
         await fetchUpdateTool({ ...each, logoName: '' })
+        // 图标重新下载会覆盖同名文件，版本号 +1 让表格里的图标重新取图
+        bumpLogoVersion(each.id)
       } catch (error) {
         console.error(error)
       }

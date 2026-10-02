@@ -93,6 +93,24 @@ func ResolveToolLogo(name string, siteUrl string, logo string, logoName string) 
 	return ToolLogo{Logo: iconUrl, LogoName: savedName}
 }
 
+// ResolveUpdatedToolLogo 更新工具时处理图标：
+// 在 ResolveToolLogo 的基础上，logo 网址被改成了新的图片地址（http://、https:// 开头的图片链接）时，
+// 直接下载这张图片保存到 data/images 并把文件名写入 logo 图片名（logo 网址保持填写值不变）；
+// 下载失败、或网址不是图片地址时，回退到 ResolveToolLogo 的规则（按工具网址抓取网站图标）
+func ResolveUpdatedToolLogo(name string, siteUrl string, logo string, logoName string, oldLogo string) ToolLogo {
+	logo = strings.TrimSpace(logo)
+	if isRemoteImageUrl(logo) && logo != strings.TrimSpace(oldLogo) {
+		savedName, err := SaveToolLogoFromImageUrl(name, logo)
+		if err != nil {
+			logger.LogError("工具 %s 的图标下载失败，改按工具网址重新获取: %s", name, err)
+		} else if savedName != "" {
+			logger.LogInfo("工具 %s 的图标已保存到本地: %s（来源 %s）", name, savedName, logo)
+			return ToolLogo{Logo: logo, LogoName: savedName}
+		}
+	}
+	return ResolveToolLogo(name, siteUrl, logo, logoName)
+}
+
 // UpdateTool 更新工具，同时更新图片表
 func UpdateTool(data types.UpdateToolDto) {
 	_, err := database.DB.Exec(`

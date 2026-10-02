@@ -178,6 +178,39 @@ func SaveToolLogo(toolName string, logoUrl string) (string, error) {
 	return saveRemoteImageLocal(SafeImageFileName(toolName, "tool"), logoUrl, true)
 }
 
+// SaveToolLogoFromImageUrl 把 logo 网址当图片下载保存到本地（data/images），
+// 返回保存后的文件名（工具表的 logo_name 字段）；只在网址确实是图片地址时保存：
+// 网址后缀是允许的图片格式，或下载到的内容 Content-Type 是图片（很多图标接口的地址不带后缀）。
+// 不是图片地址（例如普通网页）时不做处理，返回空字符串与 nil，由调用方按原有规则处理
+func SaveToolLogoFromImageUrl(toolName string, logoUrl string) (string, error) {
+	logoUrl = strings.TrimSpace(logoUrl)
+	if !isRemoteImageUrl(logoUrl) {
+		return "", nil
+	}
+	// 网址后缀就是图片格式时直接下载保存（后缀保持不变）
+	if isImageFileUrl(logoUrl) {
+		return SaveToolLogo(toolName, logoUrl)
+	}
+	// 后缀判断不出来时先下载，再看响应内容是不是图片
+	data, ext, contentType, err := utils.DownloadImageWithType(logoUrl)
+	if err != nil {
+		return "", err
+	}
+	if !utils.IsImageContentType(contentType) {
+		return "", nil
+	}
+	return writeLocalImage(SafeImageFileName(toolName, "tool"), data, ext)
+}
+
+// isImageFileUrl 判断地址是否是以允许的图片格式结尾的 http(s) 地址（忽略查询串与 hash）
+func isImageFileUrl(imgUrl string) bool {
+	path := strings.Split(strings.Split(strings.TrimSpace(imgUrl), "#")[0], "?")[0]
+	if !strings.HasPrefix(path, "http://") && !strings.HasPrefix(path, "https://") {
+		return false
+	}
+	return allowedUploadExt[strings.ToLower(filepath.Ext(path))]
+}
+
 // saveRemoteImageLocal 把外链图片下载保存到本地（data/images），返回保存后的文件名
 // keepUrlExt 为 true 时优先使用网址里的图片后缀（图片后缀不变），否则按下载到的图片格式决定后缀
 func saveRemoteImageLocal(baseName string, imgUrl string, keepUrlExt bool) (string, error) {
@@ -193,11 +226,16 @@ func saveRemoteImageLocal(baseName string, imgUrl string, keepUrlExt bool) (stri
 		logger.LogError("下载 logo 失败: %s", err)
 		return "", fmt.Errorf("下载 logo 失败：%s", err)
 	}
-	if int64(len(data)) > MaxUploadSize {
-		return "", fmt.Errorf("图片大小不能超过 %d MB", MaxUploadSize>>20)
-	}
 	if keepUrlExt {
 		ext = urlImageExt(imgUrl, ext)
+	}
+	return writeLocalImage(baseName, data, ext)
+}
+
+// writeLocalImage 把图片内容写入 data（data/images），返回保存后的文件名
+func writeLocalImage(baseName string, data []byte, ext string) (string, error) {
+	if int64(len(data)) > MaxUploadSize {
+		return "", fmt.Errorf("图片大小不能超过 %d MB", MaxUploadSize>>20)
 	}
 	utils.PathExistsOrCreate(UploadDir)
 	name := baseName + ext
@@ -208,6 +246,7 @@ func saveRemoteImageLocal(baseName string, imgUrl string, keepUrlExt bool) (stri
 	logger.LogInfo("logo 已保存到本地: %s", name)
 	return name, nil
 }
+
 
 // urlImageExt 取网址里的图片后缀（保证「图片后缀不变」），网址里没有合法后缀时用下载内容判断出的后缀
 func urlImageExt(imgUrl string, fallback string) string {

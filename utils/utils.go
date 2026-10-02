@@ -94,9 +94,16 @@ const downloadImageLimit = 8 << 20
 
 // DownloadImage 下载图片，返回图片内容与扩展名（优先按 Content-Type 判断，其次按 url 后缀）
 func DownloadImage(imgUrl string) ([]byte, string, error) {
+	data, ext, _, err := DownloadImageWithType(imgUrl)
+	return data, ext, err
+}
+
+// DownloadImageWithType 下载图片，返回图片内容、扩展名与响应的 Content-Type
+// （扩展名优先按 Content-Type 判断，其次按 url 后缀）
+func DownloadImageWithType(imgUrl string) ([]byte, string, string, error) {
 	req, err := http.NewRequest("GET", imgUrl, nil)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36")
 	client := &http.Client{
@@ -107,21 +114,29 @@ func DownloadImage(imgUrl string) ([]byte, string, error) {
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("下载图片失败，状态码 %d", res.StatusCode)
+		return nil, "", "", fmt.Errorf("下载图片失败，状态码 %d", res.StatusCode)
 	}
 	data, err := ioutil.ReadAll(io.LimitReader(res.Body, downloadImageLimit))
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	if len(data) == 0 {
-		return nil, "", fmt.Errorf("下载到的图片内容为空")
+		return nil, "", "", fmt.Errorf("下载到的图片内容为空")
 	}
-	return data, imageExt(res.Header.Get("Content-Type"), imgUrl), nil
+	contentType := res.Header.Get("Content-Type")
+	return data, imageExt(contentType, imgUrl), contentType, nil
 }
+
+// IsImageContentType 判断响应的 Content-Type 是否是图片
+func IsImageContentType(contentType string) bool {
+	ct := strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
+	return strings.HasPrefix(ct, "image/")
+}
+
 
 // imageExt 根据 Content-Type 或 url 后缀推断图片扩展名，无法判断时按 png 处理
 func imageExt(contentType string, imgUrl string) string {

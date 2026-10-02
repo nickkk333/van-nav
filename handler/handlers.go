@@ -345,13 +345,18 @@ func GetBingWallpaperHandler(c *gin.Context) {
 func GetUploadedImageHandler(c *gin.Context) {
 	path, ok := service.GetUploadedImagePath(c.Param("name"))
 	if !ok {
+		// 图片可能稍后才生成（保存工具时会重新下载），这里不做缓存，
+		// 避免浏览器一直用这张“图片不存在”的响应
+		c.Header("Cache-Control", "no-cache")
 		c.JSON(http.StatusNotFound, gin.H{
 			"success":      false,
 			"errorMessage": "图片不存在",
 		})
 		return
 	}
-	c.Header("Cache-Control", "public, max-age=604800")
+	// 上传的图片带唯一文件名，但工具 logo 是按名称保存的（重新下载会覆盖同名文件），
+	// 因此不做长时间缓存：浏览器带 If-Modified-Since 回源校验，图片换了能立刻拿到新的，没换返回 304
+	c.Header("Cache-Control", "no-cache")
 	c.File(path)
 }
 
@@ -542,12 +547,14 @@ func UpdateToolHandler(c *gin.Context) {
 		})
 		return
 	}
+	// 先取出旧的图标网址与本地图片名，用于判断 logo 网址是否被改成了新的图片地址
+	oldLogo, oldLogoName := service.GetToolLogoById(data.Id)
 	// 图标需要重新获取时（本机还没有这张图片、或图标网址为空/外链/指向本机不存在的图片）：
 	// 先抓网站图标，抓不到用 gstatic 兜底，拿到就下载到 data/images：
 	// logo 存图标网址、logoName 存图片名；都拿不到则都置空，前台显示默认图标 default.png
-	resolved := service.ResolveToolLogo(data.Name, data.Url, data.Logo, data.LogoName)
+	// logo 网址被改成新的图片地址时，直接下载这张图片并更新 logo 图片名
+	resolved := service.ResolveUpdatedToolLogo(data.Name, data.Url, data.Logo, data.LogoName, oldLogo)
 	data.Logo, data.LogoName = resolved.Logo, resolved.LogoName
-	oldLogo, oldLogoName := service.GetToolLogoById(data.Id)
 	service.UpdateTool(data)
 	// 图标换掉（含改名后文件名变化、或置空）时删除旧的本地图片
 	if (oldLogoName != "" || oldLogo != "") && (oldLogoName != data.LogoName || oldLogo != data.Logo) {

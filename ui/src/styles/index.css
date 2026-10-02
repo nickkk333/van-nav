@@ -990,6 +990,20 @@ body {
   color: var(--el-text-color-secondary);
 }
 
+/* 行内编辑：只读单元格（网址、logo 图片名等由系统维护，展示为主不可修改） */
+.readonly-cell {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+}
+
+.readonly-cell.is-empty {
+  color: var(--el-text-color-placeholder);
+}
+
 /* 行内编辑：有未保存修改的行 */
 .admin-card .el-table .row-dirty > td.el-table__cell {
   background-color: var(--el-color-warning-light-9);
