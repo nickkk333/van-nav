@@ -303,7 +303,7 @@ import {
 import { useAdminStore } from '../../stores/admin'
 import { useTableSortable } from '../../composables/useTableSortable'
 import LogoFallback from '../../components/LogoFallback.vue'
-import { multiSearch } from '../../utils/match'
+import { multiSearch, pinyinReady } from '../../utils/match'
 import { getToolLogoUrl, hasToolLogo } from '../../utils/check'
 import { clearSearchEngineCache } from '../../utils/searchEngine'
 import type { BackupData, Tool } from '../../types'
@@ -395,6 +395,8 @@ const toolRules: FormRules = {
 const sortedTools = computed(() => [...allTools.value].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0)))
 
 const filteredTools = computed(() =>
+  // 订阅拼音分包就绪状态：分包加载完自动重算，补上拼音匹配结果（见 utils/match.ts）
+  (void pinyinReady.value,
   sortedTools.value.filter((item) => {
     const matchSearch =
       !searchString.value.trim() ||
@@ -402,7 +404,7 @@ const filteredTools = computed(() =>
       multiSearch(item.desc, searchString.value)
     const matchCatelog = !catelogName.value || multiSearch(item.catelog, catelogName.value)
     return matchSearch && matchCatelog
-  })
+  }))
 )
 
 const pagedData = computed(() => {

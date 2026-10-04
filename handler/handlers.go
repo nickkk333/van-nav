@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mereith/nav/database"
 	"github.com/mereith/nav/logger"
+	"github.com/mereith/nav/middleware"
 	"github.com/mereith/nav/service"
 	"github.com/mereith/nav/types"
 	"github.com/mereith/nav/utils"
@@ -196,7 +197,13 @@ func UpdateUserHandler(c *gin.Context) {
 		})
 		return
 	}
-	service.UpdateUser(data)
+	if err := service.UpdateUser(data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": err.Error(),
+		})
+		return
+	}
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "更新用户成功",
@@ -403,19 +410,19 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 	user := service.GetUser(data.Name)
-	if user.Name == "" {
+	// 用户名与密码错误返回同一文案，避免攻击者枚举用户名；失败计入限流
+	if user.Name == "" || !utils.CheckPassword(data.Password, user.Password) {
+		middleware.LoginFail(c)
 		c.JSON(200, gin.H{
 			"success":      false,
-			"errorMessage": "用户名不存在",
+			"errorMessage": "用户名或密码错误",
 		})
 		return
 	}
-	if user.Password != data.Password {
-		c.JSON(200, gin.H{
-			"success":      false,
-			"errorMessage": "密码错误",
-		})
-		return
+	middleware.LoginSuccess(c)
+	// 存量明文密码在登录成功后原地升级为 bcrypt 哈希（见 service.UpgradePasswordHash）
+	if !utils.IsPasswordHash(user.Password) {
+		service.UpgradePasswordHash(user.Id, data.Password)
 	}
 	// 生成 token
 	token, err := utils.SignJWT(user)

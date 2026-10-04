@@ -21,11 +21,19 @@ func Serve(urlPrefix string, fs ServeFileSystem) gin.HandlerFunc {
 	}
 	return func(c *gin.Context) {
 		if fs.Exists(urlPrefix, c.Request.URL.Path) {
+			// 带 hash 的构建产物（/assets/index-*.js 等）内容不可变，给一年长缓存；
+			// index.html 与其它入口保持不缓存，保证发版后立刻拿到新引用
+			if strings.HasPrefix(c.Request.URL.Path, "/assets/") {
+				c.Header("Cache-Control", "public, max-age=31536000, immutable")
+			} else {
+				c.Header("Cache-Control", "no-cache")
+			}
 			fileserver.ServeHTTP(c.Writer, c.Request)
 			c.Abort()
 		} else {
 			path := c.Request.URL.Path
-			pathHasAPI := strings.Contains(path, "/api") && !strings.Contains(path, "/api-token")
+			// /api 开头的是接口（/api-token 页面除外，它是前端路由）；其它未知路径回落到 index.html
+			pathHasAPI := strings.HasPrefix(path, "/api/") && !strings.HasPrefix(path, "/api-token")
 			// pathHasAdmin := strings.Contains(path, "/admin")
 			// pathHasLogin := strings.Contains(path, "/login")
 			if pathHasAPI {
@@ -38,6 +46,7 @@ func Serve(urlPrefix string, fs ServeFileSystem) gin.HandlerFunc {
 				}
 				defer file.Close()
 				// 把文件返回
+				c.Header("Cache-Control", "no-cache")
 				http.ServeContent(c.Writer, c.Request, "index.html", time.Now(), file)
 				c.Abort()
 			}

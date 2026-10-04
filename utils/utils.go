@@ -1,18 +1,18 @@
 package utils
 
 import (
-	"crypto/tls"
 	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/mereith/nav/logger"
 	"github.com/mereith/nav/types"
@@ -44,6 +44,15 @@ func In(target string, str_array []string) bool {
 // GetImgBase64FromUrl 下载远程图片并转成 base64，失败时返回空字符串
 // 只用于把外链图片缓存到数据库，网络不通、地址失效等情况属于正常现象，
 // 这里返回空字符串、由调用方跳过缓存即可，不能当成代码异常打印堆栈
+// imageHTTPClient 抓图用的 HTTP 客户端：保持 TLS 证书校验（默认 Transport 即校验）。
+// 之前全局 InsecureSkipVerify 会让中间人可替换图片内容；
+// 目标站点证书异常时走调用方的空结果/兜底逻辑，不再静默跳过校验。
+func imageHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: 10 * time.Second,
+	}
+}
+
 func GetImgBase64FromUrl(url string) string {
 	imgUrl := url
 	//获取远端图片
@@ -53,12 +62,7 @@ func GetImgBase64FromUrl(url string) string {
 		return ""
 	}
 	req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36")
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
+	client := imageHTTPClient()
 	res, err := client.Do(req)
 	if err != nil {
 		logger.LogError("下载远程图片失败，跳过缓存：%s", err)
@@ -106,12 +110,7 @@ func DownloadImageWithType(imgUrl string) ([]byte, string, string, error) {
 		return nil, "", "", err
 	}
 	req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36")
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
+	client := imageHTTPClient()
 	res, err := client.Do(req)
 	if err != nil {
 		return nil, "", "", err
@@ -120,7 +119,7 @@ func DownloadImageWithType(imgUrl string) ([]byte, string, string, error) {
 	if res.StatusCode != http.StatusOK {
 		return nil, "", "", fmt.Errorf("下载图片失败，状态码 %d", res.StatusCode)
 	}
-	data, err := ioutil.ReadAll(io.LimitReader(res.Body, downloadImageLimit))
+	data, err := io.ReadAll(io.LimitReader(res.Body, downloadImageLimit))
 	if err != nil {
 		return nil, "", "", err
 	}
@@ -185,6 +184,40 @@ func GenerateId() int {
 	// 生成一个随机 id
 	id := int(time.Now().Unix())
 	return id
+}
+
+// bcryptCost 密码哈希强度：10 是安全与性能的常用平衡点（单次约 60~100ms）
+// 登录/改密是低频操作，这个耗时可接受；调太高会让登录接口变慢
+const bcryptCost = 10
+
+// HashPassword 对明文密码做 bcrypt 哈希，失败返回 error（调用方必须处理，不能存明文兜底）
+func HashPassword(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hash), nil
+}
+
+// CheckPassword 校验明文密码与哈希是否匹配
+// 兼容老数据：库里还是明文（不以 $2a$ 开头）时按明文比对，命中后调用方负责升级为哈希
+func CheckPassword(password, hash string) bool {
+	if hash == "" || password == "" {
+		return false
+	}
+	if !IsPasswordHash(hash) {
+		return password == hash
+	}
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
+}
+
+// IsPasswordHash 判断存量值是否已经是 bcrypt 哈希（长度 60 的标准哈希串）
+// 只看前缀不够："$2a$" 本身不是合法哈希，必须再校验长度，避免把脏数据当成哈希
+func IsPasswordHash(value string) bool {
+	if len(value) != 60 {
+		return false
+	}
+	return strings.HasPrefix(value, "$2a$") || strings.HasPrefix(value, "$2b$") || strings.HasPrefix(value, "$2y$")
 }
 
 func FilterHideTools(tools []types.Tool, cates []types.Catelog) []types.Tool {

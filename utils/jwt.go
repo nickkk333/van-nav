@@ -32,7 +32,9 @@ func init() {
 		return
 	}
 	jwtSecret = []byte(RandomJWTKey())
-	logger.LogInfo("jwtSecret Setted: %s", jwtSecret)
+	// 注意：这里故意不打印密钥本身。之前版本会把密钥打到日志里，
+	// 任何能看到日志的人都能伪造任意管理员 JWT，等同于密钥泄露
+	logger.LogInfo("jwtSecret 已随机生成（重启后旧登录态失效，可用 NAV_JWT_SECRET 固定）")
 }
 
 // SignJWT 为用户签名一个 JWT

@@ -1,10 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import ElementPlus from 'element-plus'
-import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 
-import 'element-plus/dist/index.css'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import './styles/index.css'
 
@@ -14,14 +10,15 @@ import { initTheme } from './utils/theme'
 
 const app = createApp(App)
 
-// 全局注册 element-plus 图标
-for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-  app.component(key, component)
-}
+// 注意：不要再写 import ElementPlus from 'element-plus' + app.use(ElementPlus，
+// 那会让 element-plus 全量进包（之前 element 分包 926KB 的根因）。
+// 模板里的 el-* 组件、v-loading 指令、ElMessage/ElMessageBox 等 API 由
+// vite.config.ts 的 AutoImport + Components 插件按需引入；
+// 也不要全局注册 @element-plus/icons-vue（import * 进主包约几百 KB，各组件已显式 import 图标）。
+// 中文文案靠 App.vue 的 <el-config-provider :locale="zhCn"> 生效，分页/表格等即为中文。
 
 app.use(createPinia())
 app.use(router)
-app.use(ElementPlus, { locale: zhCn })
 
 initTheme()
 app.mount('#app')

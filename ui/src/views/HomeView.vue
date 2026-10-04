@@ -69,7 +69,7 @@ import { fetchDeleteTool, fetchUpdateToolsSort, resolveError } from '../api'
 import { useCardSortable } from '../composables/useCardSortable'
 import { useSiteStore } from '../stores/site'
 import { displayCatelog, isLogin } from '../utils/check'
-import { multiSearch } from '../utils/match'
+import { multiSearch, pinyinReady } from '../utils/match'
 import { generateSearchEngineCards } from '../utils/searchEngine'
 import { DEFAULT_BACKGROUND_IMAGE, DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW, initServerJumpTargetConfig, toggleJumpTarget } from '../utils/setting'
 import type { Tool } from '../types'
@@ -121,6 +121,8 @@ const tags = computed(() => {
 })
 
 const filteredData = computed<Tool[]>(() => {
+  // 订阅拼音分包就绪状态：分包加载完自动重算，补上拼音匹配结果（见 utils/match.ts）
+  void pinyinReady.value
   const tools = site.data.tools ?? []
   const searching = isSearching.value
   const localResult = tools.filter((item) => {

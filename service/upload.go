@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,7 +55,7 @@ func SaveUploadedImage(file *multipart.FileHeader) (string, error) {
 	return UploadUrlPrefix + name, nil
 }
 
-// validateUploadedImage 校验上传的图片（非空、大小、格式），返回小写的图片后缀
+// validateUploadedImage 校验上传的图片（非空、大小、后缀、真实内容），返回小写图片后缀
 func validateUploadedImage(file *multipart.FileHeader) (string, error) {
 	if file == nil || file.Size == 0 {
 		return "", fmt.Errorf("请选择要上传的图片")
@@ -65,6 +66,27 @@ func validateUploadedImage(file *multipart.FileHeader) (string, error) {
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	if !allowedUploadExt[ext] {
 		return "", fmt.Errorf("不支持的图片格式 %s，仅支持 %s", ext, uploadExtTips)
+	}
+	// 只看后缀不够：改个 .png 后缀就能上传任意文件。这里读文件头做真实类型校验，
+	// 用 http.DetectContentType 嗅探（只读前 512 字节，常数开销）
+	src, err := file.Open()
+	if err != nil {
+		return "", fmt.Errorf("读取上传文件失败")
+	}
+	defer src.Close()
+	head := make([]byte, 512)
+	n, err := io.ReadFull(src, head)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		return "", fmt.Errorf("读取上传文件失败")
+	}
+	head = head[:n]
+	contentType := http.DetectContentType(head)
+	if !utils.IsImageContentType(contentType) {
+		// svg 是纯文本，嗅探出来是 text/*：单独放行，靠后缀 + 后续落盘校验兜底
+		if ext != ".svg" {
+			logger.LogError("上传文件内容不是图片（Content-Type=%s，文件名=%s），已拒绝", contentType, file.Filename)
+			return "", fmt.Errorf("文件内容不是图片，仅支持 %s", uploadExtTips)
+		}
 	}
 	return ext, nil
 }

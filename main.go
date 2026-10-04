@@ -98,7 +98,9 @@ func main() {
 	{
 		// 获取数据的路由
 		api.GET("/", handler.GetAllHandler)
-		api.POST("/login", handler.LoginHandler)
+		// 登录加限流中间件：单 IP 连续失败 10 次后锁定 10 分钟起，防暴力破解
+		// （成功登录会清零，见 handler.LoginHandler）
+		api.POST("/login", middleware.LoginRateLimit(), handler.LoginHandler)
 		api.GET("/logout", handler.LogoutHandler)
 		api.GET("/img", handler.GetLogoImgHandler)
 		// 本地保存的必应每日壁纸（前台未配置背景图时的默认背景）
