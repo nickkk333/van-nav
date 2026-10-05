@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"encoding/base64"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -269,36 +267,21 @@ func GetLogoImgHandler(c *gin.Context) {
 		})
 		return
 	}
-	// 只从图片缓存里取图标（外链图标在保存工具时下载并缓存到数据库）：缓存里没有就返回 404，
+	// 只从图片缓存里取图标（外链图标在保存工具时下载到 data/imgcache）：缓存里没有就返回 404，
 	// 前台 <img> 会触发 error 事件并用名称首字符占位（ui/src/components/LogoFallback.vue）；
 	// 这里不能返回内置的灰圈占位图，否则前台会以为图片加载成功，把占位图当成网站图标显示
 	// 内置图标文件名（例如 baidu.ico）随前端一起内嵌在 public 里，前端按静态资源路径直接请求，不走这个接口
-	img := service.GetImgFromDB(url)
-	if img.Value == "" {
+	imgBuffer := service.GetCachedImg(url)
+	if len(imgBuffer) == 0 {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success":      false,
 			"errorMessage": "未找到图片",
 		})
 		return
 	}
-	imgBuffer, err := base64.StdEncoding.DecodeString(img.Value)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success":      false,
-			"errorMessage": "图片解码失败",
-		})
-		return
-	}
-	l := strings.Split(url, ".")
-	suffix := l[len(l)-1]
-	t := "image/x-icon"
-	if suffix == "svg" || strings.Contains(url, ".svg") {
-		t = "image/svg+xml"
-	} else if suffix == "png" {
-		t = "image/png"
-	}
-	// 直接输出二进制数据，避免string转换导致的内存多分配
-	c.Data(http.StatusOK, t, imgBuffer)
+	// 按内容嗅探真实类型（缓存文件没有扩展名，老实现按 url 后缀猜，gstatic 这类无后缀地址会一律判成 x-icon）
+	// 直接输出二进制数据，避免 string 转换导致的内存多分配
+	c.Data(http.StatusOK, service.CachedImgContentType(url, imgBuffer), imgBuffer)
 }
 
 // UploadImageHandler 上传图片（背景图 / logo 等），返回可直接使用的 url
@@ -477,13 +460,9 @@ func AddToolHandler(c *gin.Context) {
 		return
 	}
 
-	// 图标需要重新获取时（本机还没有这张图片、或图标网址为空/外链/指向本机不存在的图片）：
-	// 先抓网站图标，抓不到用 gstatic 兜底，拿到就下载到 data/images：
-	// logo 存图标网址、logoName 存图片名；都拿不到则都置空，前台显示默认图标 default.png
-	resolved := service.ResolveToolLogo(data.Name, data.Url, data.Logo, data.LogoName)
-	data.Logo, data.LogoName = resolved.Logo, resolved.LogoName
 	// 排序落点与全表排序值重排都由 service.AddTool 处理：
 	// -1（默认）或负数排到最后；0 或留空排到最前；正数插入到该序号位置，最终排序值从 1 开始依次递增
+	// 图标先按提交的值入库，不在这里同步抓取（抓图标要访问目标站点，最长 10s+，会把接口卡住）
 	id, err := service.AddTool(data)
 	if err != nil {
 		utils.CheckErr(err)
@@ -493,11 +472,15 @@ func AddToolHandler(c *gin.Context) {
 		})
 		return
 	}
+	// 工具已入库，图标交给后台抓：抓到后回写 nav_table，前台先用名称首字符占位
+	fetching := service.StartToolLogoFetchAsync(int(id), data.Name, data.Url, data.Logo, data.LogoName)
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "添加成功",
 		"data": gin.H{
 			"id": id,
+			// 图标还在后台抓，前台据此提示「图标稍后自动补上」
+			"logoFetching": fetching,
 		},
 	})
 }
@@ -505,30 +488,27 @@ func AddToolHandler(c *gin.Context) {
 func DeleteToolHandler(c *gin.Context) {
 	// 删除工具
 	id := c.Param("id")
-	// 先取出图标网址与本地图片名，删除记录后就查不到了：数据库里的图片缓存和本地保存的图片都要清理
+	// 先取出图标网址与本地图片名，删除记录后就查不到了：图标缓存文件和本地保存的图片都要清理
 	numberId, err := strconv.Atoi(id)
-	utils.CheckErr(err)
+	if err != nil {
+		utils.CheckErr(err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": "无效的ID",
+		})
+		return
+	}
 	logo, logoName := service.GetToolLogoById(numberId)
-	sql_delete_tool := `
-		DELETE FROM nav_table WHERE id = ?;
-		`
-	stmt, err := database.DB.Prepare(sql_delete_tool)
-	utils.CheckErr(err)
-	res, err := stmt.Exec(id)
-	utils.CheckErr(err)
-	_, err = res.RowsAffected()
-	utils.CheckErr(err)
-	// 删除工具的图标缓存，如果有
-	urlEncoded := url.QueryEscape(logo)
-	sql_delete_tool_img := `
-		DELETE FROM nav_img WHERE url = ?;
-		`
-	stmt, err = database.DB.Prepare(sql_delete_tool_img)
-	utils.CheckErr(err)
-	res, err = stmt.Exec(urlEncoded)
-	utils.CheckErr(err)
-	_, err = res.RowsAffected()
-	utils.CheckErr(err)
+	if _, err := database.DB.Exec(`DELETE FROM nav_table WHERE id = ?;`, numberId); err != nil {
+		utils.CheckErr(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success":      false,
+			"errorMessage": "删除失败",
+		})
+		return
+	}
+	// 删除该工具的外链图标文件缓存（还有别的工具在用同一网址时不删）
+	service.RemoveCachedImgIfUnused(logo)
 	// 同时删除该工具保存在本地的图标图片（还有别的工具在用时不删）
 	service.RemoveToolLogoIfUnused(logo, logoName)
 	c.JSON(200, gin.H{

@@ -18,18 +18,27 @@ import (
 	"github.com/mereith/nav/types"
 )
 
-func CheckErr(err error) {
+// CheckErr 记录错误并把 err 原样返回：
+// 调用方可以继续按老写法当语句用，也可以 `if err := ...; utils.CheckErr(err) { return err }` 向上传播
+func CheckErr(err error) error {
 	if err != nil {
 		logger.LogError("捕获到错误：%s, 堆栈信息：%s", err, string(debug.Stack()))
 	}
+	return err
 }
 
-func CheckTxErr(err error, tx *sql.Tx) {
+// CheckTxErr 记录错误并回滚事务，同时把 err 返回给调用方：
+// 回滚后调用方必须直接 return，不能再继续用这个事务（老代码只回滚不中断，后续语句全在已回滚的事务上执行）
+func CheckTxErr(err error, tx *sql.Tx) error {
 	if err != nil {
 		logger.LogError("出现事务异常，回滚事务: %s, 堆栈信息：%s", err, string(debug.Stack()))
-		err2 := tx.Rollback()
-		CheckErr(err2)
+		if tx != nil {
+			if err2 := tx.Rollback(); err2 != nil {
+				CheckErr(err2)
+			}
+		}
 	}
+	return err
 }
 
 func In(target string, str_array []string) bool {
@@ -41,9 +50,6 @@ func In(target string, str_array []string) bool {
 	return false
 }
 
-// GetImgBase64FromUrl 下载远程图片并转成 base64，失败时返回空字符串
-// 只用于把外链图片缓存到数据库，网络不通、地址失效等情况属于正常现象，
-// 这里返回空字符串、由调用方跳过缓存即可，不能当成代码异常打印堆栈
 // imageHTTPClient 抓图用的 HTTP 客户端：保持 TLS 证书校验（默认 Transport 即校验）。
 // 之前全局 InsecureSkipVerify 会让中间人可替换图片内容；
 // 目标站点证书异常时走调用方的空结果/兜底逻辑，不再静默跳过校验。
@@ -88,9 +94,22 @@ func GetImgBase64FromUrl(url string) string {
 	return imageBase64
 }
 
+// GetSuffixFromUrl 取 url 路径末尾的后缀（含点），例如 https://a.b/x.png -> .png
+// 老实现 url[strings.LastIndex(url, "."):] 在 LastIndex 返回 -1 时直接 panic，
+// 且会把域名当成后缀（https://example.com -> ".com"），这里只认路径部分的后缀
 func GetSuffixFromUrl(url string) string {
-	suffix := url[strings.LastIndex(url, "."):]
-	return suffix
+	// 去掉查询串与 hash，否则 .png?v=1 会被当成整个后缀
+	path := url
+	if i := strings.IndexAny(path, "?#"); i >= 0 {
+		path = path[:i]
+	}
+	ext := filepath.Ext(path)
+	// 只保留常见的图片后缀，域名（.com/.cn）之类不算
+	switch strings.ToLower(ext) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp":
+		return ext
+	}
+	return ""
 }
 
 // downloadImageLimit 单张下载图片的大小上限，避免异常大图占满内存

@@ -17,14 +17,18 @@ func GetApiTokens() []types.Token {
 		`
 	results := make([]types.Token, 0)
 	rows, err := database.DB.Query(sql_get_api_tokens)
-	utils.CheckErr(err)
+	if err != nil {
+		// Query 失败时 rows 为 nil，老代码直接 rows.Next() 会 panic
+		utils.CheckErr(err)
+		return results
+	}
+	defer rows.Close()
 	for rows.Next() {
 		var token types.Token
 		err = rows.Scan(&token.Id, &token.Name, &token.Value, &token.Disabled)
 		utils.CheckErr(err)
 		results = append(results, token)
 	}
-	defer rows.Close()
 	return results
 }
 
@@ -42,18 +46,15 @@ func GetUser(name string) types.User {
 	return user
 }
 
-func AddApiTokenInDB(data types.Token) {
+// AddApiTokenInDB 写入 API Token，失败时返回 error（调用方回 500，不再静默吞掉）
+func AddApiTokenInDB(data types.Token) error {
 	sql_add_api_token := `
 		INSERT INTO nav_api_token (id,name,value,disabled)
 		VALUES (?,?,?,?);
 		`
-	stmt, err := database.DB.Prepare(sql_add_api_token)
-	utils.CheckErr(err)
-
-	res, err := stmt.Exec(data.Id, data.Name, data.Value, data.Disabled)
-	utils.CheckErr(err)
-	_, err = res.LastInsertId()
-	utils.CheckErr(err)
+	// 一次性插入用 DB.Exec：老代码 Prepare 失败后 stmt 为 nil，再 Exec 会 panic
+	_, err := database.DB.Exec(sql_add_api_token, data.Id, data.Name, data.Value, data.Disabled)
+	return utils.CheckErr(err)
 }
 
 func UpdateUser(data types.UpdateUserDto) error {

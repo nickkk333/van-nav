@@ -78,6 +78,35 @@ func ResolveToolLogo(name string, siteUrl string, logo string, logoName string) 
 	return FetchToolLogoBySiteUrl(name, siteUrl)
 }
 
+// StartToolLogoFetchAsync 后台抓取工具图标（新增工具时用，避免接口被下载阻塞）
+//
+// 抓图标要访问目标站点（页面抓取 + 图片下载，最长可达 10s+），放在请求里会让「添加工具」一直转圈。
+// 这里改成：先按传入的 logo/logo_name 入库并立即返回，图标在后台抓，抓到后回写 nav_table。
+// 前台此时用名称首字符占位（ToolCard 的 LogoFallback），下次刷新就有真实图标了。
+//
+// 返回 true 表示已启动后台任务（需要抓取），false 表示无需抓取（图标本就可用）
+func StartToolLogoFetchAsync(id int, name string, siteUrl string, logo string, logoName string) bool {
+	// 本机已经有这张图片（后台上传或之前抓过）时不用再抓
+	if !needRefreshToolLogo(logo, logoName) {
+		return false
+	}
+	if strings.TrimSpace(siteUrl) == "" {
+		logger.LogError("工具 %s 没有填写网址，无法获取图标", name)
+		return false
+	}
+	go func() {
+		resolved := FetchToolLogoBySiteUrl(name, siteUrl)
+		if resolved.Logo == "" {
+			// 没抓到：保持空图标，前台用名称首字符占位，不影响工具本身已入库
+			return
+		}
+		if err := UpdateToolLogo(id, resolved.Logo, resolved.LogoName); err != nil {
+			logger.LogError("工具 %s 的图标回写失败: %s", name, err)
+		}
+	}()
+	return true
+}
+
 // FetchToolLogoBySiteUrl 按工具网址获取图标并下载保存到本地：
 // 先用 goscraper 抓网站图标，抓不到再用 gstatic 的图标接口兜底；拿到图标网址就下载保存到
 // data 目录（data/images，文件名使用工具名称），返回图标网址与保存后的文件名

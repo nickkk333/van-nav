@@ -75,6 +75,10 @@ func main() {
 
 	database.InitDB()
 
+	// 图片出库：把老库里 nav_img 表的 base64 图片搬到 data/imgcache 文件，全部搬完后删表并回收空间。
+	// 异步执行：图片多时搬迁要一点时间，不阻塞、不影响服务启动；读取侧对未搬完的老表有兜底
+	go service.MigrateImgCacheToFiles()
+
 	// 启动时把当前数据自动导出到 data 目录（文件名 van-nav-backup.json，同名覆盖）
 	// 异步执行：导出失败只记录日志，不阻塞、不影响服务启动
 	go service.ExportBackupToDataDir()

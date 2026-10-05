@@ -704,9 +704,14 @@ const handleCreate = async () => {
       ElMessage.warning(res.errorMessage || '添加失败')
       return
     }
-    ElMessage.success('添加成功!')
     showAdd.value = false
-    // 后端保存时已经把图标处理好（下载到 data 目录或置空），重新拉一次列表即可看到
+    // 图标是后端后台抓的（不阻塞接口），这里等一小会儿再刷新列表，让图标尽量出现在本次结果里
+    if (res.data?.logoFetching) {
+      ElMessage.success('添加成功，图标稍后自动补上')
+      setTimeout(() => reload(), 1500)
+      return
+    }
+    ElMessage.success('添加成功!')
     await reload()
   } catch (error) {
     ElMessage.warning(resolveError(error, '添加失败'))

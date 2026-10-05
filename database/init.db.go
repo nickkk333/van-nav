@@ -22,6 +22,13 @@ func columnExists(tableName string, columnName string) bool {
 	return count > 0
 }
 
+// TableExists 判断表是否存在（老库升级迁移时区分「表不存在」与查询错误）
+func TableExists(tableName string) bool {
+	var name string
+	err := DB.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name = ?;`, tableName).Scan(&name)
+	return err == nil && name != ""
+}
+
 func InitDB() {
 	var err error
 	utils.PathExistsOrCreate("./data")
@@ -182,17 +189,6 @@ func InitDB() {
 		`
 	_, err = DB.Exec(sql_create_table)
 	utils.CheckErr(err)
-	// img 表
-	sql_create_table = `
-		CREATE TABLE IF NOT EXISTS nav_img (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			url TEXT,
-			value TEXT
-		);
-		`
-	_, err = DB.Exec(sql_create_table)
-	utils.CheckErr(err)
-
 	// 搜索引擎表
 	sql_create_table = `
 		CREATE TABLE IF NOT EXISTS nav_search_engine (
@@ -271,18 +267,17 @@ func InitDB() {
 		SELECT * FROM nav_user;
 		`
 	rows, err := DB.Query(sql_get_user)
-	utils.CheckErr(err)
+	if err != nil {
+		// Query 失败时 rows 为 nil，老代码直接 rows.Next() 会 panic
+		utils.CheckErr(err)
+		return
+	}
 	if !rows.Next() {
-		sql_add_user := `
-			INSERT INTO nav_user (id, name, password)
-			VALUES (?, ?, ?);
-			`
-		stmt, err := DB.Prepare(sql_add_user)
-		utils.CheckErr(err)
-		res, err := stmt.Exec(utils.GenerateId(), "admin", "admin")
-		utils.CheckErr(err)
-		_, err = res.LastInsertId()
-		utils.CheckErr(err)
+		// 一次性插入改用 DB.Exec：老代码 Prepare 失败后 stmt 为 nil，再 Exec 会 panic
+		if _, err = DB.Exec(`INSERT INTO nav_user (id, name, password) VALUES (?, ?, ?);`,
+			utils.GenerateId(), "admin", "admin"); err != nil {
+			utils.CheckErr(err)
+		}
 	}
 	rows.Close()
 	// 如果不存在设置，就初始化
@@ -290,18 +285,17 @@ func InitDB() {
 		SELECT * FROM nav_setting;
 		`
 	rows, err = DB.Query(sql_get_setting)
-	utils.CheckErr(err)
+	if err != nil {
+		utils.CheckErr(err)
+		return
+	}
 	if !rows.Next() {
-		sql_add_setting := `
+		if _, err = DB.Exec(`
 			INSERT INTO nav_setting (favicon, title, govRecord, logo192, logo512, hideAdmin, hideGithub, hideToggleJumpTarget, jumpTargetBlank)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-			`
-		stmt, err := DB.Prepare(sql_add_setting)
-		utils.CheckErr(err)
-		res, err := stmt.Exec("favicon.ico", "Van Nav", "", "logo192.png", "logo512.png", false, false, false, true)
-		utils.CheckErr(err)
-		_, err = res.LastInsertId()
-		utils.CheckErr(err)
+			`, "favicon.ico", "Van Nav", "", "logo192.png", "logo512.png", false, false, false, true); err != nil {
+			utils.CheckErr(err)
+		}
 	}
 	rows.Close()
 
@@ -310,21 +304,46 @@ func InitDB() {
 		SELECT * FROM nav_site_config;
 		`
 	rows, err = DB.Query(sql_get_site_config)
-	utils.CheckErr(err)
+	if err != nil {
+		utils.CheckErr(err)
+		return
+	}
 	if !rows.Next() {
-		sql_add_site_config := `
+		// 5 为每行展示网站数量的默认值，与 service.DefaultCardsPerRow 保持一致
+		if _, err = DB.Exec(`
 			INSERT INTO nav_site_config (noImageMode, compactMode, cardsPerRow)
 			VALUES (?, ?, ?);
-			`
-		stmt, err := DB.Prepare(sql_add_site_config)
-		utils.CheckErr(err)
-		// 5 为每行展示网站数量的默认值，与 service.DefaultCardsPerRow 保持一致
-		res, err := stmt.Exec(false, false, 5)
-		utils.CheckErr(err)
-		_, err = res.LastInsertId()
-		utils.CheckErr(err)
+			`, false, false, 5); err != nil {
+			utils.CheckErr(err)
+		}
 	}
 	rows.Close()
+
+	// 常用查询补索引（IF NOT EXISTS，老库升级与每次启动执行都安全）：
+	// - sort/id：首页与后台的 ORDER BY sort, id（分类重排也是按这个顺序遍历）
+	// - catelog：分类改名/隐藏/默认开关时按分类名批量更新工具
+	// - nav_api_token.value：JWT 中间件每次请求都按 value 查（鉴权热点）
+	// - nav_user.name：登录按用户名查
+	indexes := []string{
+		`CREATE INDEX IF NOT EXISTS idx_nav_table_sort ON nav_table(sort, id);`,
+		`CREATE INDEX IF NOT EXISTS idx_nav_table_catelog ON nav_table(catelog);`,
+		`CREATE INDEX IF NOT EXISTS idx_nav_catelog_sort ON nav_catelog(sort, id);`,
+		`CREATE INDEX IF NOT EXISTS idx_nav_api_token_value ON nav_api_token(value);`,
+		`CREATE INDEX IF NOT EXISTS idx_nav_user_name ON nav_user(name);`,
+	}
+	for _, idx := range indexes {
+		if _, err := DB.Exec(idx); err != nil {
+			utils.CheckErr(err)
+		}
+	}
+	// nav_img 是老版本存 base64 图片缓存的表，图片出库后会整表删掉（见 service.MigrateImgCacheToFiles），
+	// 只在它还在时补索引，读取侧搬迁过程中要按 url 查
+	if TableExists("nav_img") {
+		if _, err := DB.Exec(`CREATE INDEX IF NOT EXISTS idx_nav_img_url ON nav_img(url);`); err != nil {
+			utils.CheckErr(err)
+		}
+	}
+
 	logger.LogInfo("数据库初始化成功💗")
 
 	// 清理空分类记录 - 删除名称为空或只包含空白字符的分类

@@ -9,85 +9,77 @@ import (
 	"github.com/mereith/nav/utils"
 )
 
-func UpdateCatelog(data types.UpdateCatelogDto) {
+// UpdateCatelog 更新分类，事务内任一步失败即回滚并返回 error
+// （老实现用 CheckTxErr 只回滚不中断，后续语句都在已回滚的事务上执行，提交也必然失败）
+func UpdateCatelog(data types.UpdateCatelogDto) error {
 
 	// 查询分类原名称、原有的隐藏状态与默认栏开关
 	sql_select_old_catelog_name := `select name, hide, "default" from nav_catelog where id = ?;`
 	var oldName string
 	var oldHide sql.NullBool
 	var oldDefault sql.NullBool
-	err := database.DB.QueryRow(sql_select_old_catelog_name, data.Id).Scan(&oldName, &oldHide, &oldDefault)
-	utils.CheckErr(err)
+	if err := database.DB.QueryRow(sql_select_old_catelog_name, data.Id).Scan(&oldName, &oldHide, &oldDefault); err != nil {
+		return utils.CheckErr(err)
+	}
 
 	// 开启事务
 	tx, err := database.DB.Begin()
-	utils.CheckErr(err)
+	if err != nil {
+		return utils.CheckErr(err)
+	}
+	// 已提交时 Rollback 是 no-op，失败路径保证事务被回滚
+	defer tx.Rollback()
 
 	// 更新分类新名称
-	sql_update_catelog := `
+	if _, err = tx.Exec(`
 		UPDATE nav_catelog
 		SET name = ?, sort = ?, hide = ?, "default" = ?
 		WHERE id = ?;
-		`
-	stmt, err := tx.Prepare(sql_update_catelog)
-	utils.CheckTxErr(err, tx)
-	res, err := stmt.Exec(data.Name, data.Sort, data.Hide, data.Default, data.Id)
-	utils.CheckTxErr(err, tx)
-	_, err = res.RowsAffected()
-	utils.CheckTxErr(err, tx)
+		`, data.Name, data.Sort, data.Hide, data.Default, data.Id); err != nil {
+		return utils.CheckErr(err)
+	}
 
 	if oldName != data.Name {
 		// 更新工具分类新名称
-		sql_update_tools := `
+		if _, err = tx.Exec(`
 		UPDATE nav_table
 		SET catelog = ?
 		WHERE catelog = ?;
-		`
-		stmt2, err := tx.Prepare(sql_update_tools)
-		utils.CheckTxErr(err, tx)
-		res2, err := stmt2.Exec(data.Name, oldName)
-		utils.CheckTxErr(err, tx)
-		_, err = res2.RowsAffected()
-		utils.CheckTxErr(err, tx)
+		`, data.Name, oldName); err != nil {
+			return utils.CheckErr(err)
+		}
 	}
 
 	// 隐藏状态发生变化时，同步该分类下所有工具的隐藏状态
 	// （改名已在上面完成，这里统一按新名称匹配）
 	if oldHide.Bool != data.Hide {
-		sql_update_tools_hide := `
+		if _, err = tx.Exec(`
 			UPDATE nav_table
 			SET "hide" = ?
 			WHERE catelog = ?;
-			`
-		stmt3, err := tx.Prepare(sql_update_tools_hide)
-		utils.CheckTxErr(err, tx)
-		res3, err := stmt3.Exec(data.Hide, data.Name)
-		utils.CheckTxErr(err, tx)
-		_, err = res3.RowsAffected()
-		utils.CheckTxErr(err, tx)
+			`, data.Hide, data.Name); err != nil {
+			return utils.CheckErr(err)
+		}
 	}
 
 	// 默认栏开关变化时，同步该分类下所有工具的默认状态
 	if oldDefault.Bool != data.Default {
-		sql_update_tools_default := `
+		if _, err = tx.Exec(`
 			UPDATE nav_table
 			SET "default" = ?
 			WHERE catelog = ?;
-			`
-		stmt4, err := tx.Prepare(sql_update_tools_default)
-		utils.CheckTxErr(err, tx)
-		res4, err := stmt4.Exec(data.Default, data.Name)
-		utils.CheckTxErr(err, tx)
-		_, err = res4.RowsAffected()
-		utils.CheckTxErr(err, tx)
+			`, data.Default, data.Name); err != nil {
+			return utils.CheckErr(err)
+		}
 	}
 
 	// 修改后自动重排所有分类的排序值
-	utils.CheckTxErr(renumberCatelogs(tx), tx)
+	if err = renumberCatelogs(tx); err != nil {
+		return utils.CheckErr(err)
+	}
 
 	// 提交事务
-	err = tx.Commit()
-	utils.CheckErr(err)
+	return utils.CheckErr(tx.Commit())
 }
 
 // AddCatelog 新增分类
@@ -272,7 +264,12 @@ func GetAllCatelog() []types.Catelog {
 	`
 	results := make([]types.Catelog, 0)
 	rows, err := database.DB.Query(sql_get_all)
-	utils.CheckErr(err)
+	if err != nil {
+		// Query 失败时 rows 为 nil，老代码直接 rows.Next() 会 panic
+		utils.CheckErr(err)
+		return results
+	}
+	defer rows.Close()
 	for rows.Next() {
 		var catelog types.Catelog
 		var (
@@ -287,7 +284,6 @@ func GetAllCatelog() []types.Catelog {
 		catelog.Default = defaultVal.Bool
 		results = append(results, catelog)
 	}
-	defer rows.Close()
 	return results
 }
 

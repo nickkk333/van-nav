@@ -85,8 +85,11 @@ export const fetchAdminData = async (): Promise<AdminData> => {
 }
 
 // 工具管理
-export const fetchAddTool = async (payload: Partial<Tool>): Promise<ApiResult<{ id: number }>> => {
-  const { data } = await http.post<ApiResult<{ id: number }>>('/admin/tool', payload)
+// logoFetching 为 true 时表示工具已入库、图标还在后台抓取（刷新列表后就会出现）
+export const fetchAddTool = async (
+  payload: Partial<Tool>
+): Promise<ApiResult<{ id: number; logoFetching?: boolean }>> => {
+  const { data } = await http.post<ApiResult<{ id: number; logoFetching?: boolean }>>('/admin/tool', payload)
   return data
 }
 
