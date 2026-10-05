@@ -1,0 +1,94 @@
+# ============================================================
+# 发布前的预校验流水线（打 tag 之前先把配置类错误拦下来）
+#   1. goreleaser check：校验 .goreleaser.yml 字段在当前 v2 版本下是否合法
+#   2. 用 .nvmrc 指定的 Node 版本安装依赖 / 类型检查 / 构建前端
+#   3. 非 PR 场景下再跑一次 goreleaser snapshot 构建（不发布，验证完整发布流程）
+# ============================================================
+name: Check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  goreleaser-config:
+    name: Validate GoReleaser config
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: goreleaser check
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: latest
+          args: check
+
+  frontend:
+    name: Frontend build (Node from .nvmrc)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Show versions
+        run: |
+          node -v
+          npm -v
+
+      - name: Install and build frontend
+        run: |
+          npm --prefix ui ci --no-audit --no-fund
+          npm --prefix ui run type-check
+          npm --prefix ui run build
+
+  snapshot:
+    name: GoReleaser snapshot build
+    runs-on: ubuntu-latest
+    needs: goreleaser-config
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+
+      # 只构建不发布，产物落在 dist/ 下，可在 Actions 里下载查看
+      - name: Run GoReleaser snapshot
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: latest
+          args: release --snapshot --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List artifacts
+        run: ls -lh dist/

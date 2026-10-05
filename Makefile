@@ -87,6 +87,8 @@ help: ## 显示所有可用命令
 	@$(call MSG,  make docker-multiarch   Build and push multi-arch image (amd64/arm64))
 	@$(call MSG,  make docker-run         Run Docker container)
 	@$(call MSG,  make fmt vet test       Format / static check / test)
+	@$(call MSG,  make goreleaser-check   Validate .goreleaser.yml (goreleaser check))
+	@$(call MSG,  make goreleaser-snapshot Dry-run release without publishing)
 	@$(call MSG,  make clean              Clean build artifacts)
 
 # ------------------------------------------------------------- 依赖
@@ -204,6 +206,14 @@ test: ## 运行测试
 
 .PHONY: check
 check: fmt vet ui-check ## 完整检查
+
+.PHONY: goreleaser-check
+goreleaser-check: ## 校验 .goreleaser.yml（需本地安装 goreleaser）
+	goreleaser check
+
+.PHONY: goreleaser-snapshot
+goreleaser-snapshot: ## 本地跑一次不发布的发布流程，验证 .goreleaser.yml（需本地安装 goreleaser）
+	goreleaser release --snapshot --clean
 
 .PHONY: clean
 clean: ## 清理构建产物

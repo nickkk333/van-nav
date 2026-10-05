@@ -140,13 +140,16 @@ docker build --build-arg GOPROXY=https://goproxy.cn,direct -t van-nav:latest .
 
 | 产物 | 说明 |
 | --- | --- |
-| `van-nav_<版本>_Windows_x86_64.zip` | Windows amd64 单文件可执行程序（含在 binaries 流水线中） |
-| `van-nav_<版本>_Linux_x86_64.tar.gz` | Linux amd64 静态二进制（另有 arm64 / arm 版本） |
+| `van-nav_<版本>_windows_amd64.zip` | Windows amd64 单文件可执行程序 |
+| `van-nav_<版本>_linux_amd64.tar.gz` | Linux amd64 静态二进制（另有 arm64 / arm 版本） |
 | `van-nav-docker-amd64.tar.gz` | Docker 离线镜像包，`gunzip -c ... \| docker load` 后即可运行（另有 arm64 版） |
 | `van-nav-fnos-amd64.tar.gz` | 飞牛OS（FnOS）amd64 部署包：二进制 + `docker-compose.yml` + `start.sh` + 说明 |
 | `checksums.txt` | 上述二进制包的校验值 |
 
 同时会把多架构镜像推送到 GHCR：`ghcr.io/<owner>/<repo>:latest` 与 `ghcr.io/<owner>/<repo>:<tag>`。
+
+> 打 tag 之前建议先确认 `Check` 流水线（`check.yml`）为绿：它会执行 `goreleaser check`、用 `.nvmrc` 的 Node 构建前端，并在非 PR 场景跑一次不发布的快照构建。
+> 本地等价命令：`make goreleaser-check`（快速校验配置）、`make goreleaser-snapshot`（完整演练，产物落在 `dist/`）。
 
 ## 安装方法
 

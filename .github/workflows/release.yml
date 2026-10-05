@@ -178,7 +178,7 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          ARCHIVES=(dist/*_Linux_x86_64.tar.gz)
+          ARCHIVES=(dist/*_linux_amd64.tar.gz)
           ARCHIVE="${ARCHIVES[0]}"
           echo ">>> 使用 Linux amd64 产物: ${ARCHIVE}"
           STAGE=$(mktemp -d)
