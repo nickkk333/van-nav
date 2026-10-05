@@ -22,32 +22,32 @@ builds:
       - timetzdata
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}}
-    goos:
-      - linux
-      - windows
-      - darwin
-    goarch:
-      - amd64
-      - arm64
-      - arm
-    ignore:
-      - goos: windows
-        goarch: arm64
-      - goos: windows
-        goarch: arm
+    # v2 中使用 targets 显式列出目标（等价于旧的 goos/goarch + ignore）
+    targets:
+      - linux_amd64
+      - linux_arm64
+      - linux_arm
+      - windows_amd64
+      - darwin_amd64
+      - darwin_arm64
 
 archives:
   - id: default
     # 固定产物命名，便于流水线按名字抓取 Linux/Windows 包做二次打包
     # 命名示例：van-nav_v1.0.0_linux_amd64.tar.gz / van-nav_v1.0.0_windows_amd64.zip
-    # 注意：v2 已移除 replacements 字段，直接用原始 goos/goarch
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # v2 起使用 formats / format_overrides（旧字段 replacements / format 已移除）
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
 
 checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  # v2 起 name_template 已废弃，改用 version_template
+  version_template: "{{ incpatch .Version }}-next"
 
 changelog:
   sort: asc
