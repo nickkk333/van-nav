@@ -344,9 +344,27 @@ func GetBingWallpaperHandler(c *gin.Context) {
 		})
 		return
 	}
-	// 壁纸每天都会更新，但文件名不变，因此不做长时间缓存
+	// 壁纸每天都会更新（文件名带日期），因此不做长时间缓存
 	c.Header("Cache-Control", "no-cache")
 	c.File(path)
+}
+
+// GetBingWallpaperInfoHandler 返回必应每日壁纸的信息（图片描述），供前台搜索框 placeholder 显示
+// 描述解析自壁纸文件名（命名规则见 service.bingWallpaperFileName）；本地还没有壁纸时先同步下载一次（与图片接口一致），
+// 拿不到描述时 title 为空字符串，前台回落到默认 placeholder
+func GetBingWallpaperInfoHandler(c *gin.Context) {
+	if _, ok := service.GetBingWallpaperPath(); !ok {
+		// 与 GetBingWallpaperHandler 相同的兜底：首次启动后台下载未完成时同步等一次，保证能拿到当天的描述
+		service.DownloadBingWallpaper()
+	}
+	// 文件名带日期，每天都会变，不做缓存
+	c.Header("Cache-Control", "no-cache")
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"title": service.BingWallpaperTitle(),
+		},
+	})
 }
 
 // GetUploadedImageHandler 输出后台上传的图片

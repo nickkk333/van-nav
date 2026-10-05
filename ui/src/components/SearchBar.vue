@@ -9,7 +9,7 @@
         size="large"
         type="search"
         clearable
-        placeholder="按任意键直接开始搜索"
+        :placeholder="placeholder"
         @update:model-value="onInput"
       />
       <button class="search-btn" type="button" aria-label="搜索" @click="emit('search')">
@@ -24,7 +24,10 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import type { InputInstance } from 'element-plus'
 
-defineProps<{ modelValue: string }>()
+withDefaults(defineProps<{ modelValue: string; placeholder?: string }>(), {
+  // 默认提示；首页会换成必应壁纸的图片描述（见 HomeView）
+  placeholder: '按任意键直接开始搜索',
+})
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
   (e: 'search'): void

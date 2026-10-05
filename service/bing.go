@@ -49,7 +49,19 @@ type bingWallpaperInfo struct {
 	Title string `json:"title"`
 }
 
-// DownloadBingWallpaper 下载必应每日壁纸到 data 目录，保存为「必应壁纸 + 图片格式后缀」，前台通过 /api/bingWallpaper 读取
+// bingWallpaperFileName 生成壁纸文件名（不含扩展名）：必应壁纸-YYYYMMDD-图片描述
+// 例：必应壁纸-20261004-秋日晨曦中的黄山；描述清洗掉非法字符，为空时只保留日期段
+// 格式与 BingWallpaperTitle 的解析保持一致，保证存下去能再读出来
+func bingWallpaperFileName(title string) string {
+	name := BingWallpaperBaseName + "-" + time.Now().Format("20060102")
+	// 必应标题可能带 / : * ? 等文件名非法字符，复用统一的清洗逻辑（去非法字符、防路径穿越、限长）
+	if desc := SafeImageFileName(title, ""); desc != "" {
+		name += "-" + desc
+	}
+	return name
+}
+
+// DownloadBingWallpaper 下载必应每日壁纸到 data 目录，保存为「必应壁纸-YYYYMMDD-图片描述 + 图片格式后缀」，前台通过 /api/bingWallpaper 读取
 // 当天已经下载过、或距离上次失败尝试过近时直接跳过；下载失败只记录日志，不影响服务启动
 func DownloadBingWallpaper() {
 	bingWallpaperMu.Lock()
@@ -76,7 +88,7 @@ func DownloadBingWallpaper() {
 			continue
 		}
 		utils.PathExistsOrCreate(BingWallpaperDir)
-		name := BingWallpaperBaseName + ext
+		name := bingWallpaperFileName(info.Title) + ext
 		if err := os.WriteFile(filepath.Join(BingWallpaperDir, name), data, 0o644); err != nil {
 			logger.LogError("保存必应每日壁纸失败: %s", err)
 			return
@@ -97,6 +109,36 @@ func GetBingWallpaperPath() (string, bool) {
 	return files[0], true
 }
 
+// BingWallpaperTitle 从当前壁纸文件名解析图片描述，供前台搜索框 placeholder 显示
+// 命名规则：必应壁纸-YYYYMMDD-图片描述.后缀（见 bingWallpaperFileName）
+// 没有描述、或还是旧命名（必应壁纸.后缀）时返回空字符串
+func BingWallpaperTitle() string {
+	path, ok := GetBingWallpaperPath()
+	if !ok {
+		return ""
+	}
+	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	rest, found := strings.CutPrefix(base, BingWallpaperBaseName+"-")
+	if !found {
+		return "" // 旧命名：必应壁纸
+	}
+	// 再剥掉 YYYYMMDD- 日期段（8 位数字 + 连字符），剩下的就是图片描述
+	if len(rest) >= 9 && isASCIIDigits(rest[:8]) && rest[8] == '-' {
+		return rest[9:]
+	}
+	return ""
+}
+
+// isASCIIDigits 判断字符串是否全部是 ASCII 数字（用于识别文件名里的 YYYYMMDD 日期段）
+func isASCIIDigits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return len(s) > 0
+}
+
 // BingWallpaperDownloadedToday 判断必应每日壁纸是否已经下载过（每天只需要下载一次）
 func BingWallpaperDownloadedToday() bool {
 	path, ok := GetBingWallpaperPath()
@@ -113,21 +155,29 @@ func BingWallpaperDownloadedToday() bool {
 }
 
 // bingWallpaperFiles 列出 data 目录下所有必应壁纸文件
+// 两个模式分别匹配旧命名（必应壁纸.jpg）与新命名（必应壁纸-YYYYMMDD-描述.jpg）；
+// 不用宽泛的「必应壁纸*」，避免误伤用户手工放进 data 目录的同前缀文件
 func bingWallpaperFiles() []string {
-	matches, err := filepath.Glob(filepath.Join(BingWallpaperDir, BingWallpaperBaseName+".*"))
-	if err != nil {
-		return nil
+	patterns := []string{
+		filepath.Join(BingWallpaperDir, BingWallpaperBaseName+".*"),
+		filepath.Join(BingWallpaperDir, BingWallpaperBaseName+"-*"),
 	}
-	files := make([]string, 0, len(matches))
-	for _, path := range matches {
-		info, err := os.Stat(path)
-		if err != nil || info.IsDir() {
+	files := make([]string, 0, 2)
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
 			continue
 		}
-		if !allowedUploadExt[strings.ToLower(filepath.Ext(path))] {
-			continue
+		for _, path := range matches {
+			info, err := os.Stat(path)
+			if err != nil || info.IsDir() {
+				continue
+			}
+			if !allowedUploadExt[strings.ToLower(filepath.Ext(path))] {
+				continue
+			}
+			files = append(files, path)
 		}
-		files = append(files, path)
 	}
 	return files
 }

@@ -105,6 +105,8 @@ func main() {
 		api.GET("/img", handler.GetLogoImgHandler)
 		// 本地保存的必应每日壁纸（前台未配置背景图时的默认背景）
 		api.GET("/bingWallpaper", handler.GetBingWallpaperHandler)
+		// 必应壁纸的图片描述（供前台搜索框 placeholder 显示）
+		api.GET("/bingWallpaperInfo", handler.GetBingWallpaperInfoHandler)
 		// 后台上传的图片（背景图 / logo 等）
 		api.GET("/uploadedImage/:name", handler.GetUploadedImageHandler)
 

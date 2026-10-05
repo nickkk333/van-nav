@@ -6,6 +6,7 @@
         <SearchBar
           ref="searchBarRef"
           :model-value="searchText"
+          :placeholder="searchPlaceholder"
           @update:model-value="onSearchInput"
           @search="onSearchSubmit"
         />
@@ -65,7 +66,7 @@ import AdminLink from '../components/AdminLink.vue'
 import DarkSwitch from '../components/DarkSwitch.vue'
 import Loading from '../components/Loading.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { fetchDeleteTool, fetchUpdateToolsSort, resolveError } from '../api'
+import { fetchBingWallpaperTitle, fetchDeleteTool, fetchUpdateToolsSort, resolveError } from '../api'
 import { useCardSortable } from '../composables/useCardSortable'
 import { useSiteStore } from '../stores/site'
 import { displayCatelog, isLogin } from '../utils/check'
@@ -81,6 +82,8 @@ const site = useSiteStore()
 
 const searchText = ref('')
 const searchString = ref('')
+// 搜索框提示语（置灰 placeholder）：默认提示，背景使用必应壁纸时换成当天壁纸的图片描述
+const searchPlaceholder = ref('按任意键直接开始搜索')
 const currTag = ref(DEFAULT_TAG)
 const engineCards = ref<Tool[]>([])
 const loading = ref(true)
@@ -97,6 +100,9 @@ const bgStyle = computed<CSSProperties>(() => {
   const url = (setting.value.backgroundImage || DEFAULT_BACKGROUND_IMAGE).replace(/["'()\\\s]/g, '')
   return url ? { backgroundImage: `url("${url}")` } : {}
 })
+
+/** 当前背景是否是必应每日壁纸（未配置自定义背景，或显式填了壁纸地址） */
+const usingBingWallpaper = computed(() => !setting.value.backgroundImage || setting.value.backgroundImage === DEFAULT_BACKGROUND_IMAGE)
 
 /** 每行展示的网站数量，小屏自动收敛，避免卡片过窄 */
 const cardsPerRow = computed(() => {
@@ -431,6 +437,13 @@ const init = async () => {
       currTag.value = tagInLocalStorage
     }
     applySiteMeta()
+    // 搜索框 placeholder 换成必应壁纸的图片描述：不阻塞首屏，异步拿到再替换
+    // （自定义背景图时不展示必应描述，保持默认提示）
+    if (usingBingWallpaper.value) {
+      fetchBingWallpaperTitle().then((title) => {
+        if (title) searchPlaceholder.value = title
+      })
+    }
   } catch (error) {
     console.error(error)
   } finally {

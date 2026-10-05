@@ -56,6 +56,17 @@ export const fetchGetEnabledSearchEngines = async (): Promise<SearchEngine[]> =>
   return data.data || []
 }
 
+/** 获取必应每日壁纸的图片描述（首页搜索框 placeholder 显示，取不到时返回空串） */
+export const fetchBingWallpaperTitle = async (): Promise<string> => {
+  try {
+    const { data } = await http.get<ApiResult<{ title: string }>>('/bingWallpaperInfo')
+    return data.data?.title || ''
+  } catch {
+    // 描述只是锦上添花，接口失败（离线、首次下载未完成等）时静默回落到默认 placeholder
+    return ''
+  }
+}
+
 export const login = async (name: string, password: string): Promise<ApiResult<{ user: User; token: string }>> => {
   const { data } = await http.post<ApiResult<{ user: User; token: string }>>('/login', { name, password })
   return data
