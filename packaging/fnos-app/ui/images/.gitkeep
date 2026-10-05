@@ -1,0 +1,2 @@
+# 占位文件：让打包框架 build-fpk.sh 能识别到 ui/images 目录，
+# 从而把 ICON_256.PNG 复制成 ui/images/256.png（桌面入口 ui/config 里 icon: "images/{0}.png"）

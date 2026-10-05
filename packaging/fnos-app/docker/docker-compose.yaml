@@ -1,0 +1,16 @@
+services:
+  van-nav:
+    # 镜像占位符在打包时替换为具体镜像（见 packaging/fnos-app/build-fpk.sh）
+    image: @IMAGE@
+    container_name: van-nav
+    ports:
+      - "${TRIM_SERVICE_PORT}:6412"
+    # 数据目录取自 fnOS 的数据共享路径（config/resource 里 data-share 声明的 "Van Nav"，
+    # 实际形如 /vol1/@appshare/Van Nav）。compose 不支持 bash 式的 %% 截取，
+    # 所以这里用插值 + 默认值：默认值是应用私有目录，安装钩子会把默认值改成真实共享目录，
+    # 这样无论 TRIM_DATA_SHARE_PATHS 有没有注入进 compose 环境都指向同一个位置。
+    volumes:
+      - "${TRIM_DATA_SHARE_PATHS:-/var/apps/van-nav/var/data}:/app/data"
+    environment:
+      - TZ=Asia/Shanghai
+    restart: unless-stopped

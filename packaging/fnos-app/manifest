@@ -1,0 +1,15 @@
+appname         = van-nav
+version         = 0.0.0
+display_name    = Van Nav
+platform        = x86
+maintainer      = van-nav
+maintainer_url  = https://github.com/nickkk333/van-nav
+distributor     = nickkk333
+distributor_url = https://github.com/nickkk333/van-nav
+desktop_uidir   = ui
+desktop_applaunchname = van-nav.Application
+service_port    = 6412
+checkport       = false
+desc            = 轻量导航站，支持搜索引擎集成、卡片拖拽排序与暗色主题
+source          = thirdparty
+checksum        =

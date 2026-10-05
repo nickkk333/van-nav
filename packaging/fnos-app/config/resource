@@ -1,0 +1,25 @@
+{
+    "port-config": {
+        "protocol-file": "VanNav.sc"
+    },
+    "data-share": {
+        "shares": [
+            {
+                "name": "Van Nav",
+                "permission": {
+                    "rw": [
+                        "van-nav"
+                    ]
+                }
+            }
+        ]
+    },
+    "docker-project": {
+        "projects": [
+            {
+                "name": "van-nav",
+                "path": "docker"
+            }
+        ]
+    }
+}

@@ -143,7 +143,7 @@ docker build --build-arg GOPROXY=https://goproxy.cn,direct -t van-nav:latest .
 | `van-nav_<版本>_windows_amd64.zip` | Windows amd64 单文件可执行程序 |
 | `van-nav_<版本>_linux_amd64.tar.gz` | Linux amd64 静态二进制（另有 arm64 / arm 版本） |
 | `van-nav-docker-amd64.tar.gz` | Docker 离线镜像包，`gunzip -c ... \| docker load` 后即可运行（另有 arm64 版） |
-| `van-nav-fnos-amd64.tar.gz` | 飞牛OS（FnOS）amd64 部署包：二进制 + `docker-compose.yml` + `start.sh` + 说明 |
+| `van-nav-fnos-amd64.fpk` | 飞牛OS（FnOS）amd64 安装包，可在应用中心「手动安装」导入（Docker 模式） |
 | `checksums.txt` | 上述二进制包的校验值 |
 
 同时会把多架构镜像推送到 GHCR：`ghcr.io/<owner>/<repo>:latest` 与 `ghcr.io/<owner>/<repo>:<tag>`。
@@ -196,6 +196,32 @@ make docker-run   # 启动容器（映射 6412，挂载 ./data）
 make build            # 本机平台，产物在 bin/van-nav
 make build-linux      # Linux amd64 静态二进制
 ```
+
+### 飞牛OS（FnOS）
+
+1. 在 Release 页面下载 `van-nav-fnos-amd64.fpk`。
+2. 飞牛桌面 → **应用中心** → 左下角 **手动安装** → 上传该 `.fpk` → 确定。
+3. 安装完成后打开桌面图标，或访问 `http://<飞牛IP>:6412`，默认账号密码 `admin` / `admin`。
+
+数据落在 fnOS 的**共享目录** `/vol1/@appshare/Van Nav`：由 `packaging/fnos-app/config/resource` 的 `data-share` 声明，安装时读 `TRIM_DATA_SHARE_PATHS` 写进 compose，挂载到容器的 `/app/data`。在飞牛的文件管理器里能直接看到 `nav.db`、`images/`、图片缓存和启动自动备份。
+
+> 实现见 `packaging/fnos-app/docker/docker-compose.yaml` 与 `cmd/service-setup`：compose 用 `${TRIM_DATA_SHARE_PATHS:-默认目录}` 取共享目录（compose 不支持 bash 的 `${VAR%%:*}` 截取），安装/升级钩子再把默认值改写成真实共享路径，保证变量没注入进 compose 环境时也不会挂错目录。
+> 旧版用的是 `@appdata/van-nav/data`，要迁移的话把里面的 `nav.db` 和 `images/` 拷到共享目录 `Van Nav` 即可。
+
+> fpk 内跑的是 GHCR 在线镜像（`ghcr.io/<owner>/<repo>:<版本>`），**需要先在 GitHub 包设置里把该镜像设为 Public**，否则飞牛拉取镜像会失败。
+> 本地也可以打包：`make fnos-fpk`（需要 bash 环境，产物在 `bin/van-nav-fnos-amd64.fpk`）。
+
+安装时报 `Get "https://registry-1.docker.io/v2/": context deadline exceeded` 是**镜像拉取网络问题**，按下面任一方式处理：
+
+1. 飞牛 → Docker → 设置里配置镜像加速（registry mirror），让 Docker 能访问镜像仓库。
+2. 离线安装：先在飞牛上导入离线镜像，再装 fpk（fpk 内 compose 引用的镜像名要与导入的一致）。
+   ```bash
+   gunzip -c van-nav-docker-amd64.tar.gz | docker load
+   ```
+3. 用自建/国内仓库地址重新打包 fpk（镜像仓库与标签都可覆盖）：
+   ```bash
+   make fnos-fpk FNOS_IMAGE=docker.m.daocloud.io/ghcr.io/nickkk333/van-nav FNOS_IMAGE_TAG=v1.0.0
+   ```
 
 ### nginx 反向代理
 

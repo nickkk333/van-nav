@@ -84,6 +84,7 @@ help: ## 显示所有可用命令
 	@$(call MSG,  make dev                Start backend and frontend dev servers together)
 	@$(call MSG,  make docker             Build Docker image $(IMAGE_NAME):$(IMAGE_TAG))
 	@$(call MSG,  make docker-tar         Export offline-loadable image tar ($(DIST_DIR)/$(BINARY)-docker-$(ARCH).tar))
+	@$(call MSG,  make fnos-fpk           Build fnOS .fpk package (bash only))
 	@$(call MSG,  make docker-multiarch   Build and push multi-arch image (amd64/arm64))
 	@$(call MSG,  make docker-run         Run Docker container)
 	@$(call MSG,  make fmt vet test       Format / static check / test)
@@ -181,6 +182,19 @@ docker-tar: ## 导出可离线 docker load 的镜像 tar（平台由 ARCH 控制
 		-t $(IMAGE_NAME):$(IMAGE_TAG) -t $(IMAGE_NAME):$(VERSION) \
 		--output type=docker,dest=$(DIST_DIR)/$(BINARY)-docker-$(ARCH).tar .
 	@$(call MSG,Image exported to $(DIST_DIR)/$(BINARY)-docker-$(ARCH).tar)
+
+# 飞牛OS .fpk 打包（借用社区通用打包框架，需要 bash 环境）
+FNOS_PLATFORM ?= x86
+FNOS_VERSION  ?= $(VERSION:v%=%)
+# fpk 内使用的镜像：默认走 GHCR（与 release 流水线一致，标签为 latest）
+# 国内可直接用镜像加速前缀，或换成自建仓库：
+#   make fnos-fpk FNOS_IMAGE=docker.m.daocloud.io/ghcr.io/nickkk333/van-nav FNOS_IMAGE_TAG=v1.0.0
+FNOS_IMAGE     ?= ghcr.io/nickkk333/van-nav
+FNOS_IMAGE_TAG ?= latest
+
+.PHONY: fnos-fpk
+fnos-fpk: ## 打包飞牛OS .fpk（需要 bash 环境，产物 $(DIST_DIR)/$(BINARY)-fnos-amd64.fpk）
+	bash packaging/fnos-app/build-fpk.sh "$(FNOS_VERSION)" "$(FNOS_PLATFORM)" "$(FNOS_IMAGE):$(FNOS_IMAGE_TAG)" "$(DIST_DIR)/$(BINARY)-fnos-amd64.fpk"
 
 .PHONY: docker-run
 docker-run: ## 运行 Docker 容器

@@ -1,0 +1,14 @@
+{
+    ".url": {
+        "van-nav.Application": {
+            "title": "Van Nav",
+            "desc": "Van Nav 导航站",
+            "icon": "images/{0}.png",
+            "type": "url",
+            "port": "6412",
+            "protocol": "http",
+            "url": "/",
+            "allUsers": true
+        }
+    }
+}

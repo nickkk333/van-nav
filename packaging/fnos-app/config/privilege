@@ -1,0 +1,7 @@
+{
+    "defaults": {
+        "run-as": "package"
+    },
+    "username": "van-nav",
+    "groupname": "van-nav"
+}
