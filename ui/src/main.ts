@@ -2,6 +2,10 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 
 import 'element-plus/theme-chalk/dark/css-vars.css'
+// ElMessage / ElMessageBox 是在脚本里直接 import 调用的，不是模板里的 <el-*> 组件，
+// 按需引入插件不会自动注入它们的样式，不显式引入的话提示条和确认弹窗没有排版
+import 'element-plus/es/components/message/style/css'
+import 'element-plus/es/components/message-box/style/css'
 import './styles/index.css'
 
 import App from './App.vue'

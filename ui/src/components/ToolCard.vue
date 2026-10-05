@@ -5,7 +5,8 @@
     :href="isToggleCard ? undefined : tool.url"
     :target="target"
     rel="noreferrer"
-    @click="emit('click', tool)"
+    @pointerdown="onPointerDown"
+    @click="onClick"
     @contextmenu="onContextMenu"
   >
     <span v-if="showNumIndex" class="card-index">{{ index + 1 }}</span>
@@ -65,6 +66,34 @@ const showLoading = ref(true)
 let timer: ReturnType<typeof setTimeout> | null = null
 
 const isToggleCard = computed(() => props.tool.url === 'toggleJumpTarget')
+
+/**
+ * 拖拽（sortablejs）结束后浏览器还会补发一次 click，
+ * 锚点会因此执行默认跳转，既把页面带走了，也会打断排序提交的时机。
+ * 这里用「按下点到松开点的位移」判定：移动超过阈值就吞掉这次 click。
+ */
+const CLICK_MOVE_THRESHOLD = 5
+let pointerStart: { x: number; y: number } | null = null
+
+const onPointerDown = (event: PointerEvent) => {
+  pointerStart = { x: event.clientX, y: event.clientY }
+}
+
+const onClick = (event: MouseEvent) => {
+  const start = pointerStart
+  pointerStart = null
+  if (start) {
+    const moved =
+      Math.abs(event.clientX - start.x) > CLICK_MOVE_THRESHOLD ||
+      Math.abs(event.clientY - start.y) > CLICK_MOVE_THRESHOLD
+    if (moved) {
+      // 拖拽/滑动收尾的 click：阻止 <a> 的默认跳转，也不触发业务点击逻辑
+      event.preventDefault()
+      return
+    }
+  }
+  emit('click', props.tool)
+}
 
 /** 登录后拦截右键菜单用于删除工具，未登录时保留浏览器默认菜单（可新标签页打开等） */
 const onContextMenu = (event: MouseEvent) => {
