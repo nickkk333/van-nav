@@ -43,6 +43,8 @@
 
 ## 本地开发
 
+> 前置条件：Go 1.26 + Node 24。Node 版本统一在根目录 `.nvmrc` 中定义（当前 `24`），`Dockerfile` 的 `NODE_VERSION` 与 CI 流水线都以此为准，改版本只需改这一处。
+
 ```bash
 # 安装依赖
 make install          # 等价于 npm --prefix ui install + go mod download
@@ -63,6 +65,9 @@ make ui-dev           # 前端，监听 2333 并代理 /api 到 6412
 make build            # 构建前端 + 编译本机可执行文件 bin/van-nav
 make build-linux      # 构建 Linux amd64 静态二进制（Docker 镜像使用）
 make build-linux-arm64
+make build-windows-amd64
+make build-all        # Linux amd64/arm64 + Windows amd64
+make docker-tar       # 导出可 docker load 的离线镜像包（默认 amd64，可用 ARCH=arm64 指定）
 make ui-check         # 前端 vue-tsc 类型检查
 make fmt vet test     # Go 格式化 / 静态检查 / 测试
 make clean            # 清理产物
@@ -128,6 +133,20 @@ docker build --build-arg GOPROXY=https://goproxy.cn,direct -t van-nav:latest .
 ## CHANGELOG
 
 具体请看 [CHANGELOG.md](CHANGELOG.md)
+
+## 发布产物（GitHub Release）
+
+推送 `v*` tag 后会自动发布，Release 中包含：
+
+| 产物 | 说明 |
+| --- | --- |
+| `van-nav_<版本>_Windows_x86_64.zip` | Windows amd64 单文件可执行程序（含在 binaries 流水线中） |
+| `van-nav_<版本>_Linux_x86_64.tar.gz` | Linux amd64 静态二进制（另有 arm64 / arm 版本） |
+| `van-nav-docker-amd64.tar.gz` | Docker 离线镜像包，`gunzip -c ... \| docker load` 后即可运行（另有 arm64 版） |
+| `van-nav-fnos-amd64.tar.gz` | 飞牛OS（FnOS）amd64 部署包：二进制 + `docker-compose.yml` + `start.sh` + 说明 |
+| `checksums.txt` | 上述二进制包的校验值 |
+
+同时会把多架构镜像推送到 GHCR：`ghcr.io/<owner>/<repo>:latest` 与 `ghcr.io/<owner>/<repo>:<tag>`。
 
 ## 安装方法
 

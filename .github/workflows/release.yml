@@ -1,8 +1,9 @@
 # ============================================================
 # 发布流水线
-#   1. 构建 Vue3 前端（产物输出到 ./public）
-#   2. 使用 GoReleaser 交叉编译多平台单文件可执行程序
-#   3. 构建并推送 Docker 多架构镜像
+#   1. 从 .nvmrc 读取统一的 Node 版本，构建 Vue3 前端（产物 ./public）
+#   2. GoReleaser 交叉编译单文件程序：Windows / Linux / macOS
+#   3. Docker：多架构镜像推送 GHCR，并把 amd64、arm64 离线镜像包上传 Release
+#   4. 飞牛OS：Linux amd64 二进制 + compose + 启动脚本打包上传 Release
 # ============================================================
 name: Release
 
@@ -17,8 +18,26 @@ permissions:
   packages: write
 
 jobs:
-  goreleaser:
+  # ---------------------------------------------------------- 版本基线
+  meta:
+    name: Resolve versions
     runs-on: ubuntu-latest
+    outputs:
+      node-version: ${{ steps.node.outputs.node-version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Node 版本全局唯一来源：根目录 .nvmrc
+      - name: Read Node version
+        id: node
+        run: echo "node-version=$(tr -d '[:space:]' < .nvmrc)" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------- Windows / Linux 二进制
+  binaries:
+    name: Binaries
+    runs-on: ubuntu-latest
+    needs: meta
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,7 +47,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: ${{ needs.meta.outputs.node-version }}
           cache: "npm"
           cache-dependency-path: ui/package-lock.json
 
@@ -54,9 +73,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # 供飞牛OS 打包复用，避免重复编译
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          retention-days: 1
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+
+  # ---------------------------------------------------------- Docker 多架构镜像
   docker:
+    name: Docker multi-arch image
     runs-on: ubuntu-latest
-    needs: goreleaser
+    needs: meta
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -82,6 +113,142 @@ jobs:
           push: true
           build-args: |
             GOPROXY=https://proxy.golang.org,direct
+            NODE_VERSION=${{ needs.meta.outputs.node-version }}
+            VERSION=${{ github.ref_name }}
+            COMMIT=${{ github.sha }}
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+
+  # ---------------------------------------------------------- Docker 离线镜像包
+  docker-offline:
+    name: Docker offline image (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    needs: [meta, binaries]
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build offline image tar
+        run: |
+          set -euo pipefail
+          docker buildx build --platform linux/${{ matrix.arch }} --provenance=false --sbom=false \
+            --build-arg GOPROXY=https://proxy.golang.org,direct \
+            --build-arg NODE_VERSION=${{ needs.meta.outputs.node-version }} \
+            --build-arg VERSION=${{ github.ref_name }} \
+            --build-arg COMMIT=${{ github.sha }} \
+            -t ghcr.io/${{ github.repository }}:${{ github.ref_name }} \
+            --output type=docker,dest=van-nav-docker-${{ matrix.arch }}.tar .
+          gzip -9 van-nav-docker-${{ matrix.arch }}.tar
+
+      - name: Upload image to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: van-nav-docker-${{ matrix.arch }}.tar.gz
+
+  # ---------------------------------------------------------- 飞牛OS amd64 包
+  fnos:
+    name: FnOS amd64 package
+    runs-on: ubuntu-latest
+    needs: binaries
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Package FnOS bundle
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          ARCHIVES=(dist/*_Linux_x86_64.tar.gz)
+          ARCHIVE="${ARCHIVES[0]}"
+          echo ">>> 使用 Linux amd64 产物: ${ARCHIVE}"
+          STAGE=$(mktemp -d)
+          tar -xzf "${ARCHIVE}" -C "${STAGE}"
+          BIN=$(find "${STAGE}" -type f -name 'van-nav*' ! -name '*.md' ! -name '*.txt' | head -n 1)
+          OUT=van-nav-fnos-amd64
+          rm -rf "${OUT}" && mkdir -p "${OUT}"
+          install -m 0755 "${BIN}" "${OUT}/van-nav"
+
+          cat > "${OUT}/docker-compose.yml" <<YAML
+          services:
+            van-nav:
+              image: ${IMAGE}
+              container_name: van-nav
+              restart: always
+              ports:
+                - "6412:6412"
+              volumes:
+                - ./data:/app/data
+              environment:
+                TZ: Asia/Shanghai
+          YAML
+
+          cat > "${OUT}/start.sh" <<'SH'
+          #!/bin/sh
+          # 二进制方式直接运行（Docker 方式请使用同目录的 docker-compose.yml）
+          cd "$(dirname "$0")"
+          exec ./van-nav -port 6412
+          SH
+          chmod +x "${OUT}/start.sh"
+
+          cat > "${OUT}/README-FnOS.md" <<'MD'
+          # Van Nav 飞牛OS（FnOS）amd64 部署包
+
+          飞牛OS 基于 Debian amd64，本包内含 Linux amd64 静态二进制，开箱即用。
+
+          ## 方式一：Docker（推荐）
+
+          在飞牛OS 的 Docker 管理端或 SSH 中执行：
+
+          ```bash
+          # 在线镜像
+          docker compose up -d
+
+          # 离线镜像（从 Release 下载 van-nav-docker-amd64.tar.gz）
+          gunzip -c van-nav-docker-amd64.tar.gz | docker load
+          docker compose up -d
+          ```
+
+          数据保存在当前目录的 `data` 目录下。
+
+          ## 方式二：二进制直跑
+
+          ```bash
+          chmod +x van-nav start.sh
+          ./start.sh                 # 默认监听 6412
+          ./van-nav -port 6412       # 等价写法，可自行改端口
+          ```
+
+          ## 访问
+
+          浏览器打开 `http://<飞牛IP>:6412`，默认账号密码 `admin` / `admin`，登录后请立即修改。
+          MD
+          printf '\n构建版本：%s\n' "${VERSION}" >> "${OUT}/README-FnOS.md"
+
+          tar -czf van-nav-fnos-amd64.tar.gz "${OUT}"
+          ls -lh van-nav-fnos-amd64.tar.gz
+
+      - name: Upload FnOS bundle to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: van-nav-fnos-amd64.tar.gz

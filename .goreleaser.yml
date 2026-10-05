@@ -34,7 +34,10 @@ builds:
         goarch: arm
 
 archives:
-  - replacements:
+  - id: default
+    # 固定产物命名，便于流水线按名字抓取 Linux/Windows 包做二次打包
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    replacements:
       darwin: MacOs
       linux: Linux
       windows: Windows

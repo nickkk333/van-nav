@@ -28,6 +28,8 @@ IMAGE_TAG  ?= latest
 PORT       ?= 6412
 # docker-tar 目标导出的镜像平台架构
 ARCH       ?= amd64
+# 构建 Docker 镜像时使用的 Node 版本，必须与根目录 .nvmrc 一致
+NODE_VERSION ?= 24
 
 # 前端包管理器：npm 或 pnpm
 NPM        ?= npm
@@ -43,11 +45,13 @@ RMDIR = powershell -NoProfile -Command "foreach ($$p in '$(strip $1)'.Split(' ')
 MKDIR = powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path"
 LINUX_AMD64_ENV = set "CGO_ENABLED=0" && set "GOOS=linux" && set "GOARCH=amd64" &&
 LINUX_ARM64_ENV = set "CGO_ENABLED=0" && set "GOOS=linux" && set "GOARCH=arm64" &&
+WINDOWS_AMD64_ENV = set "CGO_ENABLED=0" && set "GOOS=windows" && set "GOARCH=amd64" &&
 else
 RMDIR = rm -rf $1
 MKDIR = mkdir -p
 LINUX_AMD64_ENV = CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 LINUX_ARM64_ENV = CGO_ENABLED=0 GOOS=linux GOARCH=arm64
+WINDOWS_AMD64_ENV = CGO_ENABLED=0 GOOS=windows GOARCH=amd64
 endif
 
 # 控制台提示信息：Windows 的 cmd echo 会把引号原样打印出来（Unix 的 sh 不会），而 Unix 下括号要用引号转义，
@@ -74,6 +78,8 @@ help: ## 显示所有可用命令
 	@$(call MSG,  make build              Build local binary bin/$(BINARY))
 	@$(call MSG,  make build-linux        Build Linux amd64 static binary (for Docker))
 	@$(call MSG,  make build-linux-arm64  Build Linux arm64 static binary)
+	@$(call MSG,  make build-windows-amd64 Build Windows amd64 static binary)
+	@$(call MSG,  make build-all          Build all release binaries)
 	@$(call MSG,  make run                Run locally (default port $(PORT)))
 	@$(call MSG,  make dev                Start backend and frontend dev servers together)
 	@$(call MSG,  make docker             Build Docker image $(IMAGE_NAME):$(IMAGE_TAG))
@@ -125,8 +131,13 @@ build-linux-arm64: ui-build ## 构建 Linux arm64 静态二进制
 	@$(MKDIR) $(DIST_DIR)
 	$(LINUX_ARM64_ENV) go build -trimpath -tags timetzdata -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY)-linux-arm64 .
 
+.PHONY: build-windows-amd64
+build-windows-amd64: ui-build ## 构建 Windows amd64 静态二进制（发布 Windows 版使用）
+	@$(MKDIR) $(DIST_DIR)
+	$(WINDOWS_AMD64_ENV) go build -trimpath -tags timetzdata -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY)-windows-amd64.exe .
+
 .PHONY: build-all
-build-all: build-linux build-linux-arm64 ## 构建全部平台二进制
+build-all: build-linux build-linux-arm64 build-windows-amd64 ## 构建全部平台二进制
 
 # ------------------------------------------------------------- 运行
 .PHONY: run
@@ -145,6 +156,7 @@ dev: ## 同时启动后端与前端开发服务器
 .PHONY: docker
 docker: ## 构建 Docker 镜像
 	docker build \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(COMMIT) \
 		-t $(IMAGE_NAME):$(IMAGE_TAG) -t $(IMAGE_NAME):$(VERSION) .
@@ -152,6 +164,7 @@ docker: ## 构建 Docker 镜像
 .PHONY: docker-multiarch
 docker-multiarch: ## 构建并推送多架构镜像
 	docker buildx build --platform linux/amd64,linux/arm64 \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(COMMIT) \
 		-t $(IMAGE_NAME):$(IMAGE_TAG) -t $(IMAGE_NAME):$(VERSION) --push .
@@ -160,6 +173,7 @@ docker-multiarch: ## 构建并推送多架构镜像
 docker-tar: ## 导出可离线 docker load 的镜像 tar（平台由 ARCH 控制，默认 amd64）
 	@$(MKDIR) $(DIST_DIR)
 	docker buildx build --platform linux/$(ARCH) --provenance=false --sbom=false \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(COMMIT) \
 		-t $(IMAGE_NAME):$(IMAGE_TAG) -t $(IMAGE_NAME):$(VERSION) \
