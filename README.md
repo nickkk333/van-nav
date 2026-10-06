@@ -1,8 +1,6 @@
 # Van Nav
 
-一个轻量的导航站，现在有搜索引擎集成了，很适合作为主页使用。有配套的[浏览器插件](https://github.com/Mereithhh/van-nav-extension)和 API。 [在线体验](https://demo-tools.mereith.com) (总有人改后台数据，后台密码就不放出来了)
-
-> 新增了 [API 文档](https://van-nav-api.mereith.dev)，用 AI 生成的，如果不准确请提 Issue 哦。
+一个轻量的导航站，现在有搜索引擎集成了，很适合作为主页使用。有配套的[浏览器插件](https://github.com/nickkk333/van-nav-extension)。
 
 ## 技术栈
 
@@ -123,8 +121,12 @@ docker build --build-arg GOPROXY=https://goproxy.cn,direct -t van-nav:latest .
 其实这个导航站有很多小设计，合理使用可以提高使用效率：
 
 - 只要在这个页面里，直接输入键盘任何按键，可以直接聚焦到搜索框开始输入。
-- 搜索完按回车会直接在新标签页打开第一个结果。
-- 搜索完按一下对应卡片右上角的数字按钮 + Ctrl(mac 也可以用 command 键) ，也会直接打开对应结果。
+- 按回车优先打开**第一个匹配的工具卡片**；没有任何工具卡片匹配时，才用**默认搜索引擎**搜索（搜索引擎在后台「系统设置 → 默认搜索引擎」里配置）。
+- 搜索框支持**域名补全**：输入域名前缀（如 `git`）时框内灰显剩余部分（如 `hub.com`），按 `Tab` 自动补全。
+- 输入像域名（含 `.com`/`.cn` 等、至少两段、无空格和协议符号）时，按回车或 `Ctrl + Enter` 会**直接访问该域名**，而不是搜索。
+- `Ctrl + Enter`：忽略卡片匹配，直接用**默认搜索引擎**搜索（不考虑是否启用），结果在新标签页打开、保留导航页。
+- 默认搜索引擎设为特定引擎时：回车有启用的引擎就用第一个启用的，全禁用时才用选中的那个；`Ctrl + Enter` 始终用选中的那个。
+- 搜索完按一下对应卡片右上角的数字按钮 + `Ctrl`/`⌘` ，也会直接打开对应结果。
 
 另外可以设置跳转方式哦。
 
@@ -211,147 +213,16 @@ make build-linux      # Linux amd64 静态二进制
 2. 飞牛桌面 → **应用中心** → 左下角 **手动安装** → 上传该 `.fpk` → 确定。
 3. 安装完成后打开桌面图标，或访问 `http://<飞牛IP>:6412`，默认账号密码 `admin` / `admin`。
 
-数据落在 fnOS 的**共享目录** `/vol1/@appshare/Van Nav`：由 `packaging/fnos-app/config/resource` 的 `data-share` 声明，安装时读 `TRIM_DATA_SHARE_PATHS` 写进 compose，挂载到容器的 `/app/data`。在飞牛的文件管理器里能直接看到 `nav.db`、`images/`、图片缓存和启动自动备份。
 
-> 实现见 `packaging/fnos-app/docker/docker-compose.yaml` 与 `cmd/service-setup`：compose 用 `${TRIM_DATA_SHARE_PATHS:-默认目录}` 取共享目录（compose 不支持 bash 的 `${VAR%%:*}` 截取），安装/升级钩子再把默认值改写成真实共享路径，保证变量没注入进 compose 环境时也不会挂错目录。
-> 旧版用的是 `@appdata/van-nav/data`，要迁移的话把里面的 `nav.db` 和 `images/` 拷到共享目录 `Van Nav` 即可。
-
-> fpk 内跑的是 GHCR 在线镜像（`ghcr.io/<owner>/<repo>:<版本>`），**需要先在 GitHub 包设置里把该镜像设为 Public**，否则飞牛拉取镜像会失败。
-> 本地也可以打包：`make fnos-fpk`（需要 bash 环境，产物在 `bin/van-nav-fnos-amd64.fpk`）。
-
-安装时报 `Get "https://registry-1.docker.io/v2/": context deadline exceeded` 是**镜像拉取网络问题**，按下面任一方式处理：
-
-1. 飞牛 → Docker → 设置里配置镜像加速（registry mirror），让 Docker 能访问镜像仓库。
-2. 离线安装：先在飞牛上导入离线镜像，再装 fpk（fpk 内 compose 引用的镜像名要与导入的一致）。
-   ```bash
-   gunzip -c van-nav-docker-amd64.tar.gz | docker load
-   ```
-3. 用自建/国内仓库地址重新打包 fpk（镜像仓库与标签都可覆盖）：
-   ```bash
-   make fnos-fpk FNOS_IMAGE=docker.m.daocloud.io/ghcr.io/nickkk333/van-nav FNOS_IMAGE_TAG=v1.0.0
-   ```
-
-### nginx 反向代理
-
-参考配置
-
-> 其中 `<yourhost>` 和 `<your-cert-path>` 替换成你自己的。
-
-```
-server {
-    listen 80;
-    server_name <yourhost>;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443   ssl http2;
-    server_name <yourhost>;
-
-    ssl_certificate <your-cert-path>
-    ssl_certificate_key <your-key-path>;
-    ssl_verify_client off;
-    proxy_ssl_verify off;
-    location / {
-        proxy_pass  http://127.0.0.1:6412;
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_redirect off;
-        proxy_set_header Upgrade $http_upgrade;
-    }
-}
-```
-
-### systemd 服务
-
-可以注册成系统服务，开机启动。
-
-1. 复制二进制文件到 `/usr/local/bin` 目录下，并加上执行权限
-
-2. 新建 `VanNav.serivce` 文件于 `/usr/lib/systemd/system` 目录下:
-
-```
-[Unit]
-Description=VanNav
-Documentation=https://github.com/mereithhh/van-nav
-After=network.target
-Wants=network.target
-
-[Service]
-WorkingDirectory=/usr/local/bin
-ExecStart=/usr/local/bin/nav
-Restart=on-abnormal
-RestartSec=5s
-KillMode=mixed
-
-StandardOutput=null
-StandardError=syslog
-
-[Install]
-WantedBy=multi-user.target
-```
-
-3. 执行:
-
-```
-sudo systemctl daemon-reload && sudo systemctl enable --now VanNav.service
-```
 
 ## 浏览器插件
 
-具体请看： [浏览器插件仓库](https://github.com/Mereithhh/van-nav-extension)
+具体请看： [浏览器插件仓库](https://github.com/nickkk333/van-nav-extension)
 
 具有一键增加工具，快速打开管理后台和主站等功能。具体自行探索哦。
-
-## API
-
-本导航站支持 API，可以用自己的方法添加工具。
-
-尝试用 ai 生成 api 文档，具体请看
-
-> [API 文档](https://van-nav-api.mereith.dev)
-
-## FAQ
-
-- 忘记密码了怎么办： [看这里](https://github.com/Mereithhh/van-nav/issues/36)
 
 ## 参与开发
 
 前端已重构为 **Vue 3 + Element Plus**（`ui/` 目录），后端为 **Go + gin + sqlite**，两者的接口约定见 `ui/src/api/index.ts` 与 `handler/handlers.go`。
 
 如果你有 golang 和 vue3 开发经验，可以很轻松上手。修改前端时使用 `make ui-dev` 启动开发服务器即可，接口会自动代理到本地后端。
-
-如果没有方向，可以试试去解决 issue 里的问题或者开发新功能，开发之前可以先提个 issue 让我知道。
-
-## 状态
-
-可以优化的点太多了，慢慢完善吧……
-
-- [x] 多平台构建流水线
-- [x] 定制化 logo 和标题
-- [x] 导入导出功能
-- [x] 暗色主题切换
-- [x] 移动端优化
-- [x] 自动获取网站 logo
-- [x] 拼音匹配的模糊搜索功能
-- [x] 按键直接搜索，搜索后回车直接打开第一项
-- [x] 图片存库，避免跨域和加载慢的问题
-- [x] gzip 全局压缩
-- [x] 中文 url 图片修复
-- [x] svg 图片修复
-- [x] 浏览器插件
-- [x] 自动获取网站题目和描述等信息
-- [x] 后台按钮可自定义隐藏
-- [x] github 按钮可隐藏
-- [x] 支持登录后才能查看的隐藏卡片
-- [x] 搜索引擎集成功能
-- [x] 增加一些搜索后快捷键直接打开卡片
-- [x] 支持自定义跳转方式
-- [x] 自动主题切换
-- [ ] 国际化
-- [x] 增加 ServiceWork ,离线可用,可安装
-- [ ] 网站状态检测
-- [x] 支持后台设置默认跳转方式
-- [x] 支持指定监听端口

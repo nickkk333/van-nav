@@ -1,7 +1,7 @@
 <template>
   <div class="app">
     <div class="app-bg" :style="bgStyle" aria-hidden="true"></div>
-    <div class="main">
+    <div class="main" :class="{ 'hide-content': effectiveHide }">
       <div class="topbar">
         <SearchBar
           ref="searchBarRef"
@@ -49,6 +49,17 @@
       </div>
       <div class="float-actions">
         <DarkSwitch />
+        <button
+          type="button"
+          class="content-toggle"
+          :class="{ checked: !hideContent }"
+          :title="hideContent ? '仅显示搜索框（点击显示全部内容）' : '显示全部内容（点击仅显示搜索框）'"
+          :aria-label="hideContent ? '显示全部内容' : '仅显示搜索框'"
+          @click="toggleContent"
+        >
+          <svg v-if="!hideContent" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
+        </button>
         <GithubLink v-if="showGithub" />
         <AdminLink />
       </div>
@@ -88,6 +99,16 @@ const searchPlaceholder = ref('按任意键直接开始搜索')
 const currTag = ref(DEFAULT_TAG)
 const engineCards = ref<Tool[]>([])
 const loading = ref(true)
+
+/** 一键隐藏内容、仅显示搜索框的偏好（存 localStorage，刷新后保持） */
+const hideContent = ref(localStorage.getItem('van_nav_hide_content') === '1')
+const toggleContent = () => {
+  hideContent.value = !hideContent.value
+  localStorage.setItem('van_nav_hide_content', hideContent.value ? '1' : '0')
+}
+// 搜索框有内容时临时显示内容（卡片），不隐藏
+const hasSearchText = computed(() => searchText.value.trim().length > 0)
+const effectiveHide = computed(() => hideContent.value && !hasSearchText.value)
 const searchBarRef = ref<InstanceType<typeof SearchBar>>()
 
 // ==================== 域名补全（搜索框 ghost 提示 + Tab 补全 + 回车直访） ====================

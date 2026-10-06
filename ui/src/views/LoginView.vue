@@ -22,8 +22,8 @@
         </el-button>
       </el-form>
     </el-card>
-    <div class="github-link">
-      <a href="https://github.com/mereithhh/van-nav" target="_blank" rel="noopener noreferrer">
+    <!-- <div class="github-link">
+      <a href="https://github.com/nickkk333/van-nav" target="_blank" rel="noopener noreferrer">
         <svg height="24" width="24" viewBox="0 0 16 16" aria-hidden="true">
           <path
             fill="currentColor"
@@ -32,7 +32,7 @@
         </svg>
         <span>VanNav</span>
       </a>
-    </div>
+    </div> -->
   </div>
 </template>
 

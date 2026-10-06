@@ -205,6 +205,41 @@ body {
   color: var(--el-text-color-placeholder);
 }
 
+/* 仅显示搜索框：一键隐藏内容的切换图标（位于浮窗：主题切换与 Github 之间，样式与其一致） */
+.content-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background-color: var(--card-bg);
+  color: var(--text-secondary);
+  box-shadow: var(--card-shadow);
+  cursor: pointer;
+  transition: color 0.2s, transform 0.2s, background-color 0.2s;
+}
+.content-toggle:hover {
+  color: var(--el-color-primary);
+  background-color: var(--card-hover-bg);
+  transform: scale(1.08);
+}
+.content-toggle.checked {
+  color: var(--el-color-primary);
+  background-color: var(--card-hover-bg);
+}
+
+/* 仅显示搜索框：隐藏分类、卡片、备案与浮窗，只留搜索框 */
+.main.hide-content .tag-selector,
+/* 仅显示搜索框：隐藏分类、卡片与备案信息；浮窗（含隐藏切换图标）保持可见 */
+.main.hide-content .tag-selector,
+.main.hide-content .content-wraper,
+.main.hide-content .record-wraper {
+  display: none;
+}
+
 /* 分类栏：白色标签栏，整体居中 */
 .tag-selector {
   display: flex;

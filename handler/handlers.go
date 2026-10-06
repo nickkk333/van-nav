@@ -818,7 +818,7 @@ func GetEnabledSearchEnginesHandler(c *gin.Context) {
 // ignoreEnabled=true（Ctrl+Enter）不考虑是否有启用的引擎，直接用设置：自动→所有已存在引擎的第一个，特定→选中的那个；
 // ignoreEnabled=false（回车）按规则解析：
 //   - 自动：有启用的用第一个启用的，没有启用的用所有已存在引擎的第一个；
-//   - 特定引擎：不论是否启用，直接使用选中的那个（若被删除则回落第一个启用的/所有第一个）。
+//   - 特定引擎：有启用的用第一个启用的，没有启用的（全禁用）才用选中的那个（若被删除则回落所有第一个）。
 func GetDefaultSearchEngineHandler(c *gin.Context) {
 	ignoreEnabled := c.Query("ignoreEnabled") == "1"
 	engines, err := database.GetAllSearchEngines()
@@ -855,18 +855,36 @@ func GetDefaultSearchEngineHandler(c *gin.Context) {
 			}
 		}
 	} else {
-		// 特定引擎：不论是否启用，直接使用选中的那个
-		for i := range all {
-			if all[i].Id == setting.DefaultSearchEngine {
-				chosen = &all[i]
-				break
+		// 特定引擎
+		if ignoreEnabled {
+			// Ctrl+Enter：不考虑启用，直接用选中的那个
+			for i := range all {
+				if all[i].Id == setting.DefaultSearchEngine {
+					chosen = &all[i]
+					break
+				}
 			}
-		}
-		if chosen == nil {
+			if chosen == nil {
+				if len(enabled) > 0 {
+					chosen = &enabled[0]
+				} else if len(all) > 0 {
+					chosen = &all[0]
+				}
+			}
+		} else {
+			// 回车：有启用的引擎则用第一个启用的；没有启用的（全禁用）才用选中的默认
 			if len(enabled) > 0 {
 				chosen = &enabled[0]
-			} else if len(all) > 0 {
-				chosen = &all[0]
+			} else {
+				for i := range all {
+					if all[i].Id == setting.DefaultSearchEngine {
+						chosen = &all[i]
+						break
+					}
+				}
+				if chosen == nil && len(all) > 0 {
+					chosen = &all[0]
+				}
 			}
 		}
 	}
