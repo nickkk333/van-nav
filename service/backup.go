@@ -26,9 +26,10 @@ const (
 	BackupFileName = "van-nav-backup.json"
 )
 
-// ExportBackupData 导出所有工具、分类、搜索引擎与 api token
+// ExportBackupData 导出所有工具、分类、搜索引擎
 // 图标只导出图标网址（不导出图片内容）：工具的 logoName（保存到 data 目录的图片名）与搜索引擎的 logo 都置空，
 // 导入后由服务端按网址重新获取图片并保存到 data 目录
+// api token 不参与导出：避免凭据随备份文件明文外泄（备份常被打包/同步分享）
 func ExportBackupData() types.BackupData {
 	engines, err := database.GetAllSearchEngines()
 	if err != nil {
@@ -48,7 +49,6 @@ func ExportBackupData() types.BackupData {
 		Tools:         tools,
 		Catelogs:      GetAllCatelog(),
 		SearchEngines: engines,
-		ApiTokens:     GetApiTokens(),
 	}
 }
 
@@ -67,13 +67,14 @@ func ExportBackupToDataDir() {
 		logger.LogError("自动导出备份数据失败: %s", err)
 		return
 	}
-	logger.LogInfo("已自动导出备份数据到 %s（工具 %d 条，分类 %d 条，搜索引擎 %d 条，api token %d 条）",
-		path, len(data.Tools), len(data.Catelogs), len(data.SearchEngines), len(data.ApiTokens))
+	logger.LogInfo("已自动导出备份数据到 %s（工具 %d 条，分类 %d 条，搜索引擎 %d 条）",
+		path, len(data.Tools), len(data.Catelogs), len(data.SearchEngines))
 }
 
-// ImportBackupData 导入备份数据（工具、分类、搜索引擎、api token）
+// ImportBackupData 导入备份数据（工具、分类、搜索引擎）
 // 同 id 的记录会被覆盖，没有出现在备份里的记录保持不动
 // 导入完成后异步获取图片：备份里只存了图标网址，这里按网址重新缓存/下载
+// api token 不参与导入：导入方各自在后台管理里维护自己的 token，避免跨实例泄露凭据
 func ImportBackupData(data types.BackupData) error {
 	tx, err := database.DB.Begin()
 	if err != nil {
@@ -94,9 +95,6 @@ func ImportBackupData(data types.BackupData) error {
 	if err = importSearchEngines(tx, data.SearchEngines); err != nil {
 		return err
 	}
-	if err = importApiTokens(tx, data.ApiTokens); err != nil {
-		return err
-	}
 	// 分类排序统一重排成从 1 开始依次递增，与后台分类管理的规则保持一致
 	if err = renumberCatelogs(tx); err != nil {
 		return err
@@ -105,8 +103,8 @@ func ImportBackupData(data types.BackupData) error {
 		return err
 	}
 
-	logger.LogInfo("导入备份数据：工具 %d 条，分类 %d 条，搜索引擎 %d 条，api token %d 条",
-		len(data.Tools), len(data.Catelogs), len(data.SearchEngines), len(data.ApiTokens))
+	logger.LogInfo("导入备份数据：工具 %d 条，分类 %d 条，搜索引擎 %d 条",
+		len(data.Tools), len(data.Catelogs), len(data.SearchEngines))
 	// 图片获取比较耗时，放到后台执行，避免阻塞接口
 	go fetchImportedImages(data.Tools, data.SearchEngines)
 	return nil
@@ -218,40 +216,6 @@ func importSearchEngines(tx *sql.Tx, engines []types.SearchEngine) error {
 			INSERT INTO nav_search_engine (name, baseUrl, queryParam, logo, sort, enabled)
 			VALUES (?, ?, ?, ?, ?, ?);
 			`, name, engine.BaseUrl, engine.QueryParam, engine.Logo, engine.Sort, engine.Enabled); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// importApiTokens 导入 api token：同 id 覆盖，没出现在备份里的保持不动
-func importApiTokens(tx *sql.Tx, tokens []types.Token) error {
-	stmt, err := tx.Prepare(`
-		INSERT INTO nav_api_token (id, name, value, disabled)
-		VALUES (?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			name = excluded.name,
-			value = excluded.value,
-			disabled = excluded.disabled;
-		`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	for _, token := range tokens {
-		value := strings.TrimSpace(token.Value)
-		if value == "" {
-			continue
-		}
-		if token.Id > 0 {
-			if _, err = stmt.Exec(token.Id, token.Name, value, token.Disabled); err != nil {
-				return err
-			}
-			continue
-		}
-		if _, err = tx.Exec(`INSERT INTO nav_api_token (name, value, disabled) VALUES (?, ?, ?);`,
-			token.Name, value, token.Disabled); err != nil {
 			return err
 		}
 	}

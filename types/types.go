@@ -82,7 +82,6 @@ type BackupData struct {
 	Tools         []Tool         `json:"tools"`
 	Catelogs      []Catelog      `json:"catelogs"`
 	SearchEngines []SearchEngine `json:"searchEngines"`
-	ApiTokens     []Token        `json:"apiTokens"`
 }
 
 // 网站配置模型

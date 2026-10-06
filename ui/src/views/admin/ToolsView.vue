@@ -793,7 +793,7 @@ const handleBulkCacheLogo = async () => {
 /** 把导入的文件内容整理成备份结构，兼容旧版只有工具数组的导出文件 */
 const normalizeBackup = (raw: unknown): BackupData | null => {
   if (Array.isArray(raw)) {
-    return { version: 1, tools: raw as Tool[], catelogs: [], searchEngines: [], apiTokens: [] }
+    return { version: 1, tools: raw as Tool[], catelogs: [], searchEngines: [] }
   }
   if (!raw || typeof raw !== 'object') {
     return null
@@ -805,9 +805,8 @@ const normalizeBackup = (raw: unknown): BackupData | null => {
     tools: Array.isArray(data.tools) ? data.tools : [],
     catelogs: Array.isArray(data.catelogs) ? data.catelogs : [],
     searchEngines: Array.isArray(data.searchEngines) ? data.searchEngines : [],
-    apiTokens: Array.isArray(data.apiTokens) ? data.apiTokens : [],
   }
-  if (!backup.tools.length && !backup.catelogs.length && !backup.searchEngines.length && !backup.apiTokens.length) {
+  if (!backup.tools.length && !backup.catelogs.length && !backup.searchEngines.length) {
     return null
   }
   return backup
@@ -836,7 +835,7 @@ const handleImportFile = (file: UploadRawFile) => {
       const res = await fetchImportAll(payload)
       const counts = res.data
       ElMessage.success(
-        `导入成功：工具 ${counts?.tools ?? 0} 条、分类 ${counts?.catelogs ?? 0} 条、搜索引擎 ${counts?.searchEngines ?? 0} 条、API Token ${counts?.apiTokens ?? 0} 条，图标会在后台按网址重新抓取并保存到 data 目录（抓不到时显示默认图片，稍后点「刷新」查看）`
+        `导入成功：工具 ${counts?.tools ?? 0} 条、分类 ${counts?.catelogs ?? 0} 条、搜索引擎 ${counts?.searchEngines ?? 0} 条，图标会在后台按网址重新抓取并保存到 data 目录（抓不到时显示默认图片，稍后点「刷新」查看）`
       )
     } catch (error) {
       ElMessage.warning(resolveError(error, '导入失败'))

@@ -93,15 +93,13 @@ export interface BackupData {
   tools: Tool[]
   catelogs: Catelog[]
   searchEngines: SearchEngine[]
-  apiTokens: Token[]
 }
 
-/** 导入结果：各类数据导入的条数 */
+/** 导入结果：各类数据导入的条数（api token 不参与导入，故无此项） */
 export interface BackupImportResult {
   tools: number
   catelogs: number
   searchEngines: number
-  apiTokens: number
 }
 
 export interface ApiResult<T = any> {

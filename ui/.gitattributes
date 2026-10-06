@@ -1,0 +1,5 @@
+# unplugin-auto-import / unplugin-vue-components 生成的声明文件统一用 LF：
+# Windows 与 WSL 混用时，避免换行符在工作副本与仓库之间来回变化，
+# 导致 git status 里长期出现没有内容差异的“假改动”
+auto-imports.d.ts text eol=lf
+components.d.ts text eol=lf

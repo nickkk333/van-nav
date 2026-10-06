@@ -87,6 +87,10 @@ func main() {
 	// 异步执行：离线或下载失败时只记录日志，不阻塞、不影响服务启动
 	go service.DownloadBingWallpaper()
 
+	// 每天固定整点（见 bingWallpaperFetchHour）再拉一次，
+	// 覆盖机器长期不重启且无人访问的情况；当天已下载或距离上次失败尝试过近时会跳过
+	go service.StartBingWallpaperScheduler()
+
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedExtensions([]string{".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".svg"})))

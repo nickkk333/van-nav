@@ -45,7 +45,7 @@ func ImportAllHandler(c *gin.Context) {
 		})
 		return
 	}
-	if len(data.Tools) == 0 && len(data.Catelogs) == 0 && len(data.SearchEngines) == 0 && len(data.ApiTokens) == 0 {
+	if len(data.Tools) == 0 && len(data.Catelogs) == 0 && len(data.SearchEngines) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success":      false,
 			"errorMessage": "备份文件内容为空",
@@ -66,7 +66,6 @@ func ImportAllHandler(c *gin.Context) {
 			"tools":         len(data.Tools),
 			"catelogs":      len(data.Catelogs),
 			"searchEngines": len(data.SearchEngines),
-			"apiTokens":     len(data.ApiTokens),
 		},
 	})
 }
@@ -314,12 +313,9 @@ func UploadImageHandler(c *gin.Context) {
 
 // GetBingWallpaperHandler 输出本地保存的必应每日壁纸（前台未配置背景图时的默认背景）
 func GetBingWallpaperHandler(c *gin.Context) {
+	// 每天首次访问时补一次：本地还没有任何壁纸图片才下载（历史壁纸保留）
+	service.EnsureBingWallpaper()
 	path, ok := service.GetBingWallpaperPath()
-	if !ok {
-		// 本地还没有壁纸（首次启动且后台下载未完成 / 之前下载失败）时，同步下载一次再返回
-		service.DownloadBingWallpaper()
-		path, ok = service.GetBingWallpaperPath()
-	}
 	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success":      false,
@@ -333,13 +329,11 @@ func GetBingWallpaperHandler(c *gin.Context) {
 }
 
 // GetBingWallpaperInfoHandler 返回必应每日壁纸的信息（图片描述），供前台搜索框 placeholder 显示
-// 描述解析自壁纸文件名（命名规则见 service.bingWallpaperFileName）；本地还没有壁纸时先同步下载一次（与图片接口一致），
+// 描述解析自壁纸文件名（命名规则见 service.bingWallpaperFileName）；本地还没有任何壁纸时先同步下载一次
 // 拿不到描述时 title 为空字符串，前台回落到默认 placeholder
 func GetBingWallpaperInfoHandler(c *gin.Context) {
-	if _, ok := service.GetBingWallpaperPath(); !ok {
-		// 与 GetBingWallpaperHandler 相同的兜底：首次启动后台下载未完成时同步等一次，保证能拿到当天的描述
-		service.DownloadBingWallpaper()
-	}
+	// 与 GetBingWallpaperHandler 相同的兜底：本地无壁纸时才同步拉一次
+	service.EnsureBingWallpaper()
 	// 文件名带日期，每天都会变，不做缓存
 	c.Header("Cache-Control", "no-cache")
 	c.JSON(http.StatusOK, gin.H{

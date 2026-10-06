@@ -28,6 +28,8 @@ const (
 	bingWallpaperUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36"
 	// bingWallpaperTimeout 请求必应接口的超时时间
 	bingWallpaperTimeout = 8 * time.Second
+	// bingWallpaperFetchHour 每天固定拉取壁纸的整点（本地时区，0-23）
+	bingWallpaperFetchHour = 8
 	// bingWallpaperRetryInterval 下载失败后的重试间隔，避免离线时每次请求都去访问必应
 	bingWallpaperRetryInterval = 10 * time.Minute
 )
@@ -61,7 +63,8 @@ func bingWallpaperFileName(title string) string {
 	return name
 }
 
-// DownloadBingWallpaper 下载必应每日壁纸到 data 目录，保存为「必应壁纸-YYYYMMDD-图片描述 + 图片格式后缀」，前台通过 /api/bingWallpaper 读取
+// DownloadBingWallpaper 下载必应每日壁纸到 data 目录
+// 保存为「必应壁纸-YYYYMMDD-图片描述 + 图片格式后缀」，历史壁纸保留不删；
 // 当天已经下载过、或距离上次失败尝试过近时直接跳过；下载失败只记录日志，不影响服务启动
 func DownloadBingWallpaper() {
 	bingWallpaperMu.Lock()
@@ -93,20 +96,28 @@ func DownloadBingWallpaper() {
 			logger.LogError("保存必应每日壁纸失败: %s", err)
 			return
 		}
-		// 图片格式可能变化，清掉上一次保存的文件，保证 data 目录里只有一张必应壁纸
-		removeBingWallpaperExcept(name)
+		// 壁纸按日期命名（必应壁纸-YYYYMMDD-描述），历史壁纸一律保留、不做清理
 		logger.LogInfo("必应每日壁纸已保存到本地: %s %s", filepath.Join(BingWallpaperDir, name), info.Title)
 		return
 	}
 }
 
 // GetBingWallpaperPath 获取本地必应每日壁纸的磁盘路径，文件不存在时返回 false
+// 历史壁纸按日期递增保留，因此这里取日期最新的那一张
 func GetBingWallpaperPath() (string, bool) {
 	files := bingWallpaperFiles()
 	if len(files) == 0 {
 		return "", false
 	}
-	return files[0], true
+	newest := files[0]
+	newestDate := bingWallpaperDateOf(newest)
+	for _, path := range files[1:] {
+		if date := bingWallpaperDateOf(path); date.After(newestDate) {
+			newest = path
+			newestDate = date
+		}
+	}
+	return newest, true
 }
 
 // BingWallpaperTitle 从当前壁纸文件名解析图片描述，供前台搜索框 placeholder 显示
@@ -127,6 +138,22 @@ func BingWallpaperTitle() string {
 		return rest[9:]
 	}
 	return ""
+}
+
+// bingWallpaperDateOf 取壁纸文件对应的日期：优先从文件名里解析 YYYYMMDD，
+// 兼容旧命名（必应壁纸.后缀）时回落到文件修改时间
+func bingWallpaperDateOf(path string) time.Time {
+	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	rest, found := strings.CutPrefix(base, BingWallpaperBaseName+"-")
+	if found && len(rest) >= 8 && isASCIIDigits(rest[:8]) {
+		if parsed, err := time.Parse("20060102", rest[:8]); err == nil {
+			return parsed
+		}
+	}
+	if info, err := os.Stat(path); err == nil {
+		return info.ModTime()
+	}
+	return time.Time{}
 }
 
 // isASCIIDigits 判断字符串是否全部是 ASCII 数字（用于识别文件名里的 YYYYMMDD 日期段）
@@ -182,15 +209,30 @@ func bingWallpaperFiles() []string {
 	return files
 }
 
-// removeBingWallpaperExcept 删除除 keep 之外的历史必应壁纸文件
-func removeBingWallpaperExcept(keep string) {
-	for _, path := range bingWallpaperFiles() {
-		if filepath.Base(path) == keep {
-			continue
+// EnsureBingWallpaper 供进程启动与前台「每天首次访问」时调用：
+// 本地已经有壁纸图片就直接跳过（只保留最省的一次下载），
+// 本地还没有任何壁纸时才发起下载。下载失败只记录日志，不影响页面返回
+func EnsureBingWallpaper() {
+	if _, ok := GetBingWallpaperPath(); ok {
+		return
+	}
+	DownloadBingWallpaper()
+}
+
+// StartBingWallpaperScheduler 每天在固定整点触发一次壁纸下载
+// 与 EnsureTodayWallpaper 的首次访问兜底互为补充：
+// 机器长期不重启且无人访问时，靠这里的定时器把当天壁纸拉下来；
+// 是否真的下载由 DownloadBingWallpaper 内部判断，重复触发是安全的
+func StartBingWallpaperScheduler() {
+	hour := bingWallpaperFetchHour
+	for {
+		now := time.Now()
+		next := time.Date(now.Year(), now.Month(), now.Day(), hour, 0, 0, 0, now.Location())
+		if !next.After(now) {
+			next = next.AddDate(0, 0, 1)
 		}
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			logger.LogError("删除旧的必应每日壁纸失败: %s", err)
-		}
+		<-time.After(time.Until(next))
+		DownloadBingWallpaper()
 	}
 }
 
