@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -810,6 +811,72 @@ func GetEnabledSearchEnginesHandler(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"success": true,
 		"data":    engines,
+	})
+}
+
+// 获取默认搜索引擎（公开接口，前台未登录也可调用）：用于回车无匹配卡片、或按 Ctrl+Enter 时的「默认搜索引擎」解析。
+// ignoreEnabled=true（Ctrl+Enter）不考虑是否有启用的引擎，直接用设置：自动→所有已存在引擎的第一个，特定→选中的那个；
+// ignoreEnabled=false（回车）按规则解析：
+//   - 自动：有启用的用第一个启用的，没有启用的用所有已存在引擎的第一个；
+//   - 特定引擎：不论是否启用，直接使用选中的那个（若被删除则回落第一个启用的/所有第一个）。
+func GetDefaultSearchEngineHandler(c *gin.Context) {
+	ignoreEnabled := c.Query("ignoreEnabled") == "1"
+	engines, err := database.GetAllSearchEngines()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success":      false,
+			"errorMessage": err.Error(),
+		})
+		return
+	}
+	setting := service.GetSetting()
+	// 按 sort 排序，保证「第一个」稳定
+	all := make([]types.SearchEngine, len(engines))
+	copy(all, engines)
+	sort.Slice(all, func(i, j int) bool { return all[i].Sort < all[j].Sort })
+	enabled := make([]types.SearchEngine, 0, len(all))
+	for _, e := range all {
+		if e.Enabled {
+			enabled = append(enabled, e)
+		}
+	}
+	var chosen *types.SearchEngine
+	if setting.DefaultSearchEngine == 0 {
+		// 自动
+		if ignoreEnabled {
+			if len(all) > 0 {
+				chosen = &all[0]
+			}
+		} else {
+			if len(enabled) > 0 {
+				chosen = &enabled[0]
+			} else if len(all) > 0 {
+				chosen = &all[0]
+			}
+		}
+	} else {
+		// 特定引擎：不论是否启用，直接使用选中的那个
+		for i := range all {
+			if all[i].Id == setting.DefaultSearchEngine {
+				chosen = &all[i]
+				break
+			}
+		}
+		if chosen == nil {
+			if len(enabled) > 0 {
+				chosen = &enabled[0]
+			} else if len(all) > 0 {
+				chosen = &all[0]
+			}
+		}
+	}
+	if chosen == nil {
+		// 兜底：数据库为空时的内置百度
+		chosen = &types.SearchEngine{Id: 0, Name: "百度", BaseUrl: "https://www.baidu.com/s", QueryParam: "wd"}
+	}
+	c.JSON(200, gin.H{
+		"success": true,
+		"data":    *chosen,
 	})
 }
 

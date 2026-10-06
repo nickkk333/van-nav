@@ -18,6 +18,7 @@ const defaultSetting: Setting = {
   jumpTargetBlank: true,
   backgroundImage: '',
   defaultLogo: '',
+  defaultSearchEngine: 0,
 }
 
 const defaultSiteConfig: SiteConfig = {

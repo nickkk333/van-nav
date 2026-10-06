@@ -136,6 +136,7 @@ body {
 
 /* 搜索框：输入框 + 右侧蓝色搜索按钮，两者等高拼接 */
 .search-wraper {
+  position: relative;
   display: flex;
   align-items: stretch;
 }
@@ -184,6 +185,24 @@ body {
 
 .search-btn .el-icon {
   color: inherit;
+}
+
+/* 搜索框域名补全：在输入框内用灰显文字提示未补全的域名（如 git|hub.com），Tab 补全剩余部分。
+   前缀部分透明（露出下方输入框真实文字），仅后缀灰显；层不拦截鼠标事件。 */
+.search-completion {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  overflow: hidden;
+  white-space: nowrap;
+  z-index: 1;
+}
+.search-completion-typed {
+  color: transparent;
+}
+.search-completion-suffix {
+  color: var(--el-text-color-placeholder);
 }
 
 /* 分类栏：白色标签栏，整体居中 */

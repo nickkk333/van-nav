@@ -11,7 +11,7 @@ import (
 // GetSetting 获取网站设置
 func GetSetting() types.Setting {
 	row := database.DB.QueryRow(`
-		SELECT id, favicon, title, govRecord, logo192, logo512, hideAdmin, hideGithub, hideToggleJumpTarget, jumpTargetBlank, backgroundImage, defaultLogo
+		SELECT id, favicon, title, govRecord, logo192, logo512, hideAdmin, hideGithub, hideToggleJumpTarget, jumpTargetBlank, backgroundImage, defaultLogo, defaultSearchEngine
 		FROM nav_setting
 		ORDER BY id ASC
 		LIMIT 1;
@@ -24,9 +24,10 @@ func GetSetting() types.Setting {
 		jumpTargetBlank      sql.NullBool
 		backgroundImage      sql.NullString
 		defaultLogo          sql.NullString
+		defaultSearchEngine  sql.NullInt64
 	)
 	err := row.Scan(&setting.Id, &setting.Favicon, &setting.Title, &setting.GovRecord, &setting.Logo192, &setting.Logo512,
-		&hideAdmin, &hideGithub, &hideToggleJumpTarget, &jumpTargetBlank, &backgroundImage, &defaultLogo)
+		&hideAdmin, &hideGithub, &hideToggleJumpTarget, &jumpTargetBlank, &backgroundImage, &defaultLogo, &defaultSearchEngine)
 	if err != nil {
 		logger.LogError("获取配置失败: %s", err)
 		return types.Setting{
@@ -42,6 +43,7 @@ func GetSetting() types.Setting {
 			JumpTargetBlank:      true,
 			BackgroundImage:      "",
 			DefaultLogo:          "",
+			DefaultSearchEngine:  0,
 		}
 	}
 	setting.HideAdmin = hideAdmin.Bool
@@ -56,6 +58,11 @@ func GetSetting() types.Setting {
 	setting.BackgroundImage = backgroundImage.String
 	// 未设置默认图标时前台用名称首字符占位（LogoFallback）
 	setting.DefaultLogo = defaultLogo.String
+	// 未设置默认搜索引擎时回落到「自动」（第一个启用的引擎）
+	setting.DefaultSearchEngine = 0
+	if defaultSearchEngine.Valid {
+		setting.DefaultSearchEngine = int(defaultSearchEngine.Int64)
+	}
 	return setting
 }
 
@@ -63,9 +70,9 @@ func GetSetting() types.Setting {
 func UpdateSetting(data types.Setting) error {
 	_, err := database.DB.Exec(`
 		UPDATE nav_setting
-		SET favicon = ?, title = ?, govRecord = ?, logo192 = ?, logo512 = ?, hideAdmin = ?, hideGithub = ?, hideToggleJumpTarget = ?, jumpTargetBlank = ?, backgroundImage = ?, defaultLogo = ?
+		SET favicon = ?, title = ?, govRecord = ?, logo192 = ?, logo512 = ?, hideAdmin = ?, hideGithub = ?, hideToggleJumpTarget = ?, jumpTargetBlank = ?, backgroundImage = ?, defaultLogo = ?, defaultSearchEngine = ?
 		WHERE id = (SELECT id FROM nav_setting ORDER BY id ASC LIMIT 1);
 		`, data.Favicon, data.Title, data.GovRecord, data.Logo192, data.Logo512,
-		data.HideAdmin, data.HideGithub, data.HideToggleJumpTarget, data.JumpTargetBlank, data.BackgroundImage, data.DefaultLogo)
+		data.HideAdmin, data.HideGithub, data.HideToggleJumpTarget, data.JumpTargetBlank, data.BackgroundImage, data.DefaultLogo, data.DefaultSearchEngine)
 	return err
 }

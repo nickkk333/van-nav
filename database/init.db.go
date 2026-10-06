@@ -63,7 +63,8 @@ func InitDB() {
 		hideToggleJumpTarget BOOLEAN,
 		jumpTargetBlank BOOLEAN,
 		backgroundImage TEXT,
-		defaultLogo TEXT
+		defaultLogo TEXT,
+		defaultSearchEngine INTEGER
 	);
 	`
 	_, err = DB.Exec(sql_create_table)
@@ -101,6 +102,10 @@ func InitDB() {
 	// 工具/搜索引擎没有自己的图标时前台显示它，留空时前台用名称首字符占位
 	if !columnExists("nav_setting", "defaultLogo") {
 		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN defaultLogo TEXT;`)
+	}
+	// 设置表表结构升级-20261006【默认搜索引擎 id，0 表示自动】
+	if !columnExists("nav_setting", "defaultSearchEngine") {
+		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN defaultSearchEngine INTEGER;`)
 	}
 
 	// 默认 tools 用的 表

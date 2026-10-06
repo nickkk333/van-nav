@@ -58,6 +58,14 @@
             />
           </el-tooltip>
         </el-form-item>
+        <el-form-item label="默认搜索引擎">
+          <el-tooltip content="回车无匹配卡片、或按 Ctrl+Enter 时使用的搜索引擎；选「自动」则用第一个启用的引擎" placement="top">
+            <el-select v-model="settingForm.defaultSearchEngine" style="width: 100%">
+              <el-option label="自动（第一个启用的引擎）" :value="0" />
+              <el-option v-for="e in engines" :key="e.id" :label="e.name" :value="e.id" />
+            </el-select>
+          </el-tooltip>
+        </el-form-item>
         <el-form-item label="默认跳转方式" prop="jumpTargetBlank">
           <el-tooltip content="选择点击卡片后默认的跳转方式" placement="top">
             <el-select v-model="settingForm.jumpTargetBlank" style="width: 100%">
@@ -138,10 +146,11 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { fetchUpdateSetting, fetchUpdateSiteConfig, fetchUpdateUser, resolveError } from '../../api'
+import { fetchGetAllSearchEngines, fetchUpdateSetting, fetchUpdateSiteConfig, fetchUpdateUser, resolveError } from '../../api'
 import { useAdminStore } from '../../stores/admin'
 import ImageUploader from '../../components/ImageUploader.vue'
 import { DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW } from '../../utils/setting'
+import type { SearchEngine } from '../../types'
 
 const defaultSettingForm = () => ({
   favicon: 'favicon.ico',
@@ -155,6 +164,7 @@ const defaultSettingForm = () => ({
   jumpTargetBlank: true,
   backgroundImage: '',
   defaultLogo: '',
+  defaultSearchEngine: 0,
 })
 
 const adminStore = useAdminStore()
@@ -163,6 +173,15 @@ const loading = computed(() => adminStore.loading)
 const userFormRef = ref<FormInstance>()
 const settingFormRef = ref<FormInstance>()
 const requestLoading = ref(false)
+
+const engines = ref<SearchEngine[]>([])
+const loadEngines = async () => {
+  try {
+    engines.value = await fetchGetAllSearchEngines()
+  } catch {
+    engines.value = []
+  }
+}
 
 const userForm = reactive({ name: '', password: '' })
 const settingForm = reactive(defaultSettingForm())
@@ -205,6 +224,7 @@ const reload = async () => {
   try {
     await adminStore.load(true)
     syncForms()
+    await loadEngines()
   } catch (error) {
     ElMessage.error(resolveError(error, '加载数据失败'))
   }

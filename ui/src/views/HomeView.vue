@@ -7,6 +7,7 @@
           ref="searchBarRef"
           :model-value="searchText"
           :placeholder="searchPlaceholder"
+          :completion="domainCompletion"
           @update:model-value="onSearchInput"
           @search="onSearchSubmit"
         />
@@ -71,7 +72,7 @@ import { useCardSortable } from '../composables/useCardSortable'
 import { useSiteStore } from '../stores/site'
 import { displayCatelog, isLogin } from '../utils/check'
 import { multiSearch, pinyinReady } from '../utils/match'
-import { generateSearchEngineCards } from '../utils/searchEngine'
+import { generateSearchEngineCards, getDefaultSearchEngineUrl } from '../utils/searchEngine'
 import { DEFAULT_BACKGROUND_IMAGE, DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW, initServerJumpTargetConfig, toggleJumpTarget } from '../utils/setting'
 import type { Tool } from '../types'
 
@@ -88,6 +89,86 @@ const currTag = ref(DEFAULT_TAG)
 const engineCards = ref<Tool[]>([])
 const loading = ref(true)
 const searchBarRef = ref<InstanceType<typeof SearchBar>>()
+
+// ==================== 域名补全（搜索框 ghost 提示 + Tab 补全 + 回车直访） ====================
+/** 从工具 url 提取域名（取 host 并去掉前导 www.），仅用域名部分参与匹配与补全 */
+const domainOf = (url?: string | null): string => {
+  if (!url) return ''
+  let normalized = String(url).trim()
+  if (!/^https?:\/\//i.test(normalized)) normalized = `http://${normalized}`
+  try {
+    const host = new URL(normalized).hostname
+    return host.replace(/^www\./i, '').toLowerCase()
+  } catch {
+    return ''
+  }
+}
+
+/** 所有卡片去重后的域名列表（按出现顺序），作为域名补全的匹配来源 */
+const domainList = computed<string[]>(() => {
+  const seen = new Set<string>()
+  const list: string[] = []
+  for (const tool of site.data.tools ?? []) {
+    const d = domainOf(tool.url)
+    if (d && !seen.has(d)) {
+      seen.add(d)
+      list.push(d)
+    }
+  }
+  return list
+})
+
+/** 输入文本与某个卡片域名前缀匹配时，返回完整域名（Tab 补全的目标） */
+const matchedDomain = computed<string>(() => {
+  const text = searchText.value.trim().toLowerCase()
+  if (!text || /\s/.test(text)) return ''
+  for (const d of domainList.value) {
+    if (d.startsWith(text)) return d
+  }
+  return ''
+})
+
+/** 搜索框里灰显的未补全域名后缀，如输入 git 时显示 hub.com */
+const domainCompletion = computed<string>(() => {
+  const text = searchText.value.trim().toLowerCase()
+  return matchedDomain.value && text ? matchedDomain.value.slice(text.length) : ''
+})
+
+/** 判断文本是否像域名（含点、至少两段、无空格、无协议/路径符号） */
+const isDomainLike = (text: string): boolean => {
+  const t = text.trim()
+  return t !== '' && !/\s/.test(t) && /^[\w-]+(\.[\w-]+)+$/.test(t)
+}
+/** 给裸域名补上 https:// 协议 */
+const withProtocol = (text: string): string => {
+  const t = text.trim()
+  return /^https?:\/\//i.test(t) ? t : `https://${t}`
+}
+
+/**
+ * 回车 / 点搜索按钮：
+ * - 输入像域名则直接访问该域名；
+ * - 否则优先打开第一个匹配的工具卡片（跳过搜索引擎卡片）；
+ * - 没有任何工具卡片时，用默认搜索引擎搜索当前词。
+ */
+const submitSearch = async () => {
+  const text = searchText.value.trim()
+  if (text && isDomainLike(text)) {
+    window.open(withProtocol(text), '_blank')
+    resetSearch()
+    return
+  }
+  if (firstToolCardUrl.value) {
+    window.open(firstToolCardUrl.value, '_blank')
+    resetSearch()
+    return
+  }
+  const url = await getDefaultSearchEngineUrl(text, false)
+  if (url) {
+    window.open(url, '_blank')
+    resetSearch()
+  }
+}
 
 const setting = computed(() => site.data.setting)
 const siteConfig = computed(() => site.data.siteConfig)
@@ -126,12 +207,13 @@ const tags = computed(() => {
   return [DEFAULT_TAG, ...list]
 })
 
-const filteredData = computed<Tool[]>(() => {
+/** 过滤后的工具卡片（不含搜索引擎虚拟卡片）：用于卡片展示与「回车打开第一个工具卡片」 */
+const localToolResults = computed<Tool[]>(() => {
   // 订阅拼音分包就绪状态：分包加载完自动重算，补上拼音匹配结果（见 utils/match.ts）
   void pinyinReady.value
   const tools = site.data.tools ?? []
   const searching = isSearching.value
-  const localResult = tools.filter((item) => {
+  return tools.filter((item) => {
     // 主题中隐藏了跳转方式卡片
     if (setting.value.hideToggleJumpTarget && item.url === 'toggleJumpTarget') {
       return false
@@ -149,8 +231,14 @@ const filteredData = computed<Tool[]>(() => {
       multiSearch(item.url, searchString.value)
     )
   })
-  return searching ? [...localResult, ...engineCards.value] : localResult
 })
+
+const filteredData = computed<Tool[]>(() => {
+  return isSearching.value ? [...localToolResults.value, ...engineCards.value] : localToolResults.value
+})
+
+/** 回车优先打开的第一个工具卡片地址（不含搜索引擎卡片）；没有则为空 */
+const firstToolCardUrl = computed(() => localToolResults.value[0]?.url ?? '')
 
 /** 首页渲染用的卡片项：index 同时用于搜索序号与列表 key */
 interface CardItem {
@@ -364,29 +452,37 @@ const handleCardClick = async (tool: Tool) => {
   }
 }
 
-/** 打开当前结果列表的第一项（回车或点击搜索按钮） */
-const openFirstResult = () => {
-  const cards = filteredData.value
-  if (cards.length) {
-    window.open(cards[0].url, '_blank')
-    resetSearch()
-  }
-}
-
 /** 点击搜索按钮：有关键词时打开第一条结果，否则聚焦搜索框 */
 const onSearchSubmit = () => {
   if (isSearching.value) {
-    openFirstResult()
+    submitSearch()
     return
   }
   searchBarRef.value?.focus()
 }
 
-/** 回车打开第一条结果，Ctrl/Cmd + 数字打开对应结果 */
+/** 回车打开第一条结果，Ctrl/Cmd + 数字打开对应结果，Ctrl/Cmd + Enter 用第一个搜索引擎卡片搜索 */
 const onKeyEnter = (ev: KeyboardEvent) => {
+  // Ctrl/Cmd + Enter：在新标签打开搜索结果页，保留导航页
+  if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'Enter' || ev.keyCode === 13)) {
+    ev.preventDefault()
+    const text = searchText.value.trim()
+    if (text && isDomainLike(text)) {
+      window.open(withProtocol(text), '_blank')
+      resetSearch()
+      return
+    }
+    getDefaultSearchEngineUrl(text, true).then((url) => {
+      if (url) {
+        window.open(url, '_blank')
+        resetSearch()
+      }
+    })
+    return
+  }
   const cards = filteredData.value
   if (ev.key === 'Enter' || ev.keyCode === 13) {
-    openFirstResult()
+    submitSearch()
     return
   }
   if (ev.ctrlKey || ev.metaKey) {

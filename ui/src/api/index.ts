@@ -56,6 +56,16 @@ export const fetchGetEnabledSearchEngines = async (): Promise<SearchEngine[]> =>
   return data.data || []
 }
 
+/** 获取解析后的默认搜索引擎（公开接口）：
+ *  - ignoreEnabled=false（回车）：自动优先第一个启用的、无启用则用所有第一个；特定引擎不论启用与否直接用选中的
+ *  - ignoreEnabled=true（Ctrl+Enter）：不考虑是否有启用的，自动用所有第一个、特定用选中的 */
+export const fetchGetDefaultSearchEngine = async (ignoreEnabled = false): Promise<SearchEngine> => {
+  const { data } = await http.get<ApiResult<SearchEngine>>('/searchEngines/default', {
+    params: ignoreEnabled ? { ignoreEnabled: 1 } : {},
+  })
+  return data.data
+}
+
 /** 获取必应每日壁纸的图片描述（首页搜索框 placeholder 显示，取不到时返回空串） */
 export const fetchBingWallpaperTitle = async (): Promise<string> => {
   try {

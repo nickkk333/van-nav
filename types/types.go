@@ -17,6 +17,8 @@ type Setting struct {
 	// DefaultLogo 默认图标地址：后台上传返回的 url 或外链地址，相当于替换内置的 default.png
 	// 工具/搜索引擎没有自己的图标时前台显示它，留空时前台用名称首字符占位
 	DefaultLogo string `json:"defaultLogo"`
+	// DefaultSearchEngine 默认搜索引擎 id：回车无匹配卡片或按 Ctrl+Enter 时使用；0 表示自动（第一个启用的引擎）
+	DefaultSearchEngine int `json:"defaultSearchEngine"`
 }
 
 type Token struct {

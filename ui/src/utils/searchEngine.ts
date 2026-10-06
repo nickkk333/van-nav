@@ -1,4 +1,4 @@
-import { fetchGetEnabledSearchEngines } from '../api'
+import { fetchGetDefaultSearchEngine, fetchGetEnabledSearchEngines } from '../api'
 import type { SearchEngine, Tool } from '../types'
 
 // 搜索引擎缓存
@@ -90,8 +90,57 @@ export const generateSearchEngineCards = async (searchString: string): Promise<T
   }
 }
 
+// 解析后的「默认搜索引擎」缓存（来自公开接口 /searchEngines/default，后端按设置解析）
+// 回车（考虑启用）与 Ctrl+Enter（不考虑启用）两种解析分别缓存
+let enterEngineCache: SearchEngine | null = null
+let enterEngineExpiry = 0
+let ctrlEngineCache: SearchEngine | null = null
+let ctrlEngineExpiry = 0
+
+/** 获取解析后的默认搜索引擎（带缓存）：后端按后台设置解析，未登录也能用 */
+const getDefaultEngine = async (ignoreEnabled: boolean): Promise<SearchEngine> => {
+  const now = Date.now()
+  if (ignoreEnabled) {
+    if (ctrlEngineCache && now < ctrlEngineExpiry) return ctrlEngineCache
+  } else {
+    if (enterEngineCache && now < enterEngineExpiry) return enterEngineCache
+  }
+  let engine: SearchEngine
+  try {
+    engine = await fetchGetDefaultSearchEngine(ignoreEnabled)
+  } catch (error) {
+    console.error('获取默认搜索引擎失败，使用内置百度:', error)
+    engine = defaultEngines[0]
+  }
+  if (ignoreEnabled) {
+    ctrlEngineCache = engine
+    ctrlEngineExpiry = now + CACHE_DURATION
+  } else {
+    enterEngineCache = engine
+    enterEngineExpiry = now + CACHE_DURATION
+  }
+  return engine
+}
+
+/**
+ * 解析应使用哪个搜索引擎作为「默认」，返回它对给定关键词的搜索地址；keyword 为空时返回 null。
+ * 解析交由后端公开接口 /searchEngines/default 完成：
+ * - ignoreEnabled=false（回车）：自动优先第一个启用的、无启用则用所有已存在引擎的第一个；特定引擎不论启用与否直接用选中的；
+ * - ignoreEnabled=true（Ctrl+Enter）：不考虑是否有启用的，自动用所有已存在引擎的第一个、特定用选中的。
+ */
+export const getDefaultSearchEngineUrl = async (keyword: string, ignoreEnabled = false): Promise<string | null> => {
+  const k = keyword.trim()
+  if (!k) return null
+  const engine = await getDefaultEngine(ignoreEnabled)
+  return generateSearchUrl(engine.baseUrl, engine.queryParam, k)
+}
+
 /** 清除缓存（管理员修改搜索引擎配置后可调用） */
 export const clearSearchEngineCache = () => {
   searchEnginesCache = []
   cacheExpiry = 0
+  enterEngineCache = null
+  enterEngineExpiry = 0
+  ctrlEngineCache = null
+  ctrlEngineExpiry = 0
 }

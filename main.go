@@ -120,6 +120,8 @@ func main() {
 
 		// 获取启用的搜索引擎（公开接口）
 		api.GET("/searchEngines", handler.GetEnabledSearchEnginesHandler)
+		// 解析后的默认搜索引擎（公开接口，供前台回车/Ctrl+Enter 使用，即使被禁用也返回设置的默认）
+		api.GET("/searchEngines/default", handler.GetDefaultSearchEngineHandler)
 
 		// 管理员用的
 		admin := api.Group("/admin")
