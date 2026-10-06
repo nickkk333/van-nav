@@ -2,6 +2,8 @@
 
 一个轻量的导航站，现在有搜索引擎集成了，很适合作为主页使用。有配套的[浏览器插件](https://github.com/nickkk333/van-nav-extension)。
 
+> 本项目 fork 自 [Mereithhh/van-nav](https://github.com/Mereithhh/van-nav)，并经过重构。
+
 ## 技术栈
 
 重构后使用的前后端分离 + 单文件打包方案：
@@ -75,7 +77,7 @@ make clean            # 清理产物
 
 ```bash
 # 构建本地 Docker 镜像
-make docker                       # 等价于 docker build -t mereith/van-nav:latest .
+make docker                       # 构建本 fork 镜像（默认标签 ghcr.io/nickkk333/van-nav:latest）
 
 # 导出可离线 docker load 的镜像 tar
 make docker-tar
@@ -166,7 +168,7 @@ docker build --build-arg GOPROXY=https://goproxy.cn,direct -t van-nav:latest .
 ### Docker
 
 ```
-docker run -d --name tools --restart always -p 6412:6412 -v /path/to/your/data:/app/data mereith/van-nav:latest
+docker run -d --name van-nav --restart always -p 6412:6412 -v /path/to/your/data:/app/data ghcr.io/nickkk333/van-nav:latest
 ```
 
 打开浏览器 [http://localhost:6412](http://localhost:6412) 即可访问。
@@ -174,7 +176,7 @@ docker run -d --name tools --restart always -p 6412:6412 -v /path/to/your/data:/
 也可以参照 `Makefile` 中的 `docker` / `docker-run` 命令：
 
 ```bash
-make docker       # 构建镜像
+make docker       # 构建本 fork 镜像（默认 ghcr.io/nickkk333/van-nav:latest）
 make docker-run   # 启动容器（映射 6412，挂载 ./data）
 ```
 
@@ -212,7 +214,6 @@ make build-linux      # Linux amd64 静态二进制
 1. 在 Release 页面下载 `van-nav-fnos-amd64.fpk`。
 2. 飞牛桌面 → **应用中心** → 左下角 **手动安装** → 上传该 `.fpk` → 确定。
 3. 安装完成后打开桌面图标，或访问 `http://<飞牛IP>:6412`，默认账号密码 `admin` / `admin`。
-
 
 
 ## 浏览器插件

@@ -23,7 +23,7 @@ VERSION    ?= $(if $(GIT_TAG),$(GIT_TAG),dev)
 COMMIT     ?= $(if $(GIT_COMMIT),$(GIT_COMMIT),none)
 LDFLAGS    := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 
-IMAGE_NAME ?= mereith/van-nav
+IMAGE_NAME ?= ghcr.io/nickkk333/van-nav
 IMAGE_TAG  ?= latest
 PORT       ?= 6412
 # docker-tar 目标导出的镜像平台架构
