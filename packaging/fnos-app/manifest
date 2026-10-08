@@ -10,6 +10,6 @@ desktop_uidir   = ui
 desktop_applaunchname = van-nav.Application
 service_port    = 6412
 checkport       = false
-desc            = 轻量导航站，支持搜索引擎集成、卡片拖拽排序与暗色主题
+desc            = 轻量导航站，支持搜索引擎集成、卡片拖拽排序等
 source          = thirdparty
 checksum        =

@@ -160,21 +160,24 @@ const isDomainLike = (text: string): boolean => {
   const t = text.trim()
   return t !== '' && !/\s/.test(t) && /^[\w-]+(\.[\w-]+)+$/.test(t)
 }
-/** 给裸域名补上 https:// 协议 */
+/** 给裸域名补上 https:// 协议（已带协议的完整地址原样返回） */
 const withProtocol = (text: string): string => {
   const t = text.trim()
   return /^https?:\/\//i.test(t) ? t : `https://${t}`
 }
+/** 是否以 http:// 或 https:// 开头的完整地址（直接访问，不再补协议） */
+const isHttpUrl = (text: string): boolean => /^https?:\/\//i.test(text.trim())
 
 /**
  * 回车 / 点搜索按钮：
- * - 输入像域名则直接访问该域名；
+ * - 输入以 http:// 或 https:// 开头则直接访问该完整地址；
+ * - 输入像域名则补上 https:// 直接访问该域名；
  * - 否则优先打开第一个匹配的工具卡片（跳过搜索引擎卡片）；
  * - 没有任何工具卡片时，用默认搜索引擎搜索当前词。
  */
 const submitSearch = async () => {
   const text = searchText.value.trim()
-  if (text && isDomainLike(text)) {
+  if (text && (isHttpUrl(text) || isDomainLike(text))) {
     window.open(withProtocol(text), '_blank')
     resetSearch()
     return
@@ -488,7 +491,7 @@ const onKeyEnter = (ev: KeyboardEvent) => {
   if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'Enter' || ev.keyCode === 13)) {
     ev.preventDefault()
     const text = searchText.value.trim()
-    if (text && isDomainLike(text)) {
+    if (text && (isHttpUrl(text) || isDomainLike(text))) {
       window.open(withProtocol(text), '_blank')
       resetSearch()
       return
