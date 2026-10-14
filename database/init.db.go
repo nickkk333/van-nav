@@ -60,6 +60,8 @@ func InitDB() {
 		logo512 TEXT,
 		hideAdmin BOOLEAN,
 		hideGithub BOOLEAN,
+		hideCalendar BOOLEAN,
+		hideMemo BOOLEAN,
 		hideToggleJumpTarget BOOLEAN,
 		jumpTargetBlank BOOLEAN,
 		backgroundImage TEXT,
@@ -89,6 +91,13 @@ func InitDB() {
 	// 设置表表结构升级-20230627
 	if !columnExists("nav_setting", "hideGithub") {
 		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN hideGithub BOOLEAN;`)
+	}
+	// 设置表表结构升级-首页日历/便签入口显隐（类似 Github 按钮开关，默认显示）
+	if !columnExists("nav_setting", "hideCalendar") {
+		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN hideCalendar BOOLEAN;`)
+	}
+	if !columnExists("nav_setting", "hideMemo") {
+		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN hideMemo BOOLEAN;`)
 	}
 	// 设置表表结构升级-20250624
 	if !columnExists("nav_setting", "hideToggleJumpTarget") {
@@ -231,6 +240,42 @@ func InitDB() {
 		DB.Exec(`ALTER TABLE nav_site_config ADD COLUMN cardsPerRow INTEGER NOT NULL DEFAULT 5;`)
 	}
 
+	// 便签表：单文档模式（id 固定为 1），多端通过后端同步
+	_, err = DB.Exec(`
+		CREATE TABLE IF NOT EXISTS nav_memo (
+			id INTEGER PRIMARY KEY,
+			content TEXT NOT NULL DEFAULT '',
+			mode TEXT NOT NULL DEFAULT 'simple',
+			updated_at INTEGER NOT NULL DEFAULT 0
+		);
+		`)
+	utils.CheckErr(err)
+	// 便签历史版本表：误覆盖时可找回，只保留最近 N 条（见 service.MemoVersionLimit）
+	_, err = DB.Exec(`
+		CREATE TABLE IF NOT EXISTS nav_memo_version (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			content TEXT NOT NULL DEFAULT '',
+			mode TEXT NOT NULL DEFAULT 'simple',
+			created_at INTEGER NOT NULL DEFAULT 0
+		);
+		`)
+	utils.CheckErr(err)
+	// 日历事件表
+	_, err = DB.Exec(`
+		CREATE TABLE IF NOT EXISTS nav_calendar_event (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			title TEXT NOT NULL DEFAULT '',
+			date TEXT NOT NULL DEFAULT '',
+			start_time TEXT NOT NULL DEFAULT '',
+			end_time TEXT NOT NULL DEFAULT '',
+			"desc" TEXT NOT NULL DEFAULT '',
+			color TEXT NOT NULL DEFAULT '',
+			created_at INTEGER NOT NULL DEFAULT 0,
+			updated_at INTEGER NOT NULL DEFAULT 0
+		);
+		`)
+	utils.CheckErr(err)
+
 	// 如果不存在，就初始化默认搜索引擎
 	sql_get_search_engine := `
 		SELECT COUNT(*) FROM nav_search_engine;
@@ -296,9 +341,9 @@ func InitDB() {
 	}
 	if !rows.Next() {
 		if _, err = DB.Exec(`
-			INSERT INTO nav_setting (favicon, title, govRecord, logo192, logo512, hideAdmin, hideGithub, hideToggleJumpTarget, jumpTargetBlank)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-			`, "favicon.ico", "Van Nav", "", "logo192.png", "logo512.png", false, false, false, true); err != nil {
+			INSERT INTO nav_setting (favicon, title, govRecord, logo192, logo512, hideAdmin, hideGithub, hideCalendar, hideMemo, hideToggleJumpTarget, jumpTargetBlank)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+			`, "favicon.ico", "Van Nav", "", "logo192.png", "logo512.png", false, false, false, false, false, true); err != nil {
 			utils.CheckErr(err)
 		}
 	}
@@ -335,6 +380,8 @@ func InitDB() {
 		`CREATE INDEX IF NOT EXISTS idx_nav_catelog_sort ON nav_catelog(sort, id);`,
 		`CREATE INDEX IF NOT EXISTS idx_nav_api_token_value ON nav_api_token(value);`,
 		`CREATE INDEX IF NOT EXISTS idx_nav_user_name ON nav_user(name);`,
+		`CREATE INDEX IF NOT EXISTS idx_nav_memo_version_created ON nav_memo_version(created_at DESC, id DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_nav_calendar_event_date ON nav_calendar_event(date, start_time, id);`,
 	}
 	for _, idx := range indexes {
 		if _, err := DB.Exec(idx); err != nil {

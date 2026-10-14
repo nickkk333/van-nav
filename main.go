@@ -122,6 +122,17 @@ func main() {
 		api.GET("/searchEngines", handler.GetEnabledSearchEnginesHandler)
 		// 解析后的默认搜索引擎（公开接口，供前台回车/Ctrl+Enter 使用，即使被禁用也返回设置的默认）
 		api.GET("/searchEngines/default", handler.GetDefaultSearchEngineHandler)
+		// 日历事件（公开读写：日历是首页公开小组件，未登录也可查看与记录）
+		api.GET("/calendarEvents", handler.GetCalendarEventsHandler)
+		api.POST("/calendarEvents", handler.AddCalendarEventHandler)
+		api.PUT("/calendarEvents/:id", handler.UpdateCalendarEventHandler)
+		api.DELETE("/calendarEvents/:id", handler.DeleteCalendarEventHandler)
+		// 便签（公开读写：首页公开小组件，未登录也可查看与编辑，单文档整体覆盖 + 历史版本）
+		api.GET("/memo", handler.GetMemoHandler)
+		api.PUT("/memo", handler.SaveMemoHandler)
+		api.GET("/memo/versions", handler.GetMemoVersionsHandler)
+		api.POST("/memo/versions/:id/restore", handler.RestoreMemoVersionHandler)
+		api.DELETE("/memo/versions/:id", handler.DeleteMemoVersionHandler)
 
 		// 管理员用的
 		admin := api.Group("/admin")

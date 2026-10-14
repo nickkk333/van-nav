@@ -31,6 +31,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
+import { isTypingContext } from '../utils/keyboard'
 import type { InputInstance } from 'element-plus'
 
 const props = withDefaults(defineProps<{ modelValue: string; placeholder?: string; completion?: string }>(), {
@@ -85,8 +86,9 @@ const scheduleSync = () => {
 }
 watch(() => [props.modelValue, props.completion, focused.value], scheduleSync)
 
-/** 页面上任意按键都可以直接聚焦搜索框 */
+/** 页面上任意按键都可以直接聚焦搜索框；输入框/弹窗等输入上下文让路，避免抢走日历、便签的输入 */
 const onGlobalKeyDown = (ev: KeyboardEvent) => {
+  if (isTypingContext(ev)) return
   const reg = /[a-zA-Z0-9]|[\u4e00-\u9fa5]/
   if (ev.code === 'Enter' || reg.test(ev.key)) {
     inputRef.value?.focus()

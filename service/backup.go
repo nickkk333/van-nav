@@ -17,7 +17,9 @@ import (
 // backupVersion 备份文件格式版本，格式变化时递增，便于后续做兼容处理
 // 1：初版
 // 2：工具图标拆成 logo（图标网址）与 logoName（保存到 data 目录的图片名）
-const backupVersion = 2
+// 3：新增便签、待办与日历事件
+// 4：移除待办（只保留便签、便签历史版本与日历事件）
+const backupVersion = 4
 
 const (
 	// BackupDir 备份文件的存放目录（与 nav.db 同级，docker 部署挂载 ./data 即可持久化）
@@ -26,7 +28,7 @@ const (
 	BackupFileName = "van-nav-backup.json"
 )
 
-// ExportBackupData 导出所有工具、分类、搜索引擎
+// ExportBackupData 导出所有工具、分类、搜索引擎、便签与日历事件
 // 图标只导出图标网址（不导出图片内容）：工具的 logoName（保存到 data 目录的图片名）与搜索引擎的 logo 都置空，
 // 导入后由服务端按网址重新获取图片并保存到 data 目录
 // api token 不参与导出：避免凭据随备份文件明文外泄（备份常被打包/同步分享）
@@ -43,12 +45,16 @@ func ExportBackupData() types.BackupData {
 	for i := range engines {
 		engines[i].Logo = ""
 	}
+	memo := GetMemo()
 	return types.BackupData{
-		Version:       backupVersion,
-		ExportedAt:    time.Now().Format(time.RFC3339),
-		Tools:         tools,
-		Catelogs:      GetAllCatelog(),
-		SearchEngines: engines,
+		Version:        backupVersion,
+		ExportedAt:     time.Now().Format(time.RFC3339),
+		Tools:          tools,
+		Catelogs:       GetAllCatelog(),
+		SearchEngines:  engines,
+		Memo:           &memo,
+		MemoVersions:   GetMemoVersions(),
+		CalendarEvents: GetCalendarEvents(""),
 	}
 }
 
@@ -71,7 +77,7 @@ func ExportBackupToDataDir() {
 		path, len(data.Tools), len(data.Catelogs), len(data.SearchEngines))
 }
 
-// ImportBackupData 导入备份数据（工具、分类、搜索引擎）
+// ImportBackupData 导入备份数据（工具、分类、搜索引擎、便签与日历事件）
 // 同 id 的记录会被覆盖，没有出现在备份里的记录保持不动
 // 导入完成后异步获取图片：备份里只存了图标网址，这里按网址重新缓存/下载
 // api token 不参与导入：导入方各自在后台管理里维护自己的 token，避免跨实例泄露凭据
@@ -95,6 +101,9 @@ func ImportBackupData(data types.BackupData) error {
 	if err = importSearchEngines(tx, data.SearchEngines); err != nil {
 		return err
 	}
+	if err = importProductivity(tx, data); err != nil {
+		return err
+	}
 	// 分类排序统一重排成从 1 开始依次递增，与后台分类管理的规则保持一致
 	if err = renumberCatelogs(tx); err != nil {
 		return err
@@ -103,8 +112,8 @@ func ImportBackupData(data types.BackupData) error {
 		return err
 	}
 
-	logger.LogInfo("导入备份数据：工具 %d 条，分类 %d 条，搜索引擎 %d 条",
-		len(data.Tools), len(data.Catelogs), len(data.SearchEngines))
+	logger.LogInfo("导入备份数据：工具 %d 条，分类 %d 条，搜索引擎 %d 条，便签版本 %d 条，日历事件 %d 条",
+		len(data.Tools), len(data.Catelogs), len(data.SearchEngines), len(data.MemoVersions), len(data.CalendarEvents))
 	// 图片获取比较耗时，放到后台执行，避免阻塞接口
 	go fetchImportedImages(data.Tools, data.SearchEngines)
 	return nil
@@ -235,6 +244,45 @@ func ensureToolCatelogs(tx *sql.Tx, tools []types.Tool) error {
 			WHERE NOT EXISTS (SELECT 1 FROM nav_catelog WHERE name = ?);
 			`, name, name); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// importProductivity 导入便签、便签历史版本与日历事件
+// 老备份（没有这些数据）里对应字段为空时直接跳过，不覆盖现有数据；
+// 新备份里有数据时按“备份为准”整体替换，保证换机器恢复后数据一致
+func importProductivity(tx *sql.Tx, data types.BackupData) error {
+	if data.Memo != nil {
+		if _, err := tx.Exec(`INSERT INTO nav_memo (id, content, mode, updated_at) VALUES (1, ?, ?, ?)
+			ON CONFLICT(id) DO UPDATE SET content = excluded.content, mode = excluded.mode, updated_at = excluded.updated_at;`,
+			data.Memo.Content, memoMode(data.Memo.Mode), data.Memo.UpdatedAt); err != nil {
+			return err
+		}
+	}
+	if data.MemoVersions != nil {
+		if _, err := tx.Exec(`DELETE FROM nav_memo_version;`); err != nil {
+			return err
+		}
+		for _, v := range data.MemoVersions {
+			if _, err := tx.Exec(`INSERT INTO nav_memo_version (content, mode, created_at) VALUES (?, ?, ?);`,
+				v.Content, memoMode(v.Mode), v.CreatedAt); err != nil {
+				return err
+			}
+		}
+	}
+	if data.CalendarEvents != nil {
+		if _, err := tx.Exec(`DELETE FROM nav_calendar_event;`); err != nil {
+			return err
+		}
+		for _, e := range data.CalendarEvents {
+			if _, err := tx.Exec(`INSERT INTO nav_calendar_event (title, date, start_time, end_time, "desc", color, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+				strings.TrimSpace(e.Title), calendarDate(e.Date), calendarTime(e.StartTime),
+				calendarTime(e.EndTime), strings.TrimSpace(e.Desc), calendarColor(e.Color),
+				e.CreatedAt, e.UpdatedAt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

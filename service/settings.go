@@ -11,7 +11,7 @@ import (
 // GetSetting 获取网站设置
 func GetSetting() types.Setting {
 	row := database.DB.QueryRow(`
-		SELECT id, favicon, title, govRecord, logo192, logo512, hideAdmin, hideGithub, hideToggleJumpTarget, jumpTargetBlank, backgroundImage, defaultLogo, defaultSearchEngine
+		SELECT id, favicon, title, govRecord, logo192, logo512, hideAdmin, hideGithub, hideCalendar, hideMemo, hideToggleJumpTarget, jumpTargetBlank, backgroundImage, defaultLogo, defaultSearchEngine
 		FROM nav_setting
 		ORDER BY id ASC
 		LIMIT 1;
@@ -20,6 +20,8 @@ func GetSetting() types.Setting {
 		setting              types.Setting
 		hideAdmin            sql.NullBool
 		hideGithub           sql.NullBool
+		hideCalendar         sql.NullBool
+		hideMemo             sql.NullBool
 		hideToggleJumpTarget sql.NullBool
 		jumpTargetBlank      sql.NullBool
 		backgroundImage      sql.NullString
@@ -27,7 +29,7 @@ func GetSetting() types.Setting {
 		defaultSearchEngine  sql.NullInt64
 	)
 	err := row.Scan(&setting.Id, &setting.Favicon, &setting.Title, &setting.GovRecord, &setting.Logo192, &setting.Logo512,
-		&hideAdmin, &hideGithub, &hideToggleJumpTarget, &jumpTargetBlank, &backgroundImage, &defaultLogo, &defaultSearchEngine)
+		&hideAdmin, &hideGithub, &hideCalendar, &hideMemo, &hideToggleJumpTarget, &jumpTargetBlank, &backgroundImage, &defaultLogo, &defaultSearchEngine)
 	if err != nil {
 		logger.LogError("获取配置失败: %s", err)
 		return types.Setting{
@@ -39,6 +41,8 @@ func GetSetting() types.Setting {
 			Logo512:              "logo512.png",
 			HideAdmin:            false,
 			HideGithub:           false,
+			HideCalendar:         false,
+			HideMemo:             false,
 			HideToggleJumpTarget: false,
 			JumpTargetBlank:      true,
 			BackgroundImage:      "",
@@ -48,6 +52,9 @@ func GetSetting() types.Setting {
 	}
 	setting.HideAdmin = hideAdmin.Bool
 	setting.HideGithub = hideGithub.Bool
+	// 未设置时首页显示日历、便签入口
+	setting.HideCalendar = hideCalendar.Bool
+	setting.HideMemo = hideMemo.Bool
 	setting.HideToggleJumpTarget = hideToggleJumpTarget.Bool
 	// 未设置时默认新标签页打开
 	setting.JumpTargetBlank = true
@@ -70,9 +77,9 @@ func GetSetting() types.Setting {
 func UpdateSetting(data types.Setting) error {
 	_, err := database.DB.Exec(`
 		UPDATE nav_setting
-		SET favicon = ?, title = ?, govRecord = ?, logo192 = ?, logo512 = ?, hideAdmin = ?, hideGithub = ?, hideToggleJumpTarget = ?, jumpTargetBlank = ?, backgroundImage = ?, defaultLogo = ?, defaultSearchEngine = ?
+		SET favicon = ?, title = ?, govRecord = ?, logo192 = ?, logo512 = ?, hideAdmin = ?, hideGithub = ?, hideCalendar = ?, hideMemo = ?, hideToggleJumpTarget = ?, jumpTargetBlank = ?, backgroundImage = ?, defaultLogo = ?, defaultSearchEngine = ?
 		WHERE id = (SELECT id FROM nav_setting ORDER BY id ASC LIMIT 1);
 		`, data.Favicon, data.Title, data.GovRecord, data.Logo192, data.Logo512,
-		data.HideAdmin, data.HideGithub, data.HideToggleJumpTarget, data.JumpTargetBlank, data.BackgroundImage, data.DefaultLogo, data.DefaultSearchEngine)
+		data.HideAdmin, data.HideGithub, data.HideCalendar, data.HideMemo, data.HideToggleJumpTarget, data.JumpTargetBlank, data.BackgroundImage, data.DefaultLogo, data.DefaultSearchEngine)
 	return err
 }

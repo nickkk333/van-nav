@@ -1,5 +1,7 @@
 package types
 
+import "encoding/json"
+
 // 默认是 0
 type Setting struct {
 	Id                   int    `json:"id"`
@@ -10,6 +12,9 @@ type Setting struct {
 	Logo512              string `json:"logo512"`
 	HideAdmin            bool   `json:"hideAdmin"`
 	HideGithub           bool   `json:"hideGithub"`
+	// HideCalendar / HideMemo 首页日历、便签入口显隐（类似 Github 按钮的开关，默认显示）
+	HideCalendar         bool   `json:"hideCalendar"`
+	HideMemo             bool   `json:"hideMemo"`
 	HideToggleJumpTarget bool   `json:"hideToggleJumpTarget"`
 	JumpTargetBlank      bool   `json:"jumpTargetBlank"`
 	// BackgroundImage 首页背景图地址：后台上传返回的 url 或外链地址，留空时前台使用必应每日壁纸作为背景
@@ -74,16 +79,51 @@ type SearchEngine struct {
 	Enabled    bool   `json:"enabled"`
 }
 
-// BackupData 导入导出的备份数据：所有工具、分类、搜索引擎与 api token
+// 便签：单文档模式（id 固定为 1），多端通过后端同步，历史版本保留最近 N 条
+type Memo struct {
+	Id        int    `json:"id"`
+	Content   string `json:"content"`
+	Mode      string `json:"mode"`
+	UpdatedAt int64  `json:"updatedAt"`
+}
+
+// MemoVersion 便签历史版本（本地误覆盖时可找回）
+type MemoVersion struct {
+	Id        int    `json:"id"`
+	Content   string `json:"content"`
+	Mode      string `json:"mode"`
+	CreatedAt int64  `json:"createdAt"`
+}
+
+// CalendarEvent 日历事件（按日期挂载，日历上打点提示）
+type CalendarEvent struct {
+	Id        int    `json:"id"`
+	Title     string `json:"title"`
+	Date      string `json:"date"`
+	StartTime string `json:"startTime"`
+	EndTime   string `json:"endTime"`
+	Desc      string `json:"desc"`
+	Color     string `json:"color"`
+	CreatedAt int64  `json:"createdAt"`
+	UpdatedAt int64  `json:"updatedAt"`
+}
+
+// BackupData 导入导出的备份数据：所有工具、分类、搜索引擎、便签与日历事件
 // 图标只保存图标网址（工具的图片名与搜索引擎的图标不导出），导入后由服务端按网址自动重新获取
 type BackupData struct {
 	// Version 备份文件格式版本
 	Version int `json:"version"`
 	// ExportedAt 导出时间（RFC3339）
-	ExportedAt    string         `json:"exportedAt"`
-	Tools         []Tool         `json:"tools"`
-	Catelogs      []Catelog      `json:"catelogs"`
-	SearchEngines []SearchEngine `json:"searchEngines"`
+	ExportedAt     string          `json:"exportedAt"`
+	Tools          []Tool          `json:"tools"`
+	Catelogs       []Catelog       `json:"catelogs"`
+	SearchEngines  []SearchEngine  `json:"searchEngines"`
+	Memo           *Memo           `json:"memo"`
+	MemoVersions   []MemoVersion   `json:"memoVersions"`
+	// Todos 老备份（格式版本 3 及更早）里的待办数据：待办功能已移除，不导出也不导入，
+	// 保留这个字段只是为了把老备份识别成「有内容的备份」而不是空文件
+	Todos          json.RawMessage `json:"todos,omitempty"`
+	CalendarEvents []CalendarEvent `json:"calendarEvents"`
 }
 
 // 网站配置模型

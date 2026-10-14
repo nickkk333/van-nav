@@ -34,8 +34,9 @@ func ExportAllHandler(c *gin.Context) {
 	})
 }
 
-// ImportAllHandler 导入备份数据（工具、分类、搜索引擎与 api token）
+// ImportAllHandler 导入备份数据（工具、分类、搜索引擎、便签与日历事件）
 // 同 id 的记录会被覆盖，未出现在备份里的记录保持不动；导入后服务端会自动获取图片
+// 老备份里的 todos 字段会被忽略（待办功能已移除）
 func ImportAllHandler(c *gin.Context) {
 	var data types.BackupData
 	if err := c.ShouldBindJSON(&data); err != nil {
@@ -46,7 +47,8 @@ func ImportAllHandler(c *gin.Context) {
 		})
 		return
 	}
-	if len(data.Tools) == 0 && len(data.Catelogs) == 0 && len(data.SearchEngines) == 0 {
+	if len(data.Tools) == 0 && len(data.Catelogs) == 0 && len(data.SearchEngines) == 0 &&
+		data.Memo == nil && len(data.MemoVersions) == 0 && len(data.Todos) == 0 && len(data.CalendarEvents) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success":      false,
 			"errorMessage": "备份文件内容为空",
@@ -64,9 +66,11 @@ func ImportAllHandler(c *gin.Context) {
 		"success": true,
 		"message": "导入数据成功",
 		"data": gin.H{
-			"tools":         len(data.Tools),
-			"catelogs":      len(data.Catelogs),
-			"searchEngines": len(data.SearchEngines),
+			"tools":          len(data.Tools),
+			"catelogs":       len(data.Catelogs),
+			"searchEngines":  len(data.SearchEngines),
+			"memoVersions":   len(data.MemoVersions),
+			"calendarEvents": len(data.CalendarEvents),
 		},
 	})
 }

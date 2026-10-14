@@ -49,6 +49,7 @@
       </div>
       <div class="float-actions">
         <DarkSwitch />
+        <ProductivityDock :show-calendar="showCalendar" :show-memo="showMemo" />
         <button
           type="button"
           class="content-toggle"
@@ -77,6 +78,8 @@ import GithubLink from '../components/GithubLink.vue'
 import AdminLink from '../components/AdminLink.vue'
 import DarkSwitch from '../components/DarkSwitch.vue'
 import Loading from '../components/Loading.vue'
+import ProductivityDock from '../components/productivity/ProductivityDock.vue'
+import { isTypingContext } from '../utils/keyboard'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { fetchBingWallpaperTitle, fetchDeleteTool, fetchUpdateToolsSort, resolveError } from '../api'
 import { useCardSortable } from '../composables/useCardSortable'
@@ -198,6 +201,8 @@ const setting = computed(() => site.data.setting)
 const siteConfig = computed(() => site.data.siteConfig)
 const isSearching = computed(() => searchString.value.trim() !== '')
 const showGithub = computed(() => setting.value.hideGithub !== true)
+const showCalendar = computed(() => setting.value.hideCalendar !== true)
+const showMemo = computed(() => setting.value.hideMemo !== true)
 
 /** 首页全屏背景图：优先使用后台配置的地址，未配置时使用服务端下载的必应每日壁纸 */
 const bgStyle = computed<CSSProperties>(() => {
@@ -487,6 +492,11 @@ const onSearchSubmit = () => {
 
 /** 回车打开第一条结果，Ctrl/Cmd + 数字打开对应结果，Ctrl/Cmd + Enter 用第一个搜索引擎卡片搜索 */
 const onKeyEnter = (ev: KeyboardEvent) => {
+  // 弹窗（日历/便签）与输入框中的按键不触发搜索快捷键，回车等交给弹窗自己
+  if (isTypingContext(ev)) return
+  // 焦点在按钮/链接上时交给元素自身激活，避免与搜索快捷键重复触发
+  const evTarget = ev.target as HTMLElement | null
+  if (evTarget && (evTarget.tagName === 'BUTTON' || evTarget.tagName === 'A' || evTarget.closest('button, a[href]'))) return
   // Ctrl/Cmd + Enter：在新标签打开搜索结果页，保留导航页
   if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'Enter' || ev.keyCode === 13)) {
     ev.preventDefault()

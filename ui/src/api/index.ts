@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AdminData, ApiResult, BackupData, BackupImportResult, Catelog, HomeData, SearchEngine, Token, Tool, UrlInfo, User } from '../types'
+import type { AdminData, ApiResult, BackupData, BackupImportResult, CalendarEvent, Catelog, HomeData, Memo, MemoVersion, SearchEngine, Token, Tool, UrlInfo, User } from '../types'
 
 export const http = axios.create({
   baseURL: '/api',
@@ -235,6 +235,66 @@ export const fetchDeleteSearchEngine = async (id: number): Promise<ApiResult> =>
 
 export const fetchUpdateSearchEnginesSort = async (updates: { id: number; sort: number }[]): Promise<ApiResult> => {
   const { data } = await http.put<ApiResult>('/admin/searchEngines/sort', updates)
+  return data
+}
+
+// ==================== 便签（公开读写：单文档整体覆盖 + 历史版本） ====================
+
+/** 获取便签 */
+export const fetchGetMemo = async (): Promise<Memo> => {
+  const { data } = await http.get<ApiResult<Memo>>('/memo')
+  return data.data
+}
+
+/** 保存便签（整体覆盖） */
+export const fetchSaveMemo = async (payload: { content: string; mode: string }): Promise<Memo> => {
+  const { data } = await http.put<ApiResult<Memo>>('/memo', payload)
+  return data.data
+}
+
+/** 获取便签历史版本 */
+export const fetchGetMemoVersions = async (): Promise<MemoVersion[]> => {
+  const { data } = await http.get<ApiResult<MemoVersion[]>>('/memo/versions')
+  return data.data || []
+}
+
+/** 按版本 id 恢复便签 */
+export const fetchRestoreMemoVersion = async (id: number): Promise<Memo> => {
+  const { data } = await http.post<ApiResult<Memo>>(`/memo/versions/${id}/restore`)
+  return data.data
+}
+
+/** 删除某条便签历史版本 */
+export const fetchDeleteMemoVersion = async (id: number): Promise<ApiResult> => {
+  const { data } = await http.delete<ApiResult>(`/memo/versions/${id}`)
+  return data
+}
+
+// ==================== 日历事件（公开读写） ====================
+
+/** 按月份获取日历事件（month=YYYY-MM，不传返回全部） */
+export const fetchGetCalendarEvents = async (month?: string): Promise<CalendarEvent[]> => {
+  const { data } = await http.get<ApiResult<CalendarEvent[]>>('/calendarEvents', {
+    params: month ? { month } : {},
+  })
+  return data.data || []
+}
+
+/** 新增日历事件 */
+export const fetchAddCalendarEvent = async (payload: Partial<CalendarEvent>): Promise<CalendarEvent> => {
+  const { data } = await http.post<ApiResult<CalendarEvent>>('/calendarEvents', payload)
+  return data.data
+}
+
+/** 更新日历事件 */
+export const fetchUpdateCalendarEvent = async (id: number, payload: Partial<CalendarEvent>): Promise<CalendarEvent> => {
+  const { data } = await http.put<ApiResult<CalendarEvent>>(`/calendarEvents/${id}`, payload)
+  return data.data
+}
+
+/** 删除日历事件 */
+export const fetchDeleteCalendarEvent = async (id: number): Promise<ApiResult> => {
+  const { data } = await http.delete<ApiResult>(`/calendarEvents/${id}`)
   return data
 }
 

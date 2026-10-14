@@ -43,6 +43,10 @@ export interface Setting {
   logo512: string
   hideAdmin: boolean
   hideGithub: boolean
+  /** 前台首页是否隐藏日历入口（类似 Github 按钮开关，默认显示） */
+  hideCalendar: boolean
+  /** 前台首页是否隐藏便签入口（类似 Github 按钮开关，默认显示） */
+  hideMemo: boolean
   hideToggleJumpTarget: boolean
   jumpTargetBlank: boolean
   /** 首页背景图地址（后台上传返回的 url 或外链地址），留空时前台使用必应每日壁纸作为背景 */
@@ -85,7 +89,36 @@ export interface User {
   password?: string
 }
 
-// 导入导出的备份数据：所有工具、分类、搜索引擎与 api token
+// 便签：单文档模式（多端通过后端同步）
+export interface Memo {
+  id: number
+  content: string
+  mode: 'simple' | 'rich'
+  updatedAt: number
+}
+
+// 便签历史版本
+export interface MemoVersion {
+  id: number
+  content: string
+  mode: 'simple' | 'rich'
+  createdAt: number
+}
+
+// 日历事件
+export interface CalendarEvent {
+  id: number
+  title: string
+  date: string
+  startTime: string
+  endTime: string
+  desc: string
+  color: string
+  createdAt: number
+  updatedAt: number
+}
+
+// 导入导出的备份数据：所有工具、分类、搜索引擎、便签与日历事件
 // 图标只保存网址（不包含图片内容），导入后服务端会按网址自动获取图片
 export interface BackupData {
   /** 备份文件格式版本 */
@@ -95,6 +128,9 @@ export interface BackupData {
   tools: Tool[]
   catelogs: Catelog[]
   searchEngines: SearchEngine[]
+  memo?: Memo | null
+  memoVersions?: MemoVersion[]
+  calendarEvents?: CalendarEvent[]
 }
 
 /** 导入结果：各类数据导入的条数（api token 不参与导入，故无此项） */
@@ -102,6 +138,8 @@ export interface BackupImportResult {
   tools: number
   catelogs: number
   searchEngines: number
+  memoVersions?: number
+  calendarEvents?: number
 }
 
 export interface ApiResult<T = any> {
