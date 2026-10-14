@@ -276,10 +276,10 @@ func importProductivity(tx *sql.Tx, data types.BackupData) error {
 			return err
 		}
 		for _, e := range data.CalendarEvents {
-			if _, err := tx.Exec(`INSERT INTO nav_calendar_event (title, date, start_time, end_time, "desc", color, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+			if _, err := tx.Exec(`INSERT INTO nav_calendar_event (title, date, start_time, end_time, "desc", color, done, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
 				strings.TrimSpace(e.Title), calendarDate(e.Date), calendarTime(e.StartTime),
-				calendarTime(e.EndTime), strings.TrimSpace(e.Desc), calendarColor(e.Color),
+				calendarTime(e.EndTime), strings.TrimSpace(e.Desc), calendarColor(e.Color), e.Done,
 				e.CreatedAt, e.UpdatedAt); err != nil {
 				return err
 			}

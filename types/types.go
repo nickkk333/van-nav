@@ -104,6 +104,7 @@ type CalendarEvent struct {
 	EndTime   string `json:"endTime"`
 	Desc      string `json:"desc"`
 	Color     string `json:"color"`
+	Done      bool   `json:"done"`
 	CreatedAt int64  `json:"createdAt"`
 	UpdatedAt int64  `json:"updatedAt"`
 }

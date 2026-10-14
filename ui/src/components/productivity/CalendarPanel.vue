@@ -18,8 +18,9 @@
     <div class="pv-daybox">
       <div class="pv-dayhead"><span>{{ selectedLabel }}（{{ dayEvents.length }}）</span><el-button size="small" type="primary" @click="emit('add', selected)">添加</el-button></div>
       <div v-if="!dayEvents.length" class="pv-empty">当天没有安排</div>
-      <div v-for="ev in dayEvents" :key="ev.id" class="pv-ev">
+      <div v-for="ev in dayEvents" :key="ev.id" class="pv-ev" :class="{ done: ev.done }">
         <i :style="{ backgroundColor: ev.color || '#409eff' }"></i>
+        <el-checkbox :model-value="!!ev.done" @change="(v: boolean) => emit('toggleDone', ev, v)" aria-label="标记完成" />
         <div class="pv-ev-main"><b>{{ ev.title }}</b><span v-if="ev.startTime || ev.desc">{{ ev.startTime }}{{ ev.endTime ? '~' + ev.endTime : '' }}{{ ev.desc ? ' · ' + ev.desc : '' }}</span></div>
         <el-button size="small" text @click="emit('edit', ev)">编辑</el-button>
         <el-button size="small" text type="danger" @click="emit('remove', ev)">删除</el-button>
@@ -33,7 +34,7 @@ import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { fetchGetCalendarEvents } from '../../api'
 import { getJieQi, lunarFestival, solarToLunar } from '../../utils/lunar'
 import type { CalendarEvent } from '../../types'
-const emit = defineEmits<{ add: [date: string]; edit: [ev: CalendarEvent]; remove: [ev: CalendarEvent] }>()
+const emit = defineEmits<{ add: [date: string]; edit: [ev: CalendarEvent]; remove: [ev: CalendarEvent]; toggleDone: [ev: CalendarEvent, done: boolean] }>()
 const FEST: Record<string,string> = {'01-01':'元旦','02-14':'情人','03-08':'妇女','05-01':'劳动','05-04':'青年','06-01':'儿童','07-01':'建党','08-01':'建军','09-10':'教师','10-01':'国庆','12-25':'圣诞'}
 const pad = (n:number)=>String(n).padStart(2,'0')
 const ds = (d:Date)=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`

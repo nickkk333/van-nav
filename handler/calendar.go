@@ -110,3 +110,39 @@ func DeleteCalendarEventHandler(c *gin.Context) {
 		"message": "事件已删除",
 	})
 }
+
+// ToggleCalendarEventDoneHandler 打勾/取消打勾：已完成视为已结束，不再触发小红点提醒
+func ToggleCalendarEventDoneHandler(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": "无效的ID",
+		})
+		return
+	}
+	var data struct {
+		Done bool `json:"done"`
+	}
+	if err := c.ShouldBindJSON(&data); err != nil {
+		utils.CheckErr(err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":      false,
+			"errorMessage": err.Error(),
+		})
+		return
+	}
+	event, ok := service.ToggleCalendarEventDone(id, data.Done)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success":      false,
+			"errorMessage": "该事件不存在",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "已更新完成状态",
+		"data":    event,
+	})
+}

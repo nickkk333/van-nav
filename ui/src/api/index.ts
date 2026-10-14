@@ -298,4 +298,10 @@ export const fetchDeleteCalendarEvent = async (id: number): Promise<ApiResult> =
   return data
 }
 
+/** 打勾/取消打勾：已完成视为已结束，不再触发小红点提醒 */
+export const fetchToggleCalendarEventDone = async (id: number, done: boolean): Promise<CalendarEvent> => {
+  const { data } = await http.patch<ApiResult<CalendarEvent>>(`/calendarEvents/${id}/done`, { done })
+  return data.data
+}
+
 export type { AdminData, ApiResult, Catelog, HomeData, SearchEngine, Token, Tool, User }

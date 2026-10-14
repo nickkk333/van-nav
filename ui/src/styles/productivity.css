@@ -2,6 +2,8 @@
 .pv-dock { display: flex; flex-direction: column; gap: 10px; }
 .pv-dock-btn { position: relative; display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; border: none; border-radius: 50%; background-color: var(--card-bg); color: var(--text-secondary); box-shadow: var(--card-shadow); cursor: pointer; transition: color 0.2s, transform 0.2s, background-color 0.2s; }
 .pv-dock-btn:hover { color: var(--el-color-primary); background-color: var(--card-hover-bg); transform: scale(1.08); }
+/* 日历图标右上角未读式小红点：只提示“有未来事件”，不显示条数 */
+.pv-dock-dot { position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background-color: var(--el-color-danger, #f56c6c); box-shadow: 0 0 0 2px var(--card-bg); pointer-events: none; }
 .pv-cal-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .pv-today-num { width: 46px; height: 46px; border-radius: 12px; background: var(--el-color-primary-light-9); color: var(--el-color-primary); font-size: 24px; font-weight: 700; line-height: 46px; text-align: center; }
 .pv-today-info { display: flex; flex-direction: column; gap: 2px; }
@@ -25,6 +27,9 @@
 .pv-ev-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .pv-ev-main b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pv-ev-main span { font-size: 12px; color: var(--el-text-color-secondary); }
+/* 已完成（打勾）：置灰 + 删除线，视为已结束 */
+.pv-ev.done .pv-ev-main b { color: var(--el-text-color-placeholder); text-decoration: line-through; }
+.pv-ev.done .pv-ev-main span { color: var(--el-text-color-placeholder); }
 .pv-time-row { display: flex; align-items: center; gap: 6px; }
 .pv-time-row .el-date-editor { width: 120px; }
 .pv-memo-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }

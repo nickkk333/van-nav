@@ -105,4 +105,5 @@ type SaveCalendarEventDto struct {
 	EndTime   string `json:"endTime"`
 	Desc      string `json:"desc"`
 	Color     string `json:"color"`
+	Done      bool   `json:"done"`
 }

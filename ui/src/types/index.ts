@@ -114,6 +114,8 @@ export interface CalendarEvent {
   endTime: string
   desc: string
   color: string
+  /** 是否已完成（打勾）：已完成视为已结束，不再触发小红点提醒 */
+  done: boolean
   createdAt: number
   updatedAt: number
 }

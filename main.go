@@ -126,6 +126,7 @@ func main() {
 		api.GET("/calendarEvents", handler.GetCalendarEventsHandler)
 		api.POST("/calendarEvents", handler.AddCalendarEventHandler)
 		api.PUT("/calendarEvents/:id", handler.UpdateCalendarEventHandler)
+		api.PATCH("/calendarEvents/:id/done", handler.ToggleCalendarEventDoneHandler)
 		api.DELETE("/calendarEvents/:id", handler.DeleteCalendarEventHandler)
 		// 便签（公开读写：首页公开小组件，未登录也可查看与编辑，单文档整体覆盖 + 历史版本）
 		api.GET("/memo", handler.GetMemoHandler)

@@ -270,11 +270,16 @@ func InitDB() {
 			end_time TEXT NOT NULL DEFAULT '',
 			"desc" TEXT NOT NULL DEFAULT '',
 			color TEXT NOT NULL DEFAULT '',
+			done BOOLEAN NOT NULL DEFAULT 0,
 			created_at INTEGER NOT NULL DEFAULT 0,
 			updated_at INTEGER NOT NULL DEFAULT 0
 		);
 		`)
 	utils.CheckErr(err)
+	// 日历事件表结构升级-20261014【完成状态：打勾后视为已结束，不再触发小红点提醒】
+	if !columnExists("nav_calendar_event", "done") {
+		DB.Exec(`ALTER TABLE nav_calendar_event ADD COLUMN done BOOLEAN NOT NULL DEFAULT 0;`)
+	}
 
 	// 如果不存在，就初始化默认搜索引擎
 	sql_get_search_engine := `

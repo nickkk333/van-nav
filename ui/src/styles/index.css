@@ -350,18 +350,27 @@ body {
   transition: filter 0.3s, opacity 0.3s;
 }
 
-/* 横线：默认单色（主题边框色），无渐变、无呼吸光晕；悬停时切换为彩虹渐变并呼吸 */
+/* 横线：默认渐变（与悬停一致的彩虹渐变），无呼吸光晕；整体随分隔栏默认隐藏，悬停时显示并呼吸 */
 .cards-group-divider-line {
   position: relative;
   flex: 1;
   height: 1px;
   border-radius: 1px;
-  background-color: var(--border-color);
-  /* 悬停结束时从呼吸动画的中间透明度平滑回到实色 */
+  background-image: linear-gradient(
+    90deg,
+    #ff4d6d,
+    #ffa41b,
+    #f9e04b,
+    #34d399,
+    #38bdf8,
+    #a855f7,
+    #ff4d6d
+  );
+  /* 悬停结束时从呼吸动画的中间透明度平滑回落（父级 opacity:0 保持隐藏占位） */
   transition: opacity 0.3s;
 }
 
-/* 光晕：复用横线的彩虹渐变做模糊（background-image: inherit，横线无渐变时自动不可见），可调参数:blur(3px)/inset(光晕范围)*/
+/* 光晕：复用横线的彩虹渐变做模糊（background-image: inherit），可调参数:blur(3px)/inset(光晕范围)*/
 .cards-group-divider-line::after {
   content: '';
   position: absolute;
@@ -393,18 +402,8 @@ body {
   animation: cards-divider-hue 6s linear infinite;
 }
 
-/* 彩虹渐变 + 亮度呼吸（含 ::after 同色光晕，随父级透明度一起呼吸） 可调参数:2.4s(呼吸快慢)*/
+/* 横线亮度呼吸（含 ::after 同色光晕，渐变由默认样式提供，随父级透明度一起呼吸） 可调参数:2.4s(呼吸快慢)*/
 .cards-group-wraper:hover .cards-group-divider-line {
-  background-image: linear-gradient(
-    90deg,
-    #ff4d6d,
-    #ffa41b,
-    #f9e04b,
-    #34d399,
-    #38bdf8,
-    #a855f7,
-    #ff4d6d
-  );
   animation: cards-divider-line-breath 2.4s ease-in-out infinite;
 }
 
