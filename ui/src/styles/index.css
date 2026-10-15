@@ -488,10 +488,21 @@ body {
   background-color: var(--card-bg);
   color: inherit;
   text-decoration: none;
-  cursor: pointer;
+  cursor: default;
   user-select: none;
   overflow: hidden;
   transition: box-shadow 0.3s, transform 0.3s, background-color 0.3s;
+}
+
+/* 主页卡片：默认 / 悬停 / 单击 / 长按不动一律箭头，只有真正产生位移的拖动才显示手型（is-dragging 由组件按位移阈值切换，纯 CSS :active 区分不了“按住不动”和“拖动”） */
+.card-box:active {
+  cursor: default;
+}
+
+.card-box.is-dragging,
+.card-box.is-dragging:active,
+body.card-dragging .card-box {
+  cursor: pointer;
 }
 
 .card-box:hover {
@@ -500,13 +511,19 @@ body {
   background-color: var(--card-hover-bg);
 }
 
-/* 登录后首页卡片支持分类内拖拽排序与右键删除，用光标提示可拖动 */
+/* 登录后首页卡片支持分类内拖拽排序与右键删除：平时箭头、拖动时手型（与普通卡片一致，这里用更高优先级覆盖基础规则） */
 .content.cards .card-box.card-editable {
-  cursor: grab;
+  cursor: default;
 }
 
 .content.cards .card-box.card-editable:active {
-  cursor: grabbing;
+  cursor: default;
+}
+
+.content.cards .card-box.card-editable.is-dragging,
+.content.cards .card-box.card-editable.is-dragging:active,
+body.card-dragging .content.cards .card-box.card-editable {
+  cursor: pointer;
 }
 
 .card-content {

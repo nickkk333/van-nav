@@ -1,11 +1,13 @@
 <template>
   <a
     class="card-box"
-    :class="{ 'card-editable': editable }"
+    :class="{ 'card-editable': editable, 'is-dragging': isDragging }"
     :href="isToggleCard ? undefined : tool.url"
     :target="target"
     rel="noreferrer"
     @pointerdown="onPointerDown"
+    @pointerup="endPress"
+    @pointercancel="endPress"
     @click="onClick"
     @contextmenu="onContextMenu"
   >
@@ -71,26 +73,75 @@ const isToggleCard = computed(() => props.tool.url === 'toggleJumpTarget')
  * 拖拽（sortablejs）结束后浏览器还会补发一次 click，
  * 锚点会因此执行默认跳转，既把页面带走了，也会打断排序提交的时机。
  * 这里用「按下点到松开点的位移」判定：移动超过阈值就吞掉这次 click。
+ * 同一位移判定还驱动 is-dragging：平时（含悬停 / 单击 / 长按不动）一律箭头，
+ * 只有真正产生位移的拖动才切换出手型（纯 CSS :active 区分不了“按住不动”和“拖动”）。
  */
 const CLICK_MOVE_THRESHOLD = 5
 let pointerStart: { x: number; y: number } | null = null
+let activePointerId: number | null = null
+/** 按下后是否已产生位移（拖动中为 true，长按不动为 false） */
+const didMove = ref(false)
+/** 拖动中：模板据此挂 is-dragging 类显示手型 */
+const isDragging = ref(false)
+
+const setDragging = (value: boolean) => {
+  if (isDragging.value === value) {
+    return
+  }
+  isDragging.value = value
+  // 拖动时鼠标可能正好悬停在别的卡片上，全局类保证拖动全程都是手型
+  document.body.classList.toggle('card-dragging', value)
+}
+
+const onPointerMove = (event: Event) => {
+  if (!(event instanceof PointerEvent)) {
+    return
+  }
+  if (event.pointerId !== activePointerId || !pointerStart) {
+    return
+  }
+  if (
+    Math.abs(event.clientX - pointerStart.x) > CLICK_MOVE_THRESHOLD ||
+    Math.abs(event.clientY - pointerStart.y) > CLICK_MOVE_THRESHOLD
+  ) {
+    didMove.value = true
+    setDragging(true)
+  }
+}
 
 const onPointerDown = (event: PointerEvent) => {
+  // 只跟踪左键 / 触摸主按压：右键（删除菜单）不进入拖动手型
+  if (event.pointerType === 'mouse' && event.button !== 0) {
+    return
+  }
+  activePointerId = event.pointerId
   pointerStart = { x: event.clientX, y: event.clientY }
+  didMove.value = false
+  window.addEventListener('pointermove', onPointerMove)
+  window.addEventListener('pointerup', endPress)
+  window.addEventListener('pointercancel', endPress)
+}
+
+/** 按压结束：手型复位为箭头，但保留 didMove 给随后到达的 click 做拖拽判定 */
+const endPress = (event?: Event) => {
+  if (event instanceof PointerEvent && event.pointerId !== activePointerId) {
+    return
+  }
+  activePointerId = null
+  pointerStart = null
+  setDragging(false)
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', endPress)
+  window.removeEventListener('pointercancel', endPress)
 }
 
 const onClick = (event: MouseEvent) => {
-  const start = pointerStart
-  pointerStart = null
-  if (start) {
-    const moved =
-      Math.abs(event.clientX - start.x) > CLICK_MOVE_THRESHOLD ||
-      Math.abs(event.clientY - start.y) > CLICK_MOVE_THRESHOLD
-    if (moved) {
-      // 拖拽/滑动收尾的 click：阻止 <a> 的默认跳转，也不触发业务点击逻辑
-      event.preventDefault()
-      return
-    }
+  const moved = didMove.value
+  didMove.value = false
+  if (moved) {
+    // 拖拽/滑动收尾的 click：阻止 <a> 的默认跳转，也不触发业务点击逻辑
+    event.preventDefault()
+    return
   }
   emit('click', props.tool)
 }
@@ -147,6 +198,7 @@ const onImageError = () => {
 watch(imageSrc, resetImageState, { immediate: true })
 
 onBeforeUnmount(() => {
+  endPress()
   if (timer) {
     clearTimeout(timer)
   }
