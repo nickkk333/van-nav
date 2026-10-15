@@ -78,7 +78,8 @@ func ExportBackupToDataDir() {
 }
 
 // ImportBackupData 导入备份数据（工具、分类、搜索引擎、便签与日历事件）
-// 同 id 的记录会被覆盖，没有出现在备份里的记录保持不动
+// 工具、搜索引擎同 id 的记录会被覆盖，没有出现在备份里的记录保持不动；
+// 便签与日历事件合并导入：保留现有数据，备份内容追加进来（重复的跳过），不会整表替换
 // 导入完成后异步获取图片：备份里只存了图标网址，这里按网址重新缓存/下载
 // api token 不参与导入：导入方各自在后台管理里维护自己的 token，避免跨实例泄露凭据
 func ImportBackupData(data types.BackupData) error {
@@ -249,40 +250,154 @@ func ensureToolCatelogs(tx *sql.Tx, tools []types.Tool) error {
 	return nil
 }
 
-// importProductivity 导入便签、便签历史版本与日历事件
-// 老备份（没有这些数据）里对应字段为空时直接跳过，不覆盖现有数据；
-// 新备份里有数据时按“备份为准”整体替换，保证换机器恢复后数据一致
+// importProductivity 合并导入便签、便签历史版本与日历事件
+// 与工具/分类的规则一致：现有数据全部保留，只把备份里的内容追加进来（重复的跳过），不整表替换：
+//   - 日历事件：逐条追加（自增 id），与现有事件完全相同（标题/日期/起止时间/备注一致）的跳过，
+//     重复导入同一份备份不会产生重复事件，现有事件的打勾状态也不会被改
+//   - 便签：单文档，没法两份并存。当前便签为空时直接采用备份内容；已有内容时保留当前便签，
+//     把备份内容归档为一条历史版本（便签「历史版本」里可找回/恢复）
+//   - 便签历史版本：逐条追加，内容与创建时间都相同的跳过；追加后超出保留条数的旧版本删除
+//     （与保存便签时的裁剪规则一致，见 MemoVersionLimit）
 func importProductivity(tx *sql.Tx, data types.BackupData) error {
 	if data.Memo != nil {
-		if _, err := tx.Exec(`INSERT INTO nav_memo (id, content, mode, updated_at) VALUES (1, ?, ?, ?)
-			ON CONFLICT(id) DO UPDATE SET content = excluded.content, mode = excluded.mode, updated_at = excluded.updated_at;`,
-			data.Memo.Content, memoMode(data.Memo.Mode), data.Memo.UpdatedAt); err != nil {
+		if err := importMemo(tx, *data.Memo); err != nil {
 			return err
 		}
 	}
 	if data.MemoVersions != nil {
-		if _, err := tx.Exec(`DELETE FROM nav_memo_version;`); err != nil {
+		if err := importMemoVersions(tx, data.MemoVersions); err != nil {
 			return err
-		}
-		for _, v := range data.MemoVersions {
-			if _, err := tx.Exec(`INSERT INTO nav_memo_version (content, mode, created_at) VALUES (?, ?, ?);`,
-				v.Content, memoMode(v.Mode), v.CreatedAt); err != nil {
-				return err
-			}
 		}
 	}
 	if data.CalendarEvents != nil {
-		if _, err := tx.Exec(`DELETE FROM nav_calendar_event;`); err != nil {
+		if err := importCalendarEvents(tx, data.CalendarEvents); err != nil {
 			return err
 		}
-		for _, e := range data.CalendarEvents {
-			if _, err := tx.Exec(`INSERT INTO nav_calendar_event (title, date, start_time, end_time, "desc", color, done, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-				strings.TrimSpace(e.Title), calendarDate(e.Date), calendarTime(e.StartTime),
-				calendarTime(e.EndTime), strings.TrimSpace(e.Desc), calendarColor(e.Color), e.Done,
-				e.CreatedAt, e.UpdatedAt); err != nil {
-				return err
-			}
+	}
+	return nil
+}
+
+// importMemo 合并导入便签：当前为空直接采用备份内容，已有内容则保留当前便签、把备份内容归档为历史版本
+func importMemo(tx *sql.Tx, memo types.Memo) error {
+	if strings.TrimSpace(memo.Content) == "" {
+		return nil
+	}
+	var currentContent string
+	err := tx.QueryRow(`SELECT content FROM nav_memo WHERE id = 1;`).Scan(&currentContent)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	if strings.TrimSpace(currentContent) == strings.TrimSpace(memo.Content) {
+		// 内容一致，无需处理
+		return nil
+	}
+	now := time.Now().UnixMilli()
+	if strings.TrimSpace(currentContent) == "" {
+		// 当前便签为空：直接采用备份内容
+		updatedAt := memo.UpdatedAt
+		if updatedAt <= 0 {
+			updatedAt = now
+		}
+		_, err = tx.Exec(`INSERT INTO nav_memo (id, content, mode, updated_at) VALUES (1, ?, ?, ?)
+			ON CONFLICT(id) DO UPDATE SET content = excluded.content, mode = excluded.mode, updated_at = excluded.updated_at;`,
+			memo.Content, memoMode(memo.Mode), updatedAt)
+		return err
+	}
+	// 保留当前便签：备份内容归档为一条历史版本，可在便签「历史版本」里找回/恢复
+	createdAt := memo.UpdatedAt
+	if createdAt <= 0 {
+		createdAt = now
+	}
+	// 内容与创建时间都相同的版本已存在时跳过，重复导入同一份备份不会反复归档
+	var existId int64
+	err = tx.QueryRow(`SELECT id FROM nav_memo_version WHERE content = ? AND created_at = ?;`,
+		memo.Content, createdAt).Scan(&existId)
+	if err == nil {
+		return nil
+	}
+	if err != sql.ErrNoRows {
+		return err
+	}
+	_, err = tx.Exec(`INSERT INTO nav_memo_version (content, mode, created_at) VALUES (?, ?, ?);`,
+		memo.Content, memoMode(memo.Mode), createdAt)
+	return err
+}
+
+// importMemoVersions 合并导入便签历史版本：保留现有版本，备份里的版本追加，重复的跳过
+func importMemoVersions(tx *sql.Tx, versions []types.MemoVersion) error {
+	inserted := false
+	for _, v := range versions {
+		if strings.TrimSpace(v.Content) == "" {
+			continue
+		}
+		createdAt := v.CreatedAt
+		if createdAt <= 0 {
+			createdAt = time.Now().UnixMilli()
+		}
+		// 内容与创建时间都相同视为同一条版本，跳过以免重复导入翻倍
+		var existId int64
+		err := tx.QueryRow(`SELECT id FROM nav_memo_version WHERE content = ? AND created_at = ?;`,
+			v.Content, createdAt).Scan(&existId)
+		if err == nil {
+			continue
+		}
+		if err != sql.ErrNoRows {
+			return err
+		}
+		if _, err = tx.Exec(`INSERT INTO nav_memo_version (content, mode, created_at) VALUES (?, ?, ?);`,
+			v.Content, memoMode(v.Mode), createdAt); err != nil {
+			return err
+		}
+		inserted = true
+	}
+	if inserted {
+		// 与保存便签时一致：只保留最近 MemoVersionLimit 条
+		if _, err := tx.Exec(`DELETE FROM nav_memo_version WHERE id NOT IN (
+			SELECT id FROM nav_memo_version ORDER BY created_at DESC, id DESC LIMIT ?);`, MemoVersionLimit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// importCalendarEvents 合并导入日历事件：保留现有事件，备份里的事件逐条追加，完全相同的跳过
+func importCalendarEvents(tx *sql.Tx, events []types.CalendarEvent) error {
+	now := time.Now().UnixMilli()
+	for _, e := range events {
+		title := strings.TrimSpace(e.Title)
+		date := calendarDate(e.Date)
+		if title == "" || date == "" {
+			continue
+		}
+		startTime := calendarTime(e.StartTime)
+		endTime := calendarTime(e.EndTime)
+		if startTime != "" && endTime != "" && endTime < startTime {
+			startTime, endTime = endTime, startTime
+		}
+		desc := strings.TrimSpace(e.Desc)
+		// 标题/日期/起止时间/备注都相同视为同一条事件：保留现有事件（含打勾状态），跳过导入
+		var existId int64
+		err := tx.QueryRow(`SELECT id FROM nav_calendar_event
+			WHERE title = ? AND date = ? AND start_time = ? AND end_time = ? AND "desc" = ? LIMIT 1;`,
+			title, date, startTime, endTime, desc).Scan(&existId)
+		if err == nil {
+			continue
+		}
+		if err != sql.ErrNoRows {
+			return err
+		}
+		createdAt, updatedAt := e.CreatedAt, e.UpdatedAt
+		if createdAt <= 0 {
+			createdAt = now
+		}
+		if updatedAt <= 0 {
+			updatedAt = now
+		}
+		if _, err = tx.Exec(`INSERT INTO nav_calendar_event (title, date, start_time, end_time, "desc", color, done, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+			title, date, startTime, endTime, desc, calendarColor(e.Color), e.Done,
+			createdAt, updatedAt); err != nil {
+			return err
 		}
 	}
 	return nil

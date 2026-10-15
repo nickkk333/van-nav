@@ -35,7 +35,8 @@ func ExportAllHandler(c *gin.Context) {
 }
 
 // ImportAllHandler 导入备份数据（工具、分类、搜索引擎、便签与日历事件）
-// 同 id 的记录会被覆盖，未出现在备份里的记录保持不动；导入后服务端会自动获取图片
+// 工具、搜索引擎同 id 的记录会被覆盖，未出现在备份里的记录保持不动；
+// 便签与日历事件合并导入（保留现有的，备份内容追加，重复的跳过）；导入后服务端会自动获取图片
 // 老备份里的 todos 字段会被忽略（待办功能已移除）
 func ImportAllHandler(c *gin.Context) {
 	var data types.BackupData
