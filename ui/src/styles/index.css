@@ -156,6 +156,14 @@ body {
   box-shadow: 0 0 0 1px var(--el-color-primary) inset, var(--card-shadow);
 }
 
+/* type=search 会让浏览器额外画一个原生清除按钮（×），与 el-input clearable 的清除图标重复，
+   这里隐藏原生的，只保留 Element Plus 的清除按钮 */
+.search-input input[type='search']::-webkit-search-cancel-button,
+.search-input input[type='search']::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 /* 搜索按钮：固定尺寸的蓝色块，高度由 flex stretch 撑满，不依赖 el-input 分组样式 */
 .search-btn {
   flex: 0 0 56px;
