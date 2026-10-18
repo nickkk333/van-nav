@@ -1,17 +1,18 @@
 <template>
   <div v-if="showCalendar || showMemo">
     <div class="pv-dock">
-      <el-tooltip v-if="showCalendar" content="日历" placement="left"><button type="button" class="pv-dock-btn" aria-label="日历" @click="open('calendar')"><el-icon :size="20"><Calendar /></el-icon><i v-if="hasUpcoming" class="pv-dock-dot" aria-hidden="true"></i></button></el-tooltip>
-      <el-tooltip v-if="showMemo" content="便签" placement="left"><button type="button" class="pv-dock-btn" aria-label="便签" @click="open('memo')"><el-icon :size="20"><EditPen /></el-icon></button></el-tooltip>
+      <el-tooltip v-if="showCalendar" content="日历" placement="left"><button type="button" class="pv-dock-btn" aria-label="日历" @click="open()"><el-icon :size="20"><Calendar /></el-icon><i v-if="hasUpcoming" class="pv-dock-dot" aria-hidden="true"></i></button></el-tooltip>
+      <el-tooltip v-if="showMemo" content="便签" placement="left"><button type="button" class="pv-dock-btn" aria-label="便签" @click="openMemo"><el-icon :size="20"><EditPen /></el-icon></button></el-tooltip>
     </div>
-    <!-- 日历/便签主弹窗：右边缘调宽、底边缘调高、右下角同调；尺寸记入 localStorage，双击右下角恢复默认 -->
-    <el-dialog v-model="visible" :title="title" :width="dlgWidth" top="8vh" class="pv-dlg" body-class="pv-dlg-body" :style="dlgStyle" append-to-body destroy-on-close>
-      <CalendarPanel v-if="tab==='calendar'" ref="calRef" @add="onCalAdd" @edit="onCalEdit" @remove="onCalRemove" @toggle-done="onCalToggleDone" />
-      <MemoPanel v-else ref="memoRef" />
+    <!-- 日历主弹窗：右边缘调宽、底边缘调高、右下角同调；尺寸记入 localStorage，双击右下角恢复默认 -->
+    <el-dialog v-model="visible" title="日历" :width="dlgWidth" top="8vh" class="pv-dlg" body-class="pv-dlg-body" :style="dlgStyle" append-to-body destroy-on-close>
+      <CalendarPanel ref="calRef" @add="onCalAdd" @edit="onCalEdit" @remove="onCalRemove" @toggle-done="onCalToggleDone" />
       <span class="pv-rz pv-rz-e" title="拖动调整宽度" @pointerdown="startResize('e', $event)"></span>
       <span class="pv-rz pv-rz-s" title="拖动调整高度" @pointerdown="startResize('s', $event)"></span>
       <span class="pv-rz pv-rz-se" title="拖动调整大小（双击恢复默认）" @pointerdown="startResize('se', $event)" @dblclick="onSeDblClick"></span>
     </el-dialog>
+    <!-- 便签：独立浮动窗口，可拖动移动、贴边吸附成图标、点击展开 -->
+    <MemoWindow v-if="showMemo" ref="memoWinRef" />
     <el-dialog v-model="evOpen" :title="evEditing?'编辑事件':'添加事件'" width="400px" append-to-body>
       <el-form label-width="52px" size="small" @submit.prevent>
         <el-form-item label="标题"><el-input v-model="evForm.title" maxlength="60" placeholder="例如：发版 / 生日" /></el-form-item>
@@ -29,19 +30,19 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Calendar, EditPen } from '@element-plus/icons-vue'
 import CalendarPanel from './CalendarPanel.vue'
-import MemoPanel from './MemoPanel.vue'
+import MemoWindow from './MemoWindow.vue'
 import { fetchAddCalendarEvent, fetchDeleteCalendarEvent, fetchGetCalendarEvents, fetchToggleCalendarEventDone, fetchUpdateCalendarEvent, resolveError } from '../../api'
 import type { CalendarEvent } from '../../types'
 // 首页默认显示日历、便签，后台设置里可以分别关掉（开启「隐藏」后这里对应的入口不渲染）
 const props = defineProps<{ showCalendar?: boolean; showMemo?: boolean }>()
 const showCalendar = computed(()=>props.showCalendar!==false)
 const showMemo = computed(()=>props.showMemo!==false)
-type Tab = 'calendar' | 'memo'
-const tab = ref<Tab>('calendar'); const visible = ref(false)
-const title = computed(()=>tab.value==='calendar'?'日历':'便签')
+const visible = ref(false)
 const calRef = ref<InstanceType<typeof CalendarPanel>|null>(null)
-const memoRef = ref<InstanceType<typeof MemoPanel>|null>(null)
-const open = (t:Tab)=>{ tab.value=t; visible.value=true; if(t==='memo') memoRef.value?.reload?.(); else refreshUpcoming() }
+const memoWinRef = ref<InstanceType<typeof MemoWindow>|null>(null)
+const open = () => { visible.value=true; refreshUpcoming() }
+// 便签使用独立浮动窗口：点击入口切换展开 / 关闭
+const openMemo = () => memoWinRef.value?.toggle()
 
 // ==================== 弹窗宽高调整（拖右/下/右下角把手，尺寸存 localStorage） ====================
 const SIZE_KEY = 'pv-dialog-size'

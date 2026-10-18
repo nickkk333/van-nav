@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AdminData, ApiResult, BackupData, BackupImportResult, CalendarEvent, Catelog, HomeData, Memo, MemoVersion, SearchEngine, Token, Tool, UrlInfo, User } from '../types'
+import type { AdminData, ApiResult, BackupData, BackupImportResult, CalendarEvent, Catelog, HomeData, Memo, MemoFile, MemoVersion, SearchEngine, Token, Tool, UrlInfo, User } from '../types'
 
 export const http = axios.create({
   baseURL: '/api',
@@ -238,7 +238,7 @@ export const fetchUpdateSearchEnginesSort = async (updates: { id: number; sort: 
   return data
 }
 
-// ==================== 便签（公开读写：单文档整体覆盖 + 历史版本） ====================
+// ==================== 便签（需要登录：单文档整体覆盖 + 历史版本 + 附件） ====================
 
 /** 获取便签 */
 export const fetchGetMemo = async (): Promise<Memo> => {
@@ -270,7 +270,18 @@ export const fetchDeleteMemoVersion = async (id: number): Promise<ApiResult> => 
   return data
 }
 
-// ==================== 日历事件（公开读写） ====================
+/**
+ * 上传便签附件（图片 / 文档），返回可访问地址与原始文件名
+ * 后端限制单个文件不超过 20MB，允许的格式见 service/memo_file.go
+ */
+export const fetchUploadMemoFile = async (file: File): Promise<MemoFile> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await http.post<ApiResult<MemoFile>>('/memo/file', formData)
+  return data.data
+}
+
+// ==================== 日历事件（需要登录） ====================
 
 /** 按月份获取日历事件（month=YYYY-MM，不传返回全部） */
 export const fetchGetCalendarEvents = async (month?: string): Promise<CalendarEvent[]> => {

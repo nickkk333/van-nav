@@ -201,8 +201,17 @@ const setting = computed(() => site.data.setting)
 const siteConfig = computed(() => site.data.siteConfig)
 const isSearching = computed(() => searchString.value.trim() !== '')
 const showGithub = computed(() => setting.value.hideGithub !== true)
-const showCalendar = computed(() => setting.value.hideCalendar !== true)
-const showMemo = computed(() => setting.value.hideMemo !== true)
+
+// ==================== 首页管理（登录后可用：分类内拖拽排序 / 右键删除） ====================
+
+/** 登录后首页卡片支持拖拽排序与右键删除，未登录时保持只读 */
+const canEdit = ref(isLogin())
+/** 搜索结果是临时的（还包含搜索引擎虚拟卡片），搜索时不参与拖拽排序 */
+const canSort = computed(() => canEdit.value && !isSearching.value)
+
+/** 日历与便签是私人数据（后端接口需要登录），未登录时不显示入口 */
+const showCalendar = computed(() => canEdit.value && setting.value.hideCalendar !== true)
+const showMemo = computed(() => canEdit.value && setting.value.hideMemo !== true)
 
 /** 首页全屏背景图：优先使用后台配置的地址，未配置时使用服务端下载的必应每日壁纸 */
 const bgStyle = computed<CSSProperties>(() => {
@@ -328,11 +337,6 @@ const cardGroups = computed<CardGroup[]>(() => {
 })
 
 // ==================== 首页管理（登录后可用：分类内拖拽排序 / 右键删除） ====================
-
-/** 登录后首页卡片支持拖拽排序与右键删除，未登录时保持只读 */
-const canEdit = ref(isLogin())
-/** 搜索结果是临时的（还包含搜索引擎虚拟卡片），搜索时不参与拖拽排序 */
-const canSort = computed(() => canEdit.value && !isSearching.value)
 
 /** 首页全部工具（服务端已按排序值升序返回） */
 const tools = computed<Tool[]>(() => site.data.tools ?? [])

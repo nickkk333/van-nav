@@ -59,12 +59,56 @@
 .pv-rz-se::after { right: 4px; bottom: 4px; width: 9px; height: 9px; border-right: 2px solid var(--el-color-primary); border-bottom: 2px solid var(--el-color-primary); border-radius: 0 0 3px 0; }
 .pv-rz:hover::after { opacity: 0.6; }
 
+/* ==================== 便签浮动窗口 ==================== */
+/* 可拖动的浮动窗口：标题栏拖动移动，松手贴边即吸附并收起成图标 */
+.pv-memo-win { position: fixed; z-index: 1500; display: flex; flex-direction: column; border-radius: 12px; background-color: var(--card-bg); color: var(--text-primary); box-shadow: 0 12px 32px rgba(15, 30, 80, 0.22); overflow: hidden; }
+/* 拖动中：关掉过渡、加强阴影，避免跟手时发飘 */
+.pv-memo-win.dragging { box-shadow: 0 18px 40px rgba(15, 30, 80, 0.32); transition: none; }
+.pv-memo-win-head { display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto; height: 40px; padding: 0 6px 0 14px; border-bottom: 1px solid var(--border-color); cursor: move; touch-action: none; user-select: none; }
+.pv-memo-win-title { font-size: 14px; font-weight: 600; }
+.pv-memo-win-actions { display: flex; align-items: center; gap: 2px; }
+.pv-memo-win-btn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: none; border-radius: 6px; background: none; color: var(--text-secondary); cursor: pointer; transition: color 0.2s, background-color 0.2s; }
+.pv-memo-win-btn:hover { color: var(--el-color-primary); background-color: var(--card-hover-bg); }
+/* 内容区：便签面板撑满，编辑框随窗口高度伸缩 */
+.pv-memo-win-body { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; padding: 10px 14px 14px; overflow: hidden; }
+/* 右下角拖动调整大小 */
+.pv-memo-win-rz { position: absolute; right: 0; bottom: 0; z-index: 2; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none; }
+.pv-memo-win-rz::after { content: ''; position: absolute; right: 4px; bottom: 4px; width: 8px; height: 8px; border-right: 2px solid var(--el-color-primary); border-bottom: 2px solid var(--el-color-primary); border-radius: 0 0 3px 0; opacity: 0; transition: opacity 0.15s; }
+.pv-memo-win-rz:hover::after { opacity: 0.6; }
+
+/* 收起后的便签图标：吸附在屏幕边缘，点击展开 */
+.pv-memo-icon { position: fixed; z-index: 1500; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: none; background-color: var(--card-bg); color: var(--text-secondary); box-shadow: var(--card-shadow); cursor: pointer; transition: color 0.2s, background-color 0.2s; }
+.pv-memo-icon:hover { color: var(--el-color-primary); background-color: var(--card-hover-bg); }
+.pv-memo-icon-right { right: 0; border-radius: 10px 0 0 10px; transform: translateY(-50%); }
+.pv-memo-icon-left { left: 0; border-radius: 0 10px 10px 0; transform: translateY(-50%); }
+.pv-memo-icon-top { top: 0; border-radius: 0 0 10px 10px; transform: translateX(-50%); }
+.pv-memo-icon-bottom { bottom: 0; border-radius: 10px 10px 0 0; transform: translateX(-50%); }
+
 /* 面板撑满内容区：弹窗调高后把多余空间分给日历格子 / 当天事件列表 / 便签编辑区 */
 .pv-cal, .pv-memo { display: flex; flex-direction: column; flex: 1 1 auto; }
 /* 日历格子与当天事件列表各占增长空间，格子等分行高、事件列表超高后滚动 */
 .pv-cal .pv-grid { flex: 1 1 auto; grid-auto-rows: minmax(44px, 1fr); }
 .pv-cal .pv-daybox { flex: 1 1 auto; overflow: auto; }
-/* 便签编辑区填满剩余高度（未调过高度时仍按 textarea 的 rows 自适应，外观不变） */
-.pv-memo .el-textarea { flex: 1 1 auto; min-height: 120px; }
-.pv-memo .el-textarea__inner { height: 100%; resize: none; }
+/* 便签编辑区填满剩余高度 */
+.pv-memo { min-height: 0; }
+/* 工具栏不参与高度压缩，便签内容超高时由编辑区内部滚动（否则会撑破窗口、看不到滚动条） */
+.pv-memo .pv-memo-bar { flex: 0 0 auto; }
+.pv-memo .pv-editor { flex: 1 1 auto; min-height: 120px; }
+
+/* ==================== 便签富文本编辑区 ==================== */
+.pv-editor { position: relative; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--el-border-color); border-radius: 6px; background-color: var(--card-bg); transition: border-color 0.2s; }
+.pv-editor:focus-within { border-color: var(--el-color-primary); }
+.pv-editor.is-dragging { border-color: var(--el-color-primary); border-style: dashed; }
+.pv-editor-body { flex: 1 1 auto; min-height: 100px; padding: 8px 10px; overflow: auto; outline: none; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.pv-editor-placeholder { position: absolute; top: 9px; right: 11px; left: 11px; color: var(--el-text-color-placeholder); font-size: 14px; line-height: 1.6; pointer-events: none; }
+.pv-editor-uploading { position: absolute; right: 8px; bottom: 8px; padding: 2px 8px; border-radius: 10px; background-color: var(--el-color-primary-light-9); color: var(--el-color-primary); font-size: 12px; }
+.pv-editor-input { display: none; }
+/* 内联图片：统一高度、宽度按原比例（两侧不留空、不占整行，宽度超长时等比缩到编辑区宽度），点击可看原图 */
+.pv-editor-body img { display: inline-block; height: 150px; width: auto; max-width: 100%; margin: 4px 2px 4px 0; border-radius: 6px; background-color: var(--tag-bg); object-fit: contain; vertical-align: bottom; cursor: zoom-in; }
+/* 附件卡片：文件图标 + 文件名 */
+.pv-editor-body .pv-file { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin: 2px 0; padding: 3px 10px 3px 4px; border: 1px solid var(--border-color); border-radius: 16px; background-color: var(--tag-bg); color: var(--text-primary); text-decoration: none; vertical-align: middle; cursor: pointer; }
+.pv-editor-body .pv-file:hover { border-color: var(--el-color-primary); color: var(--el-color-primary); }
+.pv-editor-body .pv-file-icon { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; min-width: 26px; height: 22px; padding: 0 5px; border-radius: 11px; background-color: var(--el-color-primary); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 0.3px; }
+.pv-editor-body .pv-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 

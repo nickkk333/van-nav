@@ -105,6 +105,20 @@ export interface MemoVersion {
   createdAt: number
 }
 
+// 便签附件（上传的文件 / 粘贴的图片）
+export interface MemoFile {
+  /** 服务端保存的文件名（附件地址的最后一段） */
+  name: string
+  /** 可直接访问的附件地址 */
+  url: string
+  /** 上传时的原始文件名（附件卡片上显示） */
+  original: string
+  /** 文件大小（字节） */
+  size: number
+  /** 是否图片：图片在便签里内联显示，其它文件显示「图标 + 文件名」卡片 */
+  isImage: boolean
+}
+
 // 日历事件
 export interface CalendarEvent {
   id: number
