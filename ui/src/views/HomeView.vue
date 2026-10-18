@@ -47,7 +47,7 @@
       <div class="record-wraper">
         <a href="https://beian.miit.gov.cn" target="_blank" rel="noreferrer">{{ setting.govRecord }}</a>
       </div>
-      <div class="float-actions">
+      <div class="float-actions" :class="{ 'rail-open': railOpen }">
         <DarkSwitch />
         <ProductivityDock :show-calendar="showCalendar" :show-memo="showMemo" />
         <button
@@ -113,6 +113,22 @@ const toggleContent = () => {
 const hasSearchText = computed(() => searchText.value.trim().length > 0)
 const effectiveHide = computed(() => hideContent.value && !hasSearchText.value)
 const searchBarRef = ref<InstanceType<typeof SearchBar>>()
+
+// ==================== 右下角图标列：默认隐藏，鼠标贴到屏幕右边框才滑出 ====================
+/** 热区宽度：鼠标进入屏幕右侧这么多像素内即显示图标列 */
+const RAIL_HOT_ZONE = 70
+/** 触摸设备没有 hover，保持常显，否则点不到 Github / 管理后台 */
+const railHoverable = window.matchMedia('(hover: hover) and (pointer: fine)').matches
+const railOpen = ref(!railHoverable)
+
+const onRailMove = (e: MouseEvent) => {
+  const open = e.clientX >= window.innerWidth - RAIL_HOT_ZONE
+  if (open !== railOpen.value) railOpen.value = open
+}
+
+const hideRail = () => {
+  railOpen.value = false
+}
 
 // ==================== 域名补全（搜索框 ghost 提示 + Tab 补全 + 回车直访） ====================
 /** 从工具 url 提取域名（取 host 并去掉前导 www.），仅用域名部分参与匹配与补全 */
@@ -585,7 +601,18 @@ const init = async () => {
   }
 }
 
-onMounted(init)
-onBeforeUnmount(() => document.removeEventListener('keydown', onKeyEnter))
+onMounted(() => {
+  init()
+  // 图标列贴边显示：只监听鼠标（触摸设备保持常显）
+  if (railHoverable) {
+    document.addEventListener('mousemove', onRailMove)
+    document.addEventListener('mouseleave', hideRail)
+  }
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKeyEnter)
+  document.removeEventListener('mousemove', onRailMove)
+  document.removeEventListener('mouseleave', hideRail)
+})
 </script>
 

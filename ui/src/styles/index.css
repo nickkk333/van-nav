@@ -637,7 +637,8 @@ body.card-dragging .content.cards .card-box.card-editable {
 
 /* ==================== 悬浮入口 ==================== */
 
-/* 右下角悬浮入口：自上而下依次为主题切换、Github、管理后台 */
+/* 右下角悬浮入口：自上而下依次为主题切换、日历/便签、仅显示搜索框、Github、管理后台 */
+/* 默认隐藏，鼠标贴到屏幕右边框（.rail-open）才滑出 */
 .float-actions {
   position: fixed;
   right: 20px;
@@ -647,6 +648,16 @@ body.card-dragging .content.cards .card-box.card-editable {
   flex-direction: column;
   align-items: center;
   gap: 10px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(16px);
+  transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s;
+}
+
+.float-actions.rail-open {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
 }
 
 .github-link-box,
