@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.0.0] - 2026-09-18
+## [1.0.11] - 2026-10-20
 
 ### 🎉 重构
 
@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🚀 Features
 
+- 工具支持内网网址（选填）：后台工具管理表中「网址」与「描述」之间可编辑保存，新建工具、导入导出与浏览器扩展同步支持；首页点击卡片时先检测内网网址是否可达，可达优先打开内网，不通自动回退外网网址
 - 后台工具列表支持拖拽排序（sortablejs），并保留原有的拼音 + 关键字模糊搜索
 - 后台全部表单/表格改用 Element Plus 组件，交互与提示文案与旧版保持一致
 - 暗色主题改用 Element Plus 官方 `html.dark` 变量体系，支持自动/浅色/深色三种模式
