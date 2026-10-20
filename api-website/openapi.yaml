@@ -19,6 +19,9 @@ components:
           type: string
         url:
           type: string
+        internalUrl:
+          type: string
+          description: 内网网址（选填，留空表示没有）。首页点击卡片时优先访问，检测不通时回退到 url
         logo:
           type: string
           description: 图标地址（http 外链或本地图片地址），不含图片内容
@@ -46,6 +49,9 @@ components:
           type: string
         url:
           type: string
+        internalUrl:
+          type: string
+          description: 内网网址（选填，留空表示没有）
         logo:
           type: string
         desc:
@@ -69,6 +75,9 @@ components:
           type: string
         url:
           type: string
+        internalUrl:
+          type: string
+          description: 内网网址（选填，留空表示没有）
         logo:
           type: string
         desc:

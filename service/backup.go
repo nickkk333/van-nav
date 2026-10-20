@@ -151,11 +151,12 @@ func importCatelogs(tx *sql.Tx, catelogs []types.Catelog) error {
 // importTools 导入工具：同 id 覆盖，没出现在备份里的工具保持不动
 func importTools(tx *sql.Tx, tools []types.Tool) error {
 	stmt, err := tx.Prepare(`
-		INSERT INTO nav_table (id, name, url, logo, logo_name, catelog, "desc", sort, "hide", "default")
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO nav_table (id, name, url, internal_url, logo, logo_name, catelog, "desc", sort, "hide", "default")
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			url = excluded.url,
+			internal_url = excluded.internal_url,
 			logo = excluded.logo,
 			logo_name = excluded.logo_name,
 			catelog = excluded.catelog,
@@ -174,8 +175,9 @@ func importTools(tx *sql.Tx, tools []types.Tool) error {
 		if name == "" {
 			continue
 		}
+		internalUrl := strings.TrimSpace(tool.InternalUrl)
 		if tool.Id > 0 {
-			if _, err = stmt.Exec(tool.Id, name, tool.Url, tool.Logo, tool.LogoName, tool.Catelog, tool.Desc,
+			if _, err = stmt.Exec(tool.Id, name, tool.Url, internalUrl, tool.Logo, tool.LogoName, tool.Catelog, tool.Desc,
 				tool.Sort, tool.Hide, tool.Default); err != nil {
 				return err
 			}
@@ -183,9 +185,9 @@ func importTools(tx *sql.Tx, tools []types.Tool) error {
 		}
 		// 手工编辑过的备份可能没有 id，按新增处理，交给自增主键分配
 		if _, err = tx.Exec(`
-			INSERT INTO nav_table (name, url, logo, logo_name, catelog, "desc", sort, "hide", "default")
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-			`, name, tool.Url, tool.Logo, tool.LogoName, tool.Catelog, tool.Desc, tool.Sort, tool.Hide, tool.Default); err != nil {
+			INSERT INTO nav_table (name, url, internal_url, logo, logo_name, catelog, "desc", sort, "hide", "default")
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+			`, name, tool.Url, internalUrl, tool.Logo, tool.LogoName, tool.Catelog, tool.Desc, tool.Sort, tool.Hide, tool.Default); err != nil {
 			return err
 		}
 	}

@@ -48,6 +48,9 @@ type Tool struct {
 	Id   int    `json:"id"`
 	Name string `json:"name"`
 	Url  string `json:"url"`
+	// InternalUrl 内网网址：选填，留空表示没有内网地址。首页点击卡片时优先访问它，
+	// 检测不通（超时/无法连接）时自动回退到 Url
+	InternalUrl string `json:"internalUrl"`
 	// Logo 图标网址：保存可以下载到图片的 url 地址（抓取到的网站图标地址等）
 	Logo string `json:"logo"`
 	// LogoName 图标图片名：图片下载保存到 data 目录（data/images）后的文件名，前台优先用它读本地图片

@@ -123,6 +123,7 @@ func InitDB() {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			'name' TEXT,
 			url TEXT,
+			internal_url TEXT,
 			logo TEXT,
 			logo_name TEXT,
 			catelog TEXT,
@@ -153,6 +154,13 @@ func InitDB() {
 			WHERE logo LIKE '/api/uploadedImage/%' AND (logo_name IS NULL OR logo_name = '');`)
 		// 其余老记录没有图片名，统一置成空字符串，避免出现 NULL
 		DB.Exec(`UPDATE nav_table SET logo_name = '' WHERE logo_name IS NULL;`)
+	}
+
+	// tools数据表结构升级-20261020：内网网址（选填，留空表示没有内网地址）
+	// 首页点击卡片时优先访问内网网址，检测不通时回退到外网网址（url）
+	if !columnExists("nav_table", "internal_url") {
+		DB.Exec(`ALTER TABLE nav_table ADD COLUMN internal_url TEXT;`)
+		DB.Exec(`UPDATE nav_table SET internal_url = '' WHERE internal_url IS NULL;`)
 	}
 
 	// 分类表

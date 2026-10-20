@@ -73,6 +73,8 @@ export const generateSearchEngineCards = async (searchString: string): Promise<T
         id: 8800880000 + engine.id, // 使用特定 ID 前缀避免与工具冲突
         name: `使用 ${engine.name} 搜索`,
         url: generateSearchUrl(engine.baseUrl, engine.queryParam, keyword),
+        // 虚拟卡片没有内网网址
+        internalUrl: '',
         desc: `在 ${engine.name} 中搜索 「${keyword}」`,
         logo: engine.logo,
         // 虚拟卡片没有本机图片名，直接按搜索引擎的 logo 地址显示

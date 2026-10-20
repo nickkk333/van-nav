@@ -88,6 +88,7 @@ import { displayCatelog, isLogin } from '../utils/check'
 import { multiSearch, pinyinReady } from '../utils/match'
 import { generateSearchEngineCards, getDefaultSearchEngineUrl } from '../utils/searchEngine'
 import { DEFAULT_BACKGROUND_IMAGE, DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW, initServerJumpTargetConfig, toggleJumpTarget } from '../utils/setting'
+import { normalizeInternalUrl, resolveToolTargetUrl } from '../utils/toolUrl'
 import type { Tool } from '../types'
 
 const DEFAULT_TAG = '默认'
@@ -201,8 +202,8 @@ const submitSearch = async () => {
     resetSearch()
     return
   }
-  if (firstToolCardUrl.value) {
-    window.open(firstToolCardUrl.value, '_blank')
+  if (firstToolCard.value) {
+    void openCardUrl(firstToolCard.value)
     resetSearch()
     return
   }
@@ -291,8 +292,31 @@ const filteredData = computed<Tool[]>(() => {
   return isSearching.value ? [...localToolResults.value, ...engineCards.value] : localToolResults.value
 })
 
-/** 回车优先打开的第一个工具卡片地址（不含搜索引擎卡片）；没有则为空 */
-const firstToolCardUrl = computed(() => localToolResults.value[0]?.url ?? '')
+/** 回车优先打开的第一个工具卡片（不含搜索引擎卡片）；没有则为空 */
+const firstToolCard = computed<Tool | undefined>(() => localToolResults.value[0])
+
+/**
+ * 在新标签页打开卡片地址：配置了内网网址时先探测内网是否可达，可达打开内网网址，不通回退外网网址。
+ * 探测是异步的，先同步开一个空标签页再写入地址，避免异步 window.open 被浏览器拦截。
+ */
+const openCardUrl = async (tool: Pick<Tool, 'url' | 'internalUrl'>) => {
+  if (!normalizeInternalUrl(tool.internalUrl)) {
+    window.open(tool.url, '_blank')
+    return
+  }
+  const preOpened = window.open('', '_blank')
+  const url = await resolveToolTargetUrl(tool.url, tool.internalUrl)
+  if (!url) {
+    preOpened?.close()
+    return
+  }
+  if (preOpened && !preOpened.closed) {
+    preOpened.opener = null
+    preOpened.location.replace(url)
+    return
+  }
+  window.open(url, '_blank')
+}
 
 /** 首页渲染用的卡片项：index 同时用于搜索序号与列表 key */
 interface CardItem {
@@ -547,7 +571,7 @@ const onKeyEnter = (ev: KeyboardEvent) => {
     ev.preventDefault()
     const index = num - 1
     if (index >= 0 && index < cards.length) {
-      window.open(cards[index].url, '_blank')
+      void openCardUrl(cards[index])
       resetSearch()
     }
   }

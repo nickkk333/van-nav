@@ -167,9 +167,9 @@ func ResolveUpdatedToolLogo(name string, siteUrl string, logo string, logoName s
 func UpdateTool(data types.UpdateToolDto) {
 	_, err := database.DB.Exec(`
 		UPDATE nav_table
-		SET name = ?, url = ?, logo = ?, logo_name = ?, catelog = ?, "desc" = ?, sort = ?, "hide" = ?, "default" = ?
+		SET name = ?, url = ?, internal_url = ?, logo = ?, logo_name = ?, catelog = ?, "desc" = ?, sort = ?, "hide" = ?, "default" = ?
 		WHERE id = ?;
-		`, data.Name, data.Url, data.Logo, data.LogoName, data.Catelog, data.Desc, data.Sort, data.Hide, data.Default, data.Id)
+		`, data.Name, data.Url, data.InternalUrl, data.Logo, data.LogoName, data.Catelog, data.Desc, data.Sort, data.Hide, data.Default, data.Id)
 	utils.CheckErr(err)
 	// 图片已经下载到 data/images 时不需要再缓存到数据库，前台直接读本地图片
 	if strings.TrimSpace(data.LogoName) == "" {
@@ -231,9 +231,9 @@ func AddTool(data types.AddToolDto) (int64, error) {
 	}
 
 	res, err := tx.Exec(`
-		INSERT INTO nav_table (name, url, logo, logo_name, catelog, "desc", sort, "hide", "default")
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-		`, data.Name, data.Url, data.Logo, data.LogoName, data.Catelog, data.Desc, data.Sort, data.Hide, data.Default)
+		INSERT INTO nav_table (name, url, internal_url, logo, logo_name, catelog, "desc", sort, "hide", "default")
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		`, data.Name, data.Url, data.InternalUrl, data.Logo, data.LogoName, data.Catelog, data.Desc, data.Sort, data.Hide, data.Default)
 	if err != nil {
 		return 0, err
 	}
@@ -276,7 +276,7 @@ func AddTool(data types.AddToolDto) (int64, error) {
 // GetAllTool 获取全部工具（按排序升序）
 func GetAllTool() []types.Tool {
 	rows, err := database.DB.Query(`
-		SELECT id, name, url, logo, logo_name, catelog, "desc", sort, "hide", "default"
+		SELECT id, name, url, internal_url, logo, logo_name, catelog, "desc", sort, "hide", "default"
 		FROM nav_table ORDER BY sort;
 		`)
 	if err != nil {
@@ -289,15 +289,17 @@ func GetAllTool() []types.Tool {
 	for rows.Next() {
 		var tool types.Tool
 		var (
-			logoName sql.NullString
-			sortVal  sql.NullInt64
-			hide     sql.NullBool
-			defVal   sql.NullBool
+			internalUrl sql.NullString
+			logoName    sql.NullString
+			sortVal     sql.NullInt64
+			hide        sql.NullBool
+			defVal      sql.NullBool
 		)
-		if err = rows.Scan(&tool.Id, &tool.Name, &tool.Url, &tool.Logo, &logoName, &tool.Catelog, &tool.Desc, &sortVal, &hide, &defVal); err != nil {
+		if err = rows.Scan(&tool.Id, &tool.Name, &tool.Url, &internalUrl, &tool.Logo, &logoName, &tool.Catelog, &tool.Desc, &sortVal, &hide, &defVal); err != nil {
 			utils.CheckErr(err)
 			continue
 		}
+		tool.InternalUrl = internalUrl.String
 		tool.LogoName = logoName.String
 		tool.Sort = int(sortVal.Int64)
 		tool.Hide = hide.Bool

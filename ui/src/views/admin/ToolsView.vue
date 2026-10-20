@@ -4,7 +4,7 @@
       <div class="card-header">
         <div class="card-header-left">
           <span class="card-header-title">{{ `当前共 ${allTools.length} 条` }}</span>
-          <span class="card-header-tip">名称、分类、描述、logo 网址可直接修改，失焦/回车后自动保存；网址与 logo 图片名为只读，没有本地图标图片的行可以直接上传一张</span>
+          <span class="card-header-tip">名称、分类、内网网址、描述、logo 网址可直接修改，失焦/回车后自动保存；网址与 logo 图片名为只读，没有本地图标图片的行可以直接上传一张</span>
           <template v-if="selectedRows.length">
             <el-popconfirm title="确定删除这些吗？" @confirm="handleBulkDelete">
               <template #reference>
@@ -109,6 +109,22 @@
           <span class="readonly-cell" :class="{ 'is-empty': !row.url }" :title="row.url || ''">
             {{ row.url || '-' }}
           </span>
+        </template>
+      </el-table-column>
+      <el-table-column label="内网网址" min-width="180">
+        <template #header>
+          <span class="column-with-tip">
+            内网网址
+            <el-tooltip
+              content="选填，留空表示没有内网地址。首页点击卡片时先检测该地址是否可达：可达就打开内网网址，不通（超时/连不上）则回退到外网网址"
+              placement="top"
+            >
+              <el-icon><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </span>
+        </template>
+        <template #default="{ row }">
+          <el-input v-model="row.internalUrl" placeholder="选填，留空表示没有内网地址" @change="saveRow(row)" />
         </template>
       </el-table-column>
       <el-table-column label="描述" min-width="150">
@@ -240,6 +256,12 @@
           </div>
         </div>
       </el-form-item>
+      <el-form-item label="内网网址" prop="internalUrl">
+        <el-input v-model="addForm.internalUrl" placeholder="选填，内网地址（以 http:// 或 https:// 开头），留空表示没有" />
+        <div class="form-tip">
+          <span>选填：首页点击卡片时优先访问内网网址，检测不通时自动回退到上面的外网网址</span>
+        </div>
+      </el-form-item>
       <el-form-item label="名称" prop="name">
         <el-input v-model="addForm.name" placeholder="请输入工具名称" />
       </el-form-item>
@@ -312,6 +334,8 @@ interface ToolForm {
   id?: number
   name: string
   url: string
+  /** 内网网址：选填，留空表示没有内网地址 */
+  internalUrl: string
   /** 图标网址：可以下载到图片的 url 地址 */
   logo: string
   /** 图标图片名：图片保存到 data 目录（data/images）后的文件名 */
@@ -326,6 +350,7 @@ interface ToolForm {
 const createEmptyForm = (): ToolForm => ({
   name: '',
   url: '',
+  internalUrl: '',
   logo: '',
   logoName: '',
   catelog: '',
@@ -388,6 +413,20 @@ const toolRules: FormRules = {
   url: [
     { required: true, message: '请填写网址', trigger: 'blur' },
     { pattern: /^https?:\/\//, message: '网址必须以 http:// 或 https:// 开头', trigger: 'blur' },
+  ],
+  // 内网网址选填：留空不校验，填了就必须是 http(s) 地址
+  internalUrl: [
+    {
+      validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
+        const text = String(value ?? '').trim()
+        if (text && !/^https?:\/\//i.test(text)) {
+          callback(new Error('内网网址必须以 http:// 或 https:// 开头，留空表示没有'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur',
+    },
   ],
   catelog: [{ required: true, message: '请选择分类', trigger: 'change' }],
 }
@@ -485,6 +524,7 @@ const pickRow = (row: Tool): Tool => ({
   id: row.id,
   name: row.name,
   url: row.url,
+  internalUrl: row.internalUrl,
   logo: row.logo,
   logoName: row.logoName,
   catelog: row.catelog,
@@ -512,6 +552,7 @@ const isDirty = (row: Tool) => {
   return (
     row.name !== snap.name ||
     row.url !== snap.url ||
+    row.internalUrl !== snap.internalUrl ||
     row.logo !== snap.logo ||
     row.logoName !== snap.logoName ||
     row.catelog !== snap.catelog ||
@@ -537,6 +578,11 @@ const validateRow = (row: Tool) => {
   if (!/^https?:\/\//.test(String(row.url).trim())) {
     return '网址必须以 http:// 或 https:// 开头'
   }
+  // 内网网址选填：留空表示没有内网地址
+  const internalUrl = String(row.internalUrl ?? '').trim()
+  if (internalUrl && !/^https?:\/\//i.test(internalUrl)) {
+    return '内网网址必须以 http:// 或 https:// 开头，留空表示没有'
+  }
   return ''
 }
 
@@ -559,6 +605,8 @@ const saveRow = async (row: Tool) => {
     !before || logo !== String(before.logo ?? '').trim() || logoName !== String(before.logoName ?? '').trim()
   savingMap[row.id] = true
   try {
+    // 内网网址选填：去空格后写回该行，留空即没有内网地址
+    row.internalUrl = String(row.internalUrl ?? '').trim()
     const res = await fetchUpdateTool({
       ...pickRow(row),
       name: String(row.name).trim(),
@@ -699,7 +747,7 @@ const handleCreate = async () => {
   try {
     // 排序落点（-1/负数排到最后、0 或留空排到最前、正数插入到该序号）与全表排序值重排
     // 统一由后端 /admin/tool 处理，前端只负责提交表单
-    const res = await fetchAddTool({ ...addForm })
+    const res = await fetchAddTool({ ...addForm, internalUrl: String(addForm.internalUrl ?? '').trim() })
     if (res.success === false) {
       ElMessage.warning(res.errorMessage || '添加失败')
       return

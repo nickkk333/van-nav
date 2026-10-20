@@ -5,6 +5,7 @@
     :href="isToggleCard ? undefined : tool.url"
     :target="target"
     rel="noreferrer"
+    @pointerenter="onPointerEnter"
     @pointerdown="onPointerDown"
     @pointerup="endPress"
     @pointercancel="endPress"
@@ -45,6 +46,13 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import LogoFallback from './LogoFallback.vue'
 import { displayCatelog, customDefaultLogo, DEFAULT_LOGO_URL, getToolLogoUrl, hasToolLogo } from '../utils/check'
 import { getJumpTarget } from '../utils/setting'
+import {
+  getCachedInternalReachability,
+  normalizeInternalUrl,
+  openToolUrl,
+  prefetchInternalReachability,
+  resolveToolTargetUrl,
+} from '../utils/toolUrl'
 import type { Tool } from '../types'
 
 const props = defineProps<{
@@ -144,6 +152,24 @@ const onClick = (event: MouseEvent) => {
     return
   }
   emit('click', props.tool)
+  // 配置了内网网址的卡片：先判断内网是否可达，再决定打开内网还是外网地址。
+  // Ctrl/Cmd/Shift 点击与中键点击保留浏览器默认行为（直接按外网网址在新标签页打开）
+  if (isToggleCard.value || !internalUrl.value) {
+    return
+  }
+  if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+    return
+  }
+  event.preventDefault()
+  // 鼠标悬停时已经探测过：直接同步跳转（异步跳转容易被浏览器当成弹窗拦掉）
+  const cached = getCachedInternalReachability(internalUrl.value)
+  if (cached !== undefined) {
+    openToolUrl(cached ? internalUrl.value : props.tool.url || internalUrl.value)
+    return
+  }
+  // 还没有探测结果：新标签页模式下先同步开一个空窗口，探测结束后再写入地址，避免异步跳转被拦截
+  const preOpened = getJumpTarget() === 'blank' ? window.open('', '_blank') : null
+  void openByPriority(preOpened)
 }
 
 /** 登录后拦截右键菜单用于删除工具，未登录时保留浏览器默认菜单（可新标签页打开等） */
@@ -171,6 +197,37 @@ const initialName = computed(() => props.tool.logoText || props.tool.name)
 
 const target = computed(() => (getJumpTarget() === 'blank' ? '_blank' : '_self'))
 const showNumIndex = computed(() => props.index < 10 && props.isSearching)
+
+/** 内网网址（选填）：留空时卡片仍按外网网址直接跳转 */
+const internalUrl = computed(() => normalizeInternalUrl(props.tool.internalUrl))
+
+/** 鼠标移到卡片上时先探测一次内网网址，点击时通常已有结果 */
+const onPointerEnter = (event: PointerEvent) => {
+  if (event.pointerType !== 'mouse' || !internalUrl.value) {
+    return
+  }
+  prefetchInternalReachability(internalUrl.value)
+}
+
+/** 内网优先、不通回退外网：探测结束后再打开地址；preOpened 是探测前先同步开好的空标签页 */
+const openByPriority = async (preOpened?: Window | null) => {
+  const url = await resolveToolTargetUrl(props.tool.url, internalUrl.value)
+  if (!url) {
+    preOpened?.close()
+    return
+  }
+  if (getJumpTarget() !== 'blank') {
+    preOpened?.close()
+    window.location.href = url
+    return
+  }
+  if (preOpened && !preOpened.closed) {
+    preOpened.opener = null
+    preOpened.location.replace(url)
+    return
+  }
+  openToolUrl(url)
+}
 
 const resetImageState = () => {
   imageLoaded.value = false

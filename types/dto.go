@@ -40,6 +40,8 @@ type UpdateToolDto struct {
 	Id   int    `json:"id"`
 	Name string `json:"name"`
 	Url  string `json:"url"`
+	// InternalUrl 内网网址：选填，留空表示没有内网地址（前台点击卡片时优先访问，不通则回退到 Url）
+	InternalUrl string `json:"internalUrl"`
 	// Logo 图标网址（可以下载到图片的 url），留空/外链/本机不存在的本地图片时保存会重新获取
 	Logo string `json:"logo"`
 	// LogoName 保存到 data 目录的图片名（data/images 下的文件名），留空表示还没有本地图片
@@ -53,6 +55,8 @@ type UpdateToolDto struct {
 type AddToolDto struct {
 	Name string `json:"name"`
 	Url  string `json:"url"`
+	// InternalUrl 内网网址：选填，留空表示没有内网地址（前台点击卡片时优先访问，不通则回退到 Url）
+	InternalUrl string `json:"internalUrl"`
 	// Logo 图标网址（可以下载到图片的 url），留空/外链时保存会按网址自动获取
 	Logo string `json:"logo"`
 	// LogoName 保存到 data 目录的图片名（data/images 下的文件名），留空表示还没有本地图片
