@@ -43,7 +43,7 @@
           />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="150" fixed="right">
+      <el-table-column label="操作" width="150" :fixed="isMobile ? false : 'right'">
         <template #default="{ row }">
           <el-button link type="primary" @click="openEdit(row)">修改</el-button>
           <el-popconfirm :title="`确定要删除 ${row.name} 吗？`" @confirm="handleDelete(row.id)">
@@ -126,6 +126,7 @@ import {
   fetchUpdateSearchEnginesSort,
   resolveError,
 } from '../../api'
+import { useIsMobile } from '../../composables/useIsMobile'
 import { useTableSortable } from '../../composables/useTableSortable'
 import LogoFallback from '../../components/LogoFallback.vue'
 import { clearSearchEngineCache } from '../../utils/searchEngine'
@@ -147,6 +148,9 @@ const createEmptyForm = (): EngineForm => ({
   logo: '',
   enabled: true,
 })
+
+/** 手机布局：操作列不再固定到右侧（固定列会遮住窄屏里本就不多的内容） */
+const isMobile = useIsMobile()
 
 const engines = ref<SearchEngine[]>([])
 const loading = ref(false)

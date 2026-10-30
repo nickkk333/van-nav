@@ -43,6 +43,10 @@ body {
   color: var(--text-primary);
   font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
     Arial, sans-serif;
+  /* 手机浏览器：禁止横屏/双击自动放大字号，去掉点按时的蓝色高亮块 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #app {
@@ -117,6 +121,8 @@ body {
   flex-direction: column;
   margin: 0 auto;
   height: 100vh;
+  /* 手机浏览器地址栏收起/展开时 100vh 会跳动，dvh 跟随可视高度（不支持时保留上面的 100vh） */
+  height: 100dvh;
   overflow: hidden;
   padding-top: 9vh;
 }
@@ -901,6 +907,7 @@ body.card-dragging .content.cards .card-box.card-editable {
 
 .admin-layout {
   height: 100vh;
+  height: 100dvh;
 }
 
 .admin-header {
@@ -1180,4 +1187,213 @@ body.card-dragging .content.cards .card-box.card-editable {
 .sortable-ghost {
   opacity: 0.6;
   background-color: var(--el-fill-color-light) !important;
+}
+
+/* ==================== 手机 / 触屏适配 ==================== */
+
+/* 触屏没有真正的悬停：点完卡片后去掉残留的“浮起”状态，避免看起来像是一直选中 */
+@media (hover: none) {
+  .card-box:hover {
+    transform: none;
+    box-shadow: none;
+    background-color: var(--card-bg);
+  }
+  .admin-link-box:hover,
+  .github-link-box:hover,
+  .theme-switch-box:hover,
+  .content-toggle:hover,
+  .pv-dock-btn:hover {
+    transform: none;
+  }
+}
+
+/* 平板 / 大屏手机：输入框字号不小于 16px，iOS 聚焦时就不会自动放大页面 */
+@media (max-width: 768px) {
+  .search-input .el-input__inner {
+    font-size: 16px;
+  }
+
+  /* ============ 管理后台：侧边栏改为顶部分类栏，内容区占满整宽 ============ */
+  .admin-header {
+    padding: 0 12px;
+  }
+  .admin-header-title {
+    font-size: 14px;
+  }
+  .admin-header-actions {
+    gap: 8px;
+  }
+  .admin-body {
+    flex-direction: column;
+    flex: 1;
+    height: auto;
+    min-height: 0;
+  }
+  .admin-aside {
+    width: 100% !important;
+    flex-shrink: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+  /* 横向导航栏：可左右滑动，高度比默认 60px 矮一些 */
+  .admin-menu.el-menu--horizontal {
+    --el-menu-horizontal-height: 46px;
+    height: 46px;
+    overflow-x: auto;
+    border-bottom: none;
+    scrollbar-width: none;
+  }
+  .admin-menu::-webkit-scrollbar {
+    display: none;
+  }
+  .admin-menu .el-menu-item {
+    flex: 0 0 auto;
+    height: 46px;
+    line-height: 46px;
+  }
+  .collapse-btn {
+    display: none;
+  }
+  .admin-main {
+    padding: 8px;
+  }
+  /* 后台卡片内边距收窄，给表格留出更多横向空间 */
+  .admin-card {
+    --el-card-padding: 12px;
+  }
+  .admin-card .el-card__header {
+    padding: 12px;
+  }
+  /* 卡片头：标题不换行，说明文字独占一行，避免窄屏被挤成竖排 */
+  .card-header-left {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .card-header-title {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .card-header-tip {
+    flex: 1 1 100%;
+  }
+  .card-header-right {
+    width: 100%;
+  }
+  .filter-select,
+  .filter-input {
+    flex: 1 1 140px;
+    width: auto;
+  }
+  .table-pagination {
+    justify-content: center;
+  }
+  .table-pagination .el-pagination__sizes,
+  .table-pagination .el-pagination__jump {
+    display: none;
+  }
+  .token-text {
+    max-width: 100%;
+  }
+}
+
+/* 手机：表单标签换到输入框上方，弹窗使用接近全屏的宽度 */
+@media (max-width: 640px) {
+  .el-form:not(.el-form--inline) .el-form-item {
+    display: block;
+  }
+  .el-form:not(.el-form--inline) .el-form-item__label {
+    display: block;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 0 4px;
+    padding: 0;
+    line-height: 1.5;
+    text-align: left;
+  }
+  .el-form:not(.el-form--inline) .el-form-item__content {
+    margin-left: 0 !important;
+    min-width: 0;
+  }
+  /* 弹窗：接近全屏宽度，高度不超过视口，内容区可滚动（否则底部按钮会被挤出屏幕） */
+  .el-dialog {
+    display: flex;
+    flex-direction: column;
+    width: 92% !important;
+    max-width: 92vw;
+    max-height: 90vh;
+    margin-top: 5vh !important;
+  }
+  .el-dialog__header,
+  .el-dialog__footer {
+    flex: 0 0 auto;
+  }
+  .el-dialog__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 12px 16px !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .el-message-box {
+    width: 90% !important;
+  }
+  .el-pagination {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+}
+
+/* 手机：首页更紧凑，分类多时横向滑动，悬浮入口缩小 */
+@media (max-width: 500px) {
+  .main {
+    padding-top: calc(18px + env(safe-area-inset-top));
+  }
+  .topbar {
+    padding: 0 10px;
+  }
+  .search {
+    margin-bottom: 10px;
+  }
+  .search-btn {
+    flex-basis: 48px;
+  }
+  .tag-selector {
+    justify-content: center;
+    justify-content: safe center;
+    overflow-x: auto;
+    padding: 0 2px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tag-selector::-webkit-scrollbar {
+    display: none;
+  }
+  .tag-selector-wrapper {
+    flex-wrap: nowrap;
+  }
+  .select-tag {
+    flex: 0 0 auto;
+  }
+  .content.cards {
+    padding: 8px 10px 150px;
+  }
+  .record-wraper {
+    bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+  .record-wraper > a {
+    padding: 2px 10px;
+    font-size: 11px;
+  }
+  .float-actions {
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+  .github-link-box,
+  .admin-link-box,
+  .theme-switch-box,
+  .content-toggle {
+    width: 36px;
+    height: 36px;
+  }
 }

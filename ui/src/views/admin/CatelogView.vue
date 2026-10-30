@@ -70,7 +70,7 @@
           <el-switch v-model="row.default" inline-prompt active-text="开" inactive-text="关" @change="saveRow(row)" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="140" fixed="right">
+      <el-table-column label="操作" width="140" :fixed="isMobile ? false : 'right'">
         <template #default="{ row }">
           <span v-if="isSaving(row)" class="cell-status">保存中…</span>
           <template v-else-if="isDirty(row)">
@@ -135,6 +135,7 @@ import {
   resolveError,
 } from '../../api'
 import { useAdminStore } from '../../stores/admin'
+import { useIsMobile } from '../../composables/useIsMobile'
 import { useTableSortable } from '../../composables/useTableSortable'
 import type { Catelog } from '../../types'
 
@@ -149,6 +150,8 @@ interface CatelogForm {
 const createEmptyForm = (): CatelogForm => ({ name: '', sort: -1, hide: false, default: true })
 
 const adminStore = useAdminStore()
+/** 手机布局：操作列不再固定到右侧（固定列会遮住窄屏里本就不多的内容） */
+const isMobile = useIsMobile()
 const loading = computed(() => adminStore.loading)
 const catelogs = computed<Catelog[]>(() => adminStore.store.catelogs ?? [])
 /** 表格数据：按排序值升序，拖动后立即按新顺序渲染 */

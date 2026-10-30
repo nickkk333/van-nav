@@ -25,7 +25,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="120" fixed="right">
+      <el-table-column label="操作" width="120" :fixed="isMobile ? false : 'right'">
         <template #default="{ row }">
           <el-popconfirm :title="`确定要删除 Token ${row.name} 吗？`" @confirm="handleDelete(row.id)">
             <template #reference>
@@ -57,9 +57,12 @@ import { CopyDocument, Plus, Refresh } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { fetchAddApiToken, fetchDeleteApiToken, resolveError } from '../../api'
 import { useAdminStore } from '../../stores/admin'
+import { useIsMobile } from '../../composables/useIsMobile'
 import type { Token } from '../../types'
 
 const adminStore = useAdminStore()
+/** 手机布局：操作列不再固定到右侧（固定列会遮住窄屏里本就不多的内容） */
+const isMobile = useIsMobile()
 const loading = computed(() => adminStore.loading)
 const tokens = computed<Token[]>(() => adminStore.store.tokens ?? [])
 

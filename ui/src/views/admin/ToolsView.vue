@@ -202,7 +202,7 @@
           <el-switch v-model="row.default" inline-prompt active-text="开" inactive-text="关" @change="saveRow(row)" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="140" fixed="right">
+      <el-table-column label="操作" width="140" :fixed="isMobile ? false : 'right'">
         <template #default="{ row }">
           <span v-if="isSaving(row)" class="cell-status">保存中…</span>
           <template v-else-if="isDirty(row)">
@@ -323,6 +323,7 @@ import {
   resolveError,
 } from '../../api'
 import { useAdminStore } from '../../stores/admin'
+import { useIsMobile } from '../../composables/useIsMobile'
 import { useTableSortable } from '../../composables/useTableSortable'
 import LogoFallback from '../../components/LogoFallback.vue'
 import { multiSearch, pinyinReady } from '../../utils/match'
@@ -369,6 +370,9 @@ const allTools = computed<Tool[]>(() => store.value.tools ?? [])
 const catelogOptions = computed(() =>
   (store.value.catelogs ?? []).map((item) => ({ label: item.name, value: item.name }))
 )
+
+/** 手机布局：操作列不再固定到右侧（固定列会遮住窄屏里本就不多的内容） */
+const isMobile = useIsMobile()
 
 const tableRef = ref()
 const addFormRef = ref<FormInstance>()

@@ -126,5 +126,8 @@ data/
 *.py
 requirements.txt
 
+# CodeBuddy 自动验证的临时锁文件
+.codebuddy/hooks/.verify.lock
+
 .DS_Store
 /.idea

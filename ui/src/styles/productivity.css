@@ -111,4 +111,17 @@
 .pv-editor-body .pv-file-icon { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; min-width: 26px; height: 22px; padding: 0 5px; border-radius: 11px; background-color: var(--el-color-primary); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 0.3px; }
 .pv-editor-body .pv-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ==================== 手机适配 ==================== */
+@media (max-width: 500px) {
+  /* 悬浮入口缩小，避免在手机上遮住太多卡片 */
+  .pv-dock { gap: 8px; }
+  .pv-dock-btn { width: 36px; height: 36px; }
+  /* 便签窗口：宽度由脚本按视口收敛，这里再兜一层，防止历史尺寸撑出屏幕 */
+  .pv-memo-win { max-width: calc(100vw - 16px); }
+  .pv-memo-win-body { padding: 8px 10px 10px; }
+  /* 日历事件表单里的日期/时间选择器占满一行 */
+  .pv-time-row { flex-wrap: wrap; }
+  .pv-time-row .el-date-editor { width: 100%; }
+}
+
 

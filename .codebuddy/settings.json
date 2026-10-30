@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|write_to_file|replace_in_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .codebuddy/hooks/verify.mjs",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}
