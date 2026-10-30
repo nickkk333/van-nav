@@ -2,16 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.13] - 2026-10-30
+
+### ⚙️ Miscellaneous Tasks
+
+- 移除 `.codebuddy` 自动验证钩子：修改文件后不再自动执行 `go vet ./...` / `npm run type-check`
+
 ## [1.0.12] - 2026-10-30
 
 ### 🚀 Features
 
 - 页面适配手机浏览器：首页改用 `100dvh` 与安全区留白，输入框字号 16px 避免 iOS 聚焦时自动放大，分类标签支持横向滑动，悬浮入口在窄屏缩小
 - 管理后台手机布局：≤768px 侧边栏改为顶部横向导航（可左右滑动，切换页面自动滚动到当前项），筛选控件与卡片头自适应换行，分页精简，表格操作列不再固定，弹窗限高且内容区可滚动，表单标签移到输入框上方
-
-### ⚙️ Miscellaneous Tasks
-
-- 新增 `.codebuddy` 钩子：改动 Go 源码自动执行 `go vet ./...`，改动前端源码自动执行 `npm run type-check`，失败时把错误摘要回传，便于继续修复
 
 ## [1.0.11] - 2026-10-20
 
