@@ -12,6 +12,10 @@
           @search="onSearchSubmit"
         />
         <TagSelector :tags="tags" :curr-tag="currTag" @change="handleSetCurrTag" />
+        <div v-if="editMode" class="edit-mode-bar">
+          <span class="edit-mode-text">设置模式：拖动卡片排序，点击卡片右上角 × 删除</span>
+          <button type="button" class="edit-mode-done" @click="exitEditMode">完成</button>
+        </div>
       </div>
       <div class="content-wraper">
         <div
@@ -35,9 +39,12 @@
                 :is-searching="isSearching"
                 :no-image-mode="siteConfig.noImageMode"
                 :compact-mode="siteConfig.compactMode"
-                :editable="canEdit"
+                :editable="canEdit && manageableIds.has(item.tool.id)"
+                :edit-mode="editMode"
                 @click="handleCardClick"
                 @contextmenu="handleCardContextMenu"
+                @delete="handleDeleteCard"
+                @longpress="enterEditMode"
               />
             </div>
           </div>
@@ -65,6 +72,21 @@
         <AdminLink />
       </div>
     </div>
+    <!-- 卡片右键菜单：只提供一个「设置」入口，避免和浏览器菜单混在一起 -->
+    <Teleport to="body">
+      <div
+        v-if="cardMenu.visible"
+        class="card-context-menu"
+        :style="{ left: `${cardMenu.x}px`, top: `${cardMenu.y}px` }"
+        @pointerdown.stop
+        @contextmenu.prevent
+      >
+        <button type="button" class="card-context-menu-item" @click="enterEditMode">
+          <el-icon><Setting /></el-icon>
+          <span>设置</span>
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -81,6 +103,7 @@ import Loading from '../components/Loading.vue'
 import ProductivityDock from '../components/productivity/ProductivityDock.vue'
 import { isTypingContext } from '../utils/keyboard'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Setting } from '@element-plus/icons-vue'
 import { fetchBingWallpaperTitle, fetchDeleteTool, fetchUpdateToolsSort, resolveError } from '../api'
 import { useCardSortable } from '../composables/useCardSortable'
 import { useSiteStore } from '../stores/site'
@@ -221,10 +244,15 @@ const showGithub = computed(() => setting.value.hideGithub !== true)
 
 // ==================== 首页管理（登录后可用：分类内拖拽排序 / 右键删除） ====================
 
-/** 登录后首页卡片支持拖拽排序与右键删除，未登录时保持只读 */
+/** 登录后首页卡片支持右键设置、设置模式里拖拽排序与删除，未登录时保持只读 */
 const canEdit = ref(isLogin())
+/**
+ * 首页设置模式：卡片右键 → 设置 进入。
+ * 只有该模式下才显示删除角标、长按卡片可拖动排序；未进入设置时拖动无反应。
+ */
+const editMode = ref(false)
 /** 搜索结果是临时的（还包含搜索引擎虚拟卡片），搜索时不参与拖拽排序 */
-const canSort = computed(() => canEdit.value && !isSearching.value)
+const canSort = computed(() => canEdit.value && editMode.value && !isSearching.value)
 
 /** 日历与便签是私人数据（后端接口需要登录），未登录时不显示入口 */
 const showCalendar = computed(() => canEdit.value && setting.value.hideCalendar !== true)
@@ -376,10 +404,13 @@ const cardGroups = computed<CardGroup[]>(() => {
   return result
 })
 
-// ==================== 首页管理（登录后可用：分类内拖拽排序 / 右键删除） ====================
+// ==================== 首页设置（登录后可用：右键设置 / 设置模式内拖动排序与删除） ====================
 
 /** 首页全部工具（服务端已按排序值升序返回） */
 const tools = computed<Tool[]>(() => site.data.tools ?? [])
+
+/** 真实工具 id 集合：搜索引擎虚拟卡片、内置跳转卡片不参与设置与删除 */
+const manageableIds = computed(() => new Set(tools.value.map((tool) => tool.id)))
 
 /** 各分组容器：分组 key -> DOM 元素，拖拽只在分组内部进行 */
 const groupEls = new Map<string, HTMLElement>()
@@ -443,6 +474,7 @@ const persistSort = async (key: string, oldIndex: number, newIndex: number) => {
   }
 }
 
+// 只有进入设置模式后才允许拖动排序（短按/长按在普通模式下都不会触发拖拽）
 useCardSortable({
   source: cardGroups,
   enabled: canSort,
@@ -450,17 +482,46 @@ useCardSortable({
   onEnd: persistSort,
 })
 
-/** 右键删除工具（内置的跳转方式卡片、搜索引擎虚拟卡片不参与删除） */
-const handleCardContextMenu = async (tool: Tool) => {
-  if (!canEdit.value || tool.url === 'toggleJumpTarget') {
+/** 卡片右键菜单：位置 + 显示状态 */
+const cardMenu = ref({ visible: false, x: 0, y: 0 })
+
+const closeCardMenu = () => {
+  cardMenu.value.visible = false
+}
+
+/** 右键菜单里的「设置」：进入设置模式（显示删除角标、启用拖动排序） */
+const enterEditMode = () => {
+  closeCardMenu()
+  if (!canEdit.value) {
     return
   }
-  // 搜索时展示的搜索引擎卡片是虚拟数据，没有对应的工具记录
-  if (!tools.value.some((item) => item.id === tool.id)) {
+  editMode.value = true
+}
+
+const exitEditMode = () => {
+  editMode.value = false
+}
+
+/** 右键卡片弹出「设置」按钮；未登录或虚拟卡片保留浏览器默认菜单 */
+const handleCardContextMenu = (tool: Tool, event: MouseEvent) => {
+  if (!canEdit.value || !manageableIds.value.has(tool.id)) {
+    return
+  }
+  // 菜单约 120x44，贴近窗口边缘时向内收，避免被裁掉
+  cardMenu.value = {
+    visible: true,
+    x: Math.min(event.clientX, window.innerWidth - 128),
+    y: Math.min(event.clientY, window.innerHeight - 52),
+  }
+}
+
+/** 点击删除角标：先给出删除提示，确认后再删除 */
+const handleDeleteCard = async (tool: Tool) => {
+  if (!canEdit.value || !manageableIds.value.has(tool.id)) {
     return
   }
   try {
-    await ElMessageBox.confirm(`确定删除「${tool.name}」吗？`, '删除工具', {
+    await ElMessageBox.confirm(`确定删除「${tool.name}」吗？删除后不可恢复。`, '删除卡片', {
       type: 'warning',
       confirmButtonText: '删除',
       cancelButtonText: '取消',
@@ -472,10 +533,23 @@ const handleCardContextMenu = async (tool: Tool) => {
   try {
     await fetchDeleteTool(tool.id)
     // 用剩余工具覆盖本地列表，界面立即去掉这张卡片
-    ElMessage.success('删除成功')
     site.setTools(tools.value.filter((item) => item.id !== tool.id))
+    ElMessage.success('删除成功')
   } catch (error) {
     ElMessage.error(resolveError(error, '删除失败'))
+  }
+}
+
+/** 点空白处 / 滚动时收起右键菜单；Esc 收起菜单并退出设置模式 */
+const onGlobalPointerDown = () => closeCardMenu()
+const onGlobalScroll = () => closeCardMenu()
+const onGlobalKeydown = (event: KeyboardEvent) => {
+  if (event.key !== 'Escape') {
+    return
+  }
+  closeCardMenu()
+  if (editMode.value) {
+    editMode.value = false
   }
 }
 
@@ -632,11 +706,18 @@ onMounted(() => {
     document.addEventListener('mousemove', onRailMove)
     document.addEventListener('mouseleave', hideRail)
   }
+  // 右键菜单：点空白处 / 滚动 / Esc 时收起
+  window.addEventListener('pointerdown', onGlobalPointerDown)
+  window.addEventListener('scroll', onGlobalScroll, true)
+  window.addEventListener('keydown', onGlobalKeydown)
 })
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeyEnter)
   document.removeEventListener('mousemove', onRailMove)
   document.removeEventListener('mouseleave', hideRail)
+  window.removeEventListener('pointerdown', onGlobalPointerDown)
+  window.removeEventListener('scroll', onGlobalScroll, true)
+  window.removeEventListener('keydown', onGlobalKeydown)
 })
 </script>
 

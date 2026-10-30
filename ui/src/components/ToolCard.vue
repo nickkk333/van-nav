@@ -1,7 +1,7 @@
 <template>
   <a
     class="card-box"
-    :class="{ 'card-editable': editable, 'is-dragging': isDragging }"
+    :class="{ 'card-editable': editable, 'is-dragging': isDragging, 'card-editing': editMode }"
     :href="isToggleCard ? undefined : tool.url"
     :target="target"
     rel="noreferrer"
@@ -12,6 +12,20 @@
     @click="onClick"
     @contextmenu="onContextMenu"
   >
+    <!-- 设置模式下的删除角标：点一下先弹确认，确认后才真正删除 -->
+    <span
+      v-if="editable && editMode"
+      class="card-delete-badge"
+      role="button"
+      tabindex="0"
+      title="删除卡片"
+      aria-label="删除卡片"
+      @click.stop.prevent="onDelete"
+      @keydown.enter.stop.prevent="onDelete"
+      @pointerdown.stop
+    >
+      ×
+    </span>
     <span v-if="showNumIndex" class="card-index">{{ index + 1 }}</span>
     <div class="card-content" :class="{ 'compact-mode': compactMode }">
       <div v-if="!noImageMode" class="card-left">
@@ -61,14 +75,23 @@ const props = defineProps<{
   isSearching: boolean
   noImageMode?: boolean
   compactMode?: boolean
-  /** 登录后首页卡片支持拖拽排序与右键删除 */
+  /** 登录后首页卡片可以右键打开设置、在设置模式里拖动排序与删除 */
   editable?: boolean
+  /** 首页设置模式：显示删除角标、允许拖动排序，点击卡片不再跳转 */
+  editMode?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'click', tool: Tool): void
-  (e: 'contextmenu', tool: Tool): void
+  (e: 'contextmenu', tool: Tool, event: MouseEvent): void
+  (e: 'delete', tool: Tool): void
+  /** 触屏长按卡片：手机上没有右键，用它进入设置模式 */
+  (e: 'longpress', tool: Tool): void
 }>()
+
+const onDelete = () => {
+  emit('delete', props.tool)
+}
 
 const imageLoaded = ref(false)
 const imageError = ref(false)
@@ -85,12 +108,22 @@ const isToggleCard = computed(() => props.tool.url === 'toggleJumpTarget')
  * 只有真正产生位移的拖动才切换出手型（纯 CSS :active 区分不了“按住不动”和“拖动”）。
  */
 const CLICK_MOVE_THRESHOLD = 5
+/** 手机浏览器没有右键，长按卡片这段时间进入设置模式 */
+const LONG_PRESS_MS = 600
 let pointerStart: { x: number; y: number } | null = null
 let activePointerId: number | null = null
+let longPressTimer: ReturnType<typeof setTimeout> | null = null
 /** 按下后是否已产生位移（拖动中为 true，长按不动为 false） */
 const didMove = ref(false)
 /** 拖动中：模板据此挂 is-dragging 类显示手型 */
 const isDragging = ref(false)
+
+const clearLongPress = () => {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+}
 
 const setDragging = (value: boolean) => {
   if (isDragging.value === value) {
@@ -114,6 +147,8 @@ const onPointerMove = (event: Event) => {
   ) {
     didMove.value = true
     setDragging(true)
+    // 产生了位移（滑动/拖动），取消长按进入设置
+    clearLongPress()
   }
 }
 
@@ -125,6 +160,14 @@ const onPointerDown = (event: PointerEvent) => {
   activePointerId = event.pointerId
   pointerStart = { x: event.clientX, y: event.clientY }
   didMove.value = false
+  // 手机浏览器长按卡片进入设置（进入设置后由 sortablejs 接管拖动，不再触发）
+  if (event.pointerType !== 'mouse' && props.editable && !props.editMode) {
+    clearLongPress()
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null
+      emit('longpress', props.tool)
+    }, LONG_PRESS_MS)
+  }
   window.addEventListener('pointermove', onPointerMove)
   window.addEventListener('pointerup', endPress)
   window.addEventListener('pointercancel', endPress)
@@ -138,6 +181,7 @@ const endPress = (event?: Event) => {
   activePointerId = null
   pointerStart = null
   setDragging(false)
+  clearLongPress()
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', endPress)
   window.removeEventListener('pointercancel', endPress)
@@ -148,6 +192,11 @@ const onClick = (event: MouseEvent) => {
   didMove.value = false
   if (moved) {
     // 拖拽/滑动收尾的 click：阻止 <a> 的默认跳转，也不触发业务点击逻辑
+    event.preventDefault()
+    return
+  }
+  // 设置模式下点击卡片不跳转，避免管理时误开页面
+  if (props.editMode) {
     event.preventDefault()
     return
   }
@@ -172,13 +221,13 @@ const onClick = (event: MouseEvent) => {
   void openByPriority(preOpened)
 }
 
-/** 登录后拦截右键菜单用于删除工具，未登录时保留浏览器默认菜单（可新标签页打开等） */
+/** 登录后右键卡片弹出「设置」菜单，未登录时保留浏览器默认菜单（可新标签页打开等） */
 const onContextMenu = (event: MouseEvent) => {
   if (!props.editable) {
     return
   }
   event.preventDefault()
-  emit('contextmenu', props.tool)
+  emit('contextmenu', props.tool, event)
 }
 
 // 跳转方式卡片用的是内置图片（相对路径），直接取原值；
