@@ -12,15 +12,11 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AdminLink: typeof import('./src/components/AdminLink.vue')['default']
-    CalendarPanel: typeof import('./src/components/productivity/CalendarPanel.vue')['default']
     DarkSwitch: typeof import('./src/components/DarkSwitch.vue')['default']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCard: typeof import('element-plus/es')['ElCard']
-    ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
-    ElColorPicker: typeof import('element-plus/es')['ElColorPicker']
     ElConfigProvider: typeof import('element-plus/es')['ElConfigProvider']
     ElContainer: typeof import('element-plus/es')['ElContainer']
-    ElDatePicker: typeof import('element-plus/es')['ElDatePicker']
     ElDialog: typeof import('element-plus/es')['ElDialog']
     ElForm: typeof import('element-plus/es')['ElForm']
     ElFormItem: typeof import('element-plus/es')['ElFormItem']
@@ -39,7 +35,6 @@ declare module 'vue' {
     ElSwitch: typeof import('element-plus/es')['ElSwitch']
     ElTable: typeof import('element-plus/es')['ElTable']
     ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
-    ElTimePicker: typeof import('element-plus/es')['ElTimePicker']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
     ElUpload: typeof import('element-plus/es')['ElUpload']
     GithubLink: typeof import('./src/components/GithubLink.vue')['default']

@@ -56,7 +56,7 @@
       </div>
       <div class="float-actions" :class="{ 'rail-open': railOpen }">
         <DarkSwitch />
-        <ProductivityDock :show-calendar="showCalendar" :show-memo="showMemo" />
+        <ProductivityDock :show-memo="showMemo" />
         <button
           type="button"
           class="content-toggle"
@@ -254,8 +254,7 @@ const editMode = ref(false)
 /** 搜索结果是临时的（还包含搜索引擎虚拟卡片），搜索时不参与拖拽排序 */
 const canSort = computed(() => canEdit.value && editMode.value && !isSearching.value)
 
-/** 日历与便签是私人数据（后端接口需要登录），未登录时不显示入口 */
-const showCalendar = computed(() => canEdit.value && setting.value.hideCalendar !== true)
+/** 便签是私人数据（后端接口需要登录），未登录时不显示入口 */
 const showMemo = computed(() => canEdit.value && setting.value.hideMemo !== true)
 
 /** 首页全屏背景图：优先使用后台配置的地址，未配置时使用服务端下载的必应每日壁纸 */
@@ -610,7 +609,7 @@ const onSearchSubmit = () => {
 
 /** 回车打开第一条结果，Ctrl/Cmd + 数字打开对应结果，Ctrl/Cmd + Enter 用第一个搜索引擎卡片搜索 */
 const onKeyEnter = (ev: KeyboardEvent) => {
-  // 弹窗（日历/便签）与输入框中的按键不触发搜索快捷键，回车等交给弹窗自己
+  // 弹窗（便签）与输入框中的按键不触发搜索快捷键，回车等交给弹窗自己
   if (isTypingContext(ev)) return
   // 焦点在按钮/链接上时交给元素自身激活，避免与搜索快捷键重复触发
   const evTarget = ev.target as HTMLElement | null

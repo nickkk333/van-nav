@@ -94,11 +94,6 @@
             <el-switch v-model="settingForm.hideGithub" inline-prompt active-text="开" inactive-text="关" />
           </el-tooltip>
         </el-form-item>
-        <el-form-item label="隐藏日历入口">
-          <el-tooltip content="登录后才会展示，开启后将在前台隐藏日历入口" placement="top">
-            <el-switch v-model="settingForm.hideCalendar" inline-prompt active-text="开" inactive-text="关" />
-          </el-tooltip>
-        </el-form-item>
         <el-form-item label="隐藏便签入口">
           <el-tooltip content="登录后才会展示，开启后将在前台隐藏便签入口" placement="top">
             <el-switch v-model="settingForm.hideMemo" inline-prompt active-text="开" inactive-text="关" />
@@ -170,7 +165,6 @@ const defaultSettingForm = () => ({
   logo512: 'logo512.png',
   hideAdmin: false,
   hideGithub: false,
-  hideCalendar: false,
   hideMemo: false,
   hideToggleJumpTarget: false,
   jumpTargetBlank: true,

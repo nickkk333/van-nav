@@ -16,7 +16,7 @@
     ></div>
     <div v-if="!hasContent" class="pv-editor-placeholder">{{ placeholder }}</div>
     <div v-if="uploading" class="pv-editor-uploading">上传中…</div>
-    <input ref="inputRef" class="pv-editor-input" type="file" multiple :accept="ACCEPT" @change="onPicked" />
+    <input ref="inputRef" class="pv-editor-input" type="file" multiple @change="onPicked" />
     <!-- 点击图片放大：浮层显示原图（自带缩放 / 旋转） -->
     <el-image-viewer v-if="previewUrl" :url-list="[previewUrl]" teleported hide-on-click-modal @close="previewUrl = ''" />
   </div>
@@ -46,35 +46,6 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{ (e: 'update:modelValue', value: string): void }>()
-
-/** 与后端 service/memo_file.go 的允许格式保持一致 */
-const ACCEPT = [
-  'image/png',
-  'image/jpeg',
-  'image/webp',
-  'image/gif',
-  'image/bmp',
-  '.pdf',
-  '.doc',
-  '.docx',
-  '.xls',
-  '.xlsx',
-  '.ppt',
-  '.pptx',
-  '.csv',
-  '.txt',
-  '.md',
-  '.json',
-  '.xml',
-  '.yaml',
-  '.yml',
-  '.log',
-  '.zip',
-  '.rar',
-  '.7z',
-  '.tar',
-  '.gz',
-].join(',')
 
 const bodyRef = ref<HTMLElement | null>(null)
 const inputRef = ref<HTMLInputElement | null>(null)

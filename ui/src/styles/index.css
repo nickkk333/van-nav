@@ -645,7 +645,7 @@ body.card-dragging .content.cards .card-box.card-editable {
 
 /* ==================== 悬浮入口 ==================== */
 
-/* 右下角悬浮入口：自上而下依次为主题切换、日历/便签、仅显示搜索框、Github、管理后台 */
+/* 右下角悬浮入口：自上而下依次为主题切换、便签、仅显示搜索框、Github、管理后台 */
 /* 默认隐藏，鼠标贴到屏幕右边框（.rail-open）才滑出 */
 .float-actions {
   position: fixed;

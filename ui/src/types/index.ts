@@ -45,8 +45,6 @@ export interface Setting {
   logo512: string
   hideAdmin: boolean
   hideGithub: boolean
-  /** 前台首页是否隐藏日历入口（类似 Github 按钮开关，默认显示） */
-  hideCalendar: boolean
   /** 前台首页是否隐藏便签入口（类似 Github 按钮开关，默认显示） */
   hideMemo: boolean
   hideToggleJumpTarget: boolean
@@ -121,22 +119,7 @@ export interface MemoFile {
   isImage: boolean
 }
 
-// 日历事件
-export interface CalendarEvent {
-  id: number
-  title: string
-  date: string
-  startTime: string
-  endTime: string
-  desc: string
-  color: string
-  /** 是否已完成（打勾）：已完成视为已结束，不再触发小红点提醒 */
-  done: boolean
-  createdAt: number
-  updatedAt: number
-}
-
-// 导入导出的备份数据：所有工具、分类、搜索引擎、便签与日历事件
+// 导入导出的备份数据：所有工具、分类、搜索引擎与便签
 // 图标只保存网址（不包含图片内容），导入后服务端会按网址自动获取图片
 export interface BackupData {
   /** 备份文件格式版本 */
@@ -148,7 +131,6 @@ export interface BackupData {
   searchEngines: SearchEngine[]
   memo?: Memo | null
   memoVersions?: MemoVersion[]
-  calendarEvents?: CalendarEvent[]
 }
 
 /** 导入结果：各类数据导入的条数（api token 不参与导入，故无此项） */
@@ -157,7 +139,6 @@ export interface BackupImportResult {
   catelogs: number
   searchEngines: number
   memoVersions?: number
-  calendarEvents?: number
 }
 
 export interface ApiResult<T = any> {

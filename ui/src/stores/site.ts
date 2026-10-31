@@ -14,7 +14,6 @@ const defaultSetting: Setting = {
   logo512: 'logo512.png',
   hideAdmin: false,
   hideGithub: false,
-  hideCalendar: false,
   hideMemo: false,
   hideToggleJumpTarget: false,
   jumpTargetBlank: true,

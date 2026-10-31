@@ -127,16 +127,10 @@ func main() {
 		// 所以按公开只读提供；文件名带时间戳与随机串不可枚举（与 /api/uploadedImage/:name 一致）
 		api.GET("/memoFile/:name", handler.GetMemoFileHandler)
 
-		// 便签与日历是私人数据：查看与编辑都需要登录
+		// 便签是私人数据：查看与编辑都需要登录
 		private := api.Group("")
 		private.Use(middleware.JWTMiddleware())
 		{
-			// 日历事件
-			private.GET("/calendarEvents", handler.GetCalendarEventsHandler)
-			private.POST("/calendarEvents", handler.AddCalendarEventHandler)
-			private.PUT("/calendarEvents/:id", handler.UpdateCalendarEventHandler)
-			private.PATCH("/calendarEvents/:id/done", handler.ToggleCalendarEventDoneHandler)
-			private.DELETE("/calendarEvents/:id", handler.DeleteCalendarEventHandler)
 			// 便签（单文档整体覆盖 + 历史版本）
 			private.GET("/memo", handler.GetMemoHandler)
 			private.PUT("/memo", handler.SaveMemoHandler)

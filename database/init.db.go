@@ -35,10 +35,20 @@ func InitDB() {
 	// 创建数据库
 	dir := "./data"
 	dbPath := filepath.Join(dir, "nav.db")
-	// 添加连接参数
-	dbPath = dbPath + "?_journal=WAL&_timeout=5000&_busy_timeout=5000&_txlock=immediate"
+	// 添加连接参数（modernc.org/sqlite 的 DSN 短键，均映射为对应 PRAGMA）：
+	//   _journal=WAL               开启 WAL，读写互不阻塞
+	//   _busy_timeout=5000         遇到锁时最多等待 5s 再报 SQLITE_BUSY（兜底）
+	//   _synchronous=NORMAL        WAL 下官方推荐值，减少 fsync、缩短写锁持有时间
+	//   _txlock=immediate          事务一开始就取写锁，避免升级锁时死锁
+	dbPath = dbPath + "?_journal=WAL&_busy_timeout=5000&_synchronous=NORMAL&_txlock=immediate"
 	DB, err = sql.Open("sqlite", dbPath)
 	utils.CheckErr(err)
+	// SQLite 同一时刻只允许一个写事务：把连接池限制为单连接，让所有读写串行，
+	// 从根本上避免多 goroutine 并发写时的 SQLITE_BUSY（database is locked）。
+	// 低并发场景下单连接完全够用，写操作排队执行，busy_timeout 仅作极端情况的兜底。
+	DB.SetMaxOpenConns(1)
+	DB.SetMaxIdleConns(1)
+	DB.SetConnMaxLifetime(0)
 	// user 表
 	sql_create_table := `
 		CREATE TABLE IF NOT EXISTS nav_user (
@@ -60,7 +70,6 @@ func InitDB() {
 		logo512 TEXT,
 		hideAdmin BOOLEAN,
 		hideGithub BOOLEAN,
-		hideCalendar BOOLEAN,
 		hideMemo BOOLEAN,
 		hideToggleJumpTarget BOOLEAN,
 		jumpTargetBlank BOOLEAN,
@@ -92,10 +101,7 @@ func InitDB() {
 	if !columnExists("nav_setting", "hideGithub") {
 		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN hideGithub BOOLEAN;`)
 	}
-	// 设置表表结构升级-首页日历/便签入口显隐（类似 Github 按钮开关，默认显示）
-	if !columnExists("nav_setting", "hideCalendar") {
-		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN hideCalendar BOOLEAN;`)
-	}
+	// 设置表表结构升级-首页便签入口显隐（类似 Github 按钮开关，默认显示）
 	if !columnExists("nav_setting", "hideMemo") {
 		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN hideMemo BOOLEAN;`)
 	}
@@ -268,26 +274,6 @@ func InitDB() {
 		);
 		`)
 	utils.CheckErr(err)
-	// 日历事件表
-	_, err = DB.Exec(`
-		CREATE TABLE IF NOT EXISTS nav_calendar_event (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			title TEXT NOT NULL DEFAULT '',
-			date TEXT NOT NULL DEFAULT '',
-			start_time TEXT NOT NULL DEFAULT '',
-			end_time TEXT NOT NULL DEFAULT '',
-			"desc" TEXT NOT NULL DEFAULT '',
-			color TEXT NOT NULL DEFAULT '',
-			done BOOLEAN NOT NULL DEFAULT 0,
-			created_at INTEGER NOT NULL DEFAULT 0,
-			updated_at INTEGER NOT NULL DEFAULT 0
-		);
-		`)
-	utils.CheckErr(err)
-	// 日历事件表结构升级-20261014【完成状态：打勾后视为已结束，不再触发小红点提醒】
-	if !columnExists("nav_calendar_event", "done") {
-		DB.Exec(`ALTER TABLE nav_calendar_event ADD COLUMN done BOOLEAN NOT NULL DEFAULT 0;`)
-	}
 
 	// 如果不存在，就初始化默认搜索引擎
 	sql_get_search_engine := `
@@ -354,9 +340,9 @@ func InitDB() {
 	}
 	if !rows.Next() {
 		if _, err = DB.Exec(`
-			INSERT INTO nav_setting (favicon, title, govRecord, logo192, logo512, hideAdmin, hideGithub, hideCalendar, hideMemo, hideToggleJumpTarget, jumpTargetBlank)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-			`, "favicon.ico", "Van Nav", "", "logo192.png", "logo512.png", false, false, false, false, false, true); err != nil {
+			INSERT INTO nav_setting (favicon, title, govRecord, logo192, logo512, hideAdmin, hideGithub, hideMemo, hideToggleJumpTarget, jumpTargetBlank)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+			`, "favicon.ico", "Van Nav", "", "logo192.png", "logo512.png", false, false, false, false, true); err != nil {
 			utils.CheckErr(err)
 		}
 	}
@@ -394,7 +380,6 @@ func InitDB() {
 		`CREATE INDEX IF NOT EXISTS idx_nav_api_token_value ON nav_api_token(value);`,
 		`CREATE INDEX IF NOT EXISTS idx_nav_user_name ON nav_user(name);`,
 		`CREATE INDEX IF NOT EXISTS idx_nav_memo_version_created ON nav_memo_version(created_at DESC, id DESC);`,
-		`CREATE INDEX IF NOT EXISTS idx_nav_calendar_event_date ON nav_calendar_event(date, start_time, id);`,
 	}
 	for _, idx := range indexes {
 		if _, err := DB.Exec(idx); err != nil {

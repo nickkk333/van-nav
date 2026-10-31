@@ -19,7 +19,8 @@ import (
 // 2：工具图标拆成 logo（图标网址）与 logoName（保存到 data 目录的图片名）
 // 3：新增便签、待办与日历事件
 // 4：移除待办（只保留便签、便签历史版本与日历事件）
-const backupVersion = 4
+// 5：移除日历事件（只保留便签与便签历史版本）
+const backupVersion = 5
 
 const (
 	// BackupDir 备份文件的存放目录（与 nav.db 同级，docker 部署挂载 ./data 即可持久化）
@@ -28,7 +29,7 @@ const (
 	BackupFileName = "van-nav-backup.json"
 )
 
-// ExportBackupData 导出所有工具、分类、搜索引擎、便签与日历事件
+// ExportBackupData 导出所有工具、分类、搜索引擎与便签
 // 图标只导出图标网址（不导出图片内容）：工具的 logoName（保存到 data 目录的图片名）与搜索引擎的 logo 都置空，
 // 导入后由服务端按网址重新获取图片并保存到 data 目录
 // api token 不参与导出：避免凭据随备份文件明文外泄（备份常被打包/同步分享）
@@ -47,14 +48,13 @@ func ExportBackupData() types.BackupData {
 	}
 	memo := GetMemo()
 	return types.BackupData{
-		Version:        backupVersion,
-		ExportedAt:     time.Now().Format(time.RFC3339),
-		Tools:          tools,
-		Catelogs:       GetAllCatelog(),
-		SearchEngines:  engines,
-		Memo:           &memo,
-		MemoVersions:   GetMemoVersions(),
-		CalendarEvents: GetCalendarEvents(""),
+		Version:       backupVersion,
+		ExportedAt:    time.Now().Format(time.RFC3339),
+		Tools:         tools,
+		Catelogs:      GetAllCatelog(),
+		SearchEngines: engines,
+		Memo:          &memo,
+		MemoVersions:  GetMemoVersions(),
 	}
 }
 
@@ -77,9 +77,9 @@ func ExportBackupToDataDir() {
 		path, len(data.Tools), len(data.Catelogs), len(data.SearchEngines))
 }
 
-// ImportBackupData 导入备份数据（工具、分类、搜索引擎、便签与日历事件）
+// ImportBackupData 导入备份数据（工具、分类、搜索引擎与便签）
 // 工具、搜索引擎同 id 的记录会被覆盖，没有出现在备份里的记录保持不动；
-// 便签与日历事件合并导入：保留现有数据，备份内容追加进来（重复的跳过），不会整表替换
+// 便签合并导入：保留现有数据，备份内容追加进来（重复的跳过），不会整表替换
 // 导入完成后异步获取图片：备份里只存了图标网址，这里按网址重新缓存/下载
 // api token 不参与导入：导入方各自在后台管理里维护自己的 token，避免跨实例泄露凭据
 func ImportBackupData(data types.BackupData) error {
@@ -113,8 +113,8 @@ func ImportBackupData(data types.BackupData) error {
 		return err
 	}
 
-	logger.LogInfo("导入备份数据：工具 %d 条，分类 %d 条，搜索引擎 %d 条，便签版本 %d 条，日历事件 %d 条",
-		len(data.Tools), len(data.Catelogs), len(data.SearchEngines), len(data.MemoVersions), len(data.CalendarEvents))
+	logger.LogInfo("导入备份数据：工具 %d 条，分类 %d 条，搜索引擎 %d 条，便签版本 %d 条",
+		len(data.Tools), len(data.Catelogs), len(data.SearchEngines), len(data.MemoVersions))
 	// 图片获取比较耗时，放到后台执行，避免阻塞接口
 	go fetchImportedImages(data.Tools, data.SearchEngines)
 	return nil
@@ -252,10 +252,8 @@ func ensureToolCatelogs(tx *sql.Tx, tools []types.Tool) error {
 	return nil
 }
 
-// importProductivity 合并导入便签、便签历史版本与日历事件
+// importProductivity 合并导入便签、便签历史版本
 // 与工具/分类的规则一致：现有数据全部保留，只把备份里的内容追加进来（重复的跳过），不整表替换：
-//   - 日历事件：逐条追加（自增 id），与现有事件完全相同（标题/日期/起止时间/备注一致）的跳过，
-//     重复导入同一份备份不会产生重复事件，现有事件的打勾状态也不会被改
 //   - 便签：单文档，没法两份并存。当前便签为空时直接采用备份内容；已有内容时保留当前便签，
 //     把备份内容归档为一条历史版本（便签「历史版本」里可找回/恢复）
 //   - 便签历史版本：逐条追加，内容与创建时间都相同的跳过；追加后超出保留条数的旧版本删除
@@ -268,11 +266,6 @@ func importProductivity(tx *sql.Tx, data types.BackupData) error {
 	}
 	if data.MemoVersions != nil {
 		if err := importMemoVersions(tx, data.MemoVersions); err != nil {
-			return err
-		}
-	}
-	if data.CalendarEvents != nil {
-		if err := importCalendarEvents(tx, data.CalendarEvents); err != nil {
 			return err
 		}
 	}
@@ -356,49 +349,6 @@ func importMemoVersions(tx *sql.Tx, versions []types.MemoVersion) error {
 		// 与保存便签时一致：只保留最近 MemoVersionLimit 条
 		if _, err := tx.Exec(`DELETE FROM nav_memo_version WHERE id NOT IN (
 			SELECT id FROM nav_memo_version ORDER BY created_at DESC, id DESC LIMIT ?);`, MemoVersionLimit); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// importCalendarEvents 合并导入日历事件：保留现有事件，备份里的事件逐条追加，完全相同的跳过
-func importCalendarEvents(tx *sql.Tx, events []types.CalendarEvent) error {
-	now := time.Now().UnixMilli()
-	for _, e := range events {
-		title := strings.TrimSpace(e.Title)
-		date := calendarDate(e.Date)
-		if title == "" || date == "" {
-			continue
-		}
-		startTime := calendarTime(e.StartTime)
-		endTime := calendarTime(e.EndTime)
-		if startTime != "" && endTime != "" && endTime < startTime {
-			startTime, endTime = endTime, startTime
-		}
-		desc := strings.TrimSpace(e.Desc)
-		// 标题/日期/起止时间/备注都相同视为同一条事件：保留现有事件（含打勾状态），跳过导入
-		var existId int64
-		err := tx.QueryRow(`SELECT id FROM nav_calendar_event
-			WHERE title = ? AND date = ? AND start_time = ? AND end_time = ? AND "desc" = ? LIMIT 1;`,
-			title, date, startTime, endTime, desc).Scan(&existId)
-		if err == nil {
-			continue
-		}
-		if err != sql.ErrNoRows {
-			return err
-		}
-		createdAt, updatedAt := e.CreatedAt, e.UpdatedAt
-		if createdAt <= 0 {
-			createdAt = now
-		}
-		if updatedAt <= 0 {
-			updatedAt = now
-		}
-		if _, err = tx.Exec(`INSERT INTO nav_calendar_event (title, date, start_time, end_time, "desc", color, done, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-			title, date, startTime, endTime, desc, calendarColor(e.Color), e.Done,
-			createdAt, updatedAt); err != nil {
 			return err
 		}
 	}

@@ -21,28 +21,11 @@ const (
 	MemoFileDir = "./data/memo-files"
 	// MemoFileUrlPrefix 便签附件的访问前缀，需与 main.go 中的路由保持一致
 	MemoFileUrlPrefix = "/api/memoFile/"
-	// MaxMemoFileSize 单个附件的大小上限：20MB
-	MaxMemoFileSize = 20 << 20
+	// MaxMemoFileSize 单个附件的大小上限：100MB
+	MaxMemoFileSize = 100 << 20
 	// memoFilePrefix 附件在磁盘上的文件名前缀，也用于识别哪些文件是便签上传的
 	memoFilePrefix = "memo_"
-	// memoFileExtTips 允许上传的文件格式提示
-	memoFileExtTips = "图片（png/jpg/jpeg/webp/gif/bmp）、pdf、word、excel、ppt、" +
-		"txt/md/csv/json/xml/yaml/log 与 zip/rar/7z/tar/gz 压缩包"
 )
-
-// allowedMemoFileExt 便签允许上传的文件后缀。
-// 刻意不含 .svg / .html / .js 这类会被浏览器当页面执行脚本的格式：
-// 附件地址是公开只读的（见 main.go），打开链接时不能有脚本执行风险
-var allowedMemoFileExt = map[string]bool{
-	// 图片：在便签里内联显示
-	".png": true, ".jpg": true, ".jpeg": true, ".webp": true, ".gif": true, ".bmp": true,
-	// 常见文档
-	".pdf": true, ".doc": true, ".docx": true, ".xls": true, ".xlsx": true,
-	".ppt": true, ".pptx": true, ".csv": true, ".txt": true, ".md": true,
-	".json": true, ".xml": true, ".yaml": true, ".yml": true, ".log": true,
-	// 压缩包
-	".zip": true, ".rar": true, ".7z": true, ".tar": true, ".gz": true,
-}
 
 // MemoFileResult 便签附件上传结果
 type MemoFileResult struct {
@@ -92,7 +75,7 @@ func SaveMemoFile(file *multipart.FileHeader) (MemoFileResult, error) {
 	}, nil
 }
 
-// validateMemoFile 校验上传的附件（非空、大小、后缀），返回小写后缀
+// validateMemoFile 校验上传的附件（非空、大小），返回小写后缀
 func validateMemoFile(file *multipart.FileHeader) (string, error) {
 	if file == nil || file.Size == 0 {
 		return "", fmt.Errorf("请选择要上传的文件")
@@ -100,11 +83,7 @@ func validateMemoFile(file *multipart.FileHeader) (string, error) {
 	if file.Size > MaxMemoFileSize {
 		return "", fmt.Errorf("文件大小不能超过 %d MB", MaxMemoFileSize>>20)
 	}
-	ext := strings.ToLower(filepath.Ext(file.Filename))
-	if !allowedMemoFileExt[ext] {
-		return "", fmt.Errorf("不支持的文件格式 %s，仅支持 %s", ext, memoFileExtTips)
-	}
-	return ext, nil
+	return strings.ToLower(filepath.Ext(file.Filename)), nil
 }
 
 // GetMemoFilePath 校验并返回便签附件的磁盘路径
@@ -140,15 +119,12 @@ func MemoFileDownloadName(name string) string {
 	return rest
 }
 
-// isSafeMemoFileName 校验文件名：只能是 MemoFileDir 下的文件、后缀在允许范围内，避免路径穿越
+// isSafeMemoFileName 校验文件名：只能是 MemoFileDir 下的文件，避免路径穿越
 func isSafeMemoFileName(name string) bool {
 	if name == "" || name != filepath.Base(name) || strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
 		return false
 	}
-	if !strings.HasPrefix(name, memoFilePrefix) {
-		return false
-	}
-	return allowedMemoFileExt[strings.ToLower(filepath.Ext(name))]
+	return strings.HasPrefix(name, memoFilePrefix)
 }
 
 // memoFileDisplayName 取出用于展示的原始文件名：去掉路径与控制字符，超长时截断

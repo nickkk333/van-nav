@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AdminData, ApiResult, BackupData, BackupImportResult, CalendarEvent, Catelog, HomeData, Memo, MemoFile, MemoVersion, SearchEngine, Token, Tool, UrlInfo, User } from '../types'
+import type { AdminData, ApiResult, BackupData, BackupImportResult, Catelog, HomeData, Memo, MemoFile, MemoVersion, SearchEngine, Token, Tool, UrlInfo, User } from '../types'
 
 export const http = axios.create({
   baseURL: '/api',
@@ -271,47 +271,13 @@ export const fetchDeleteMemoVersion = async (id: number): Promise<ApiResult> => 
 }
 
 /**
- * 上传便签附件（图片 / 文档），返回可访问地址与原始文件名
- * 后端限制单个文件不超过 20MB，允许的格式见 service/memo_file.go
+ * 上传便签附件（任意文件类型），返回可访问地址与原始文件名
+ * 后端限制单个文件不超过 100MB
  */
 export const fetchUploadMemoFile = async (file: File): Promise<MemoFile> => {
   const formData = new FormData()
   formData.append('file', file)
   const { data } = await http.post<ApiResult<MemoFile>>('/memo/file', formData)
-  return data.data
-}
-
-// ==================== 日历事件（需要登录） ====================
-
-/** 按月份获取日历事件（month=YYYY-MM，不传返回全部） */
-export const fetchGetCalendarEvents = async (month?: string): Promise<CalendarEvent[]> => {
-  const { data } = await http.get<ApiResult<CalendarEvent[]>>('/calendarEvents', {
-    params: month ? { month } : {},
-  })
-  return data.data || []
-}
-
-/** 新增日历事件 */
-export const fetchAddCalendarEvent = async (payload: Partial<CalendarEvent>): Promise<CalendarEvent> => {
-  const { data } = await http.post<ApiResult<CalendarEvent>>('/calendarEvents', payload)
-  return data.data
-}
-
-/** 更新日历事件 */
-export const fetchUpdateCalendarEvent = async (id: number, payload: Partial<CalendarEvent>): Promise<CalendarEvent> => {
-  const { data } = await http.put<ApiResult<CalendarEvent>>(`/calendarEvents/${id}`, payload)
-  return data.data
-}
-
-/** 删除日历事件 */
-export const fetchDeleteCalendarEvent = async (id: number): Promise<ApiResult> => {
-  const { data } = await http.delete<ApiResult>(`/calendarEvents/${id}`)
-  return data
-}
-
-/** 打勾/取消打勾：已完成视为已结束，不再触发小红点提醒 */
-export const fetchToggleCalendarEventDone = async (id: number, done: boolean): Promise<CalendarEvent> => {
-  const { data } = await http.patch<ApiResult<CalendarEvent>>(`/calendarEvents/${id}/done`, { done })
   return data.data
 }
 

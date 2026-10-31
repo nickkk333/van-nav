@@ -100,14 +100,3 @@ type SaveMemoDto struct {
 	Content string `json:"content"`
 	Mode    string `json:"mode"`
 }
-
-// SaveCalendarEventDto 新增/更新日历事件
-type SaveCalendarEventDto struct {
-	Title     string `json:"title"`
-	Date      string `json:"date"`
-	StartTime string `json:"startTime"`
-	EndTime   string `json:"endTime"`
-	Desc      string `json:"desc"`
-	Color     string `json:"color"`
-	Done      bool   `json:"done"`
-}

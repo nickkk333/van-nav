@@ -30,7 +30,7 @@
           <el-input v-model="searchString" class="filter-input" placeholder="搜索名称/描述" clearable />
           <el-button type="primary" :icon="Plus" @click="openAdd">添加</el-button>
           <el-button :icon="Refresh" @click="reload">刷新</el-button>
-          <el-tooltip content="导入备份文件（工具/搜索引擎同 id 覆盖；日历事件、便签与现有内容合并，不会替换）" placement="top">
+          <el-tooltip content="导入备份文件（工具/搜索引擎同 id 覆盖；便签与现有内容合并，不会替换）" placement="top">
             <el-upload accept=".json" :show-file-list="false" :before-upload="handleImportFile">
               <el-button :icon="Upload" :loading="importLoading">导入</el-button>
             </el-upload>
@@ -887,7 +887,7 @@ const handleImportFile = (file: UploadRawFile) => {
       const res = await fetchImportAll(payload)
       const counts = res.data
       ElMessage.success(
-        `导入成功：工具 ${counts?.tools ?? 0} 条、分类 ${counts?.catelogs ?? 0} 条、搜索引擎 ${counts?.searchEngines ?? 0} 条、日历事件 ${counts?.calendarEvents ?? 0} 条（与现有合并，重复跳过），便签保留当前内容（导入内容可在「历史版本」找回）；图标会在后台按网址重新抓取并保存到 data 目录（抓不到时显示默认图片，稍后点「刷新」查看）`
+        `导入成功：工具 ${counts?.tools ?? 0} 条、分类 ${counts?.catelogs ?? 0} 条、搜索引擎 ${counts?.searchEngines ?? 0} 条（与现有合并，重复跳过），便签保留当前内容（导入内容可在「历史版本」找回）；图标会在后台按网址重新抓取并保存到 data 目录（抓不到时显示默认图片，稍后点「刷新」查看）`
       )
     } catch (error) {
       ElMessage.warning(resolveError(error, '导入失败'))

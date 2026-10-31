@@ -12,8 +12,7 @@ type Setting struct {
 	Logo512              string `json:"logo512"`
 	HideAdmin            bool   `json:"hideAdmin"`
 	HideGithub           bool   `json:"hideGithub"`
-	// HideCalendar / HideMemo 首页日历、便签入口显隐（类似 Github 按钮的开关，默认显示）
-	HideCalendar         bool   `json:"hideCalendar"`
+	// HideMemo 首页便签入口显隐（类似 Github 按钮的开关，默认显示）
 	HideMemo             bool   `json:"hideMemo"`
 	HideToggleJumpTarget bool   `json:"hideToggleJumpTarget"`
 	JumpTargetBlank      bool   `json:"jumpTargetBlank"`
@@ -98,21 +97,7 @@ type MemoVersion struct {
 	CreatedAt int64  `json:"createdAt"`
 }
 
-// CalendarEvent 日历事件（按日期挂载，日历上打点提示）
-type CalendarEvent struct {
-	Id        int    `json:"id"`
-	Title     string `json:"title"`
-	Date      string `json:"date"`
-	StartTime string `json:"startTime"`
-	EndTime   string `json:"endTime"`
-	Desc      string `json:"desc"`
-	Color     string `json:"color"`
-	Done      bool   `json:"done"`
-	CreatedAt int64  `json:"createdAt"`
-	UpdatedAt int64  `json:"updatedAt"`
-}
-
-// BackupData 导入导出的备份数据：所有工具、分类、搜索引擎、便签与日历事件
+// BackupData 导入导出的备份数据：所有工具、分类、搜索引擎与便签
 // 图标只保存图标网址（工具的图片名与搜索引擎的图标不导出），导入后由服务端按网址自动重新获取
 type BackupData struct {
 	// Version 备份文件格式版本
@@ -126,8 +111,7 @@ type BackupData struct {
 	MemoVersions   []MemoVersion   `json:"memoVersions"`
 	// Todos 老备份（格式版本 3 及更早）里的待办数据：待办功能已移除，不导出也不导入，
 	// 保留这个字段只是为了把老备份识别成「有内容的备份」而不是空文件
-	Todos          json.RawMessage `json:"todos,omitempty"`
-	CalendarEvents []CalendarEvent `json:"calendarEvents"`
+	Todos json.RawMessage `json:"todos,omitempty"`
 }
 
 // 网站配置模型

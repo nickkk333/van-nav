@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.15] - 2026-10-31
+
+### 🚀 Features
+
+- 便签附件上传放宽为任意文件类型，单个文件上限从 20MB 提高到 100MB
+
+### 🎉 重构
+
+- 移除日历功能：删除前后端日历相关的路由、处理函数、数据模型、数据库表、组件与样式
+
+### 🐛 Bug Fixes
+
+- 修复数据库频繁操作时偶发返回 busy（database is locked）：连接池限制为单连接，串行化读写避免 SQLite 并发写锁竞争
+
 ## [1.0.14] - 2026-10-30
 
 ### 🚀 Features
