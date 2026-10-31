@@ -99,16 +99,6 @@
             <el-switch v-model="settingForm.hideMemo" inline-prompt active-text="开" inactive-text="关" />
           </el-tooltip>
         </el-form-item>
-        <el-form-item label="隐藏跳转方式卡片">
-          <el-tooltip content="默认展示，开启后将在前台隐藏跳转方式卡片" placement="top">
-            <el-switch
-              v-model="settingForm.hideToggleJumpTarget"
-              inline-prompt
-              active-text="开"
-              inactive-text="关"
-            />
-          </el-tooltip>
-        </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="requestLoading" @click="handleUpdateSetting">提交</el-button>
         </el-form-item>
@@ -166,7 +156,6 @@ const defaultSettingForm = () => ({
   hideAdmin: false,
   hideGithub: false,
   hideMemo: false,
-  hideToggleJumpTarget: false,
   jumpTargetBlank: true,
   backgroundImage: '',
   defaultLogo: '',

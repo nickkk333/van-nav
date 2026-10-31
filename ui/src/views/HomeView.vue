@@ -69,7 +69,7 @@
           <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
         </button>
         <GithubLink v-if="showGithub" />
-        <AdminLink />
+        <AdminLink v-if="showAdmin" />
       </div>
     </div>
     <!-- 卡片右键菜单：只提供一个「设置」入口，避免和浏览器菜单混在一起 -->
@@ -110,7 +110,7 @@ import { useSiteStore } from '../stores/site'
 import { displayCatelog, isLogin } from '../utils/check'
 import { multiSearch, pinyinReady } from '../utils/match'
 import { generateSearchEngineCards, getDefaultSearchEngineUrl } from '../utils/searchEngine'
-import { DEFAULT_BACKGROUND_IMAGE, DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW, initServerJumpTargetConfig, toggleJumpTarget } from '../utils/setting'
+import { DEFAULT_BACKGROUND_IMAGE, DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW, initServerJumpTargetConfig } from '../utils/setting'
 import { normalizeInternalUrl, resolveToolTargetUrl } from '../utils/toolUrl'
 import type { Tool } from '../types'
 
@@ -241,6 +241,7 @@ const setting = computed(() => site.data.setting)
 const siteConfig = computed(() => site.data.siteConfig)
 const isSearching = computed(() => searchString.value.trim() !== '')
 const showGithub = computed(() => setting.value.hideGithub !== true)
+const showAdmin = computed(() => setting.value.hideAdmin !== true)
 
 // ==================== 首页管理（登录后可用：分类内拖拽排序 / 右键删除） ====================
 
@@ -296,10 +297,6 @@ const localToolResults = computed<Tool[]>(() => {
   const tools = site.data.tools ?? []
   const searching = isSearching.value
   return tools.filter((item) => {
-    // 主题中隐藏了跳转方式卡片
-    if (setting.value.hideToggleJumpTarget && item.url === 'toggleJumpTarget') {
-      return false
-    }
     // 搜索时在所有工具中查找，否则按当前分类过滤
     if (!searching) {
       if (currTag.value === DEFAULT_TAG) {
@@ -590,12 +587,8 @@ const handleSetCurrTag = (tag: string) => {
   resetSearch(true)
 }
 
-const handleCardClick = async (tool: Tool) => {
+const handleCardClick = () => {
   resetSearch()
-  if (tool.url === 'toggleJumpTarget') {
-    toggleJumpTarget()
-    await site.load()
-  }
 }
 
 /** 点击搜索按钮：有关键词时打开第一条结果，否则聚焦搜索框 */

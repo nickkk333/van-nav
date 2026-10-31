@@ -14,7 +14,6 @@ type Setting struct {
 	HideGithub           bool   `json:"hideGithub"`
 	// HideMemo 首页便签入口显隐（类似 Github 按钮的开关，默认显示）
 	HideMemo             bool   `json:"hideMemo"`
-	HideToggleJumpTarget bool   `json:"hideToggleJumpTarget"`
 	JumpTargetBlank      bool   `json:"jumpTargetBlank"`
 	// BackgroundImage 首页背景图地址：后台上传返回的 url 或外链地址，留空时前台使用必应每日壁纸作为背景
 	BackgroundImage string `json:"backgroundImage"`

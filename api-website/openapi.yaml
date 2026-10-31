@@ -140,8 +140,6 @@ components:
         hideMemo:
           type: boolean
 
-        hideToggleJumpTarget:
-          type: boolean
         jumpTargetBlank:
           type: boolean
         backgroundImage:

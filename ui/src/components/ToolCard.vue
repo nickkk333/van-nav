@@ -2,7 +2,7 @@
   <a
     class="card-box"
     :class="{ 'card-editable': editable, 'is-dragging': isDragging, 'card-editing': editMode }"
-    :href="isToggleCard ? undefined : tool.url"
+    :href="tool.url"
     :target="target"
     rel="noreferrer"
     @pointerenter="onPointerEnter"
@@ -58,7 +58,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import LogoFallback from './LogoFallback.vue'
-import { displayCatelog, customDefaultLogo, DEFAULT_LOGO_URL, getToolLogoUrl, hasToolLogo } from '../utils/check'
+import { displayCatelog, customDefaultLogo, getToolLogoUrl, hasToolLogo } from '../utils/check'
 import { getJumpTarget } from '../utils/setting'
 import {
   getCachedInternalReachability,
@@ -97,8 +97,6 @@ const imageLoaded = ref(false)
 const imageError = ref(false)
 const showLoading = ref(true)
 let timer: ReturnType<typeof setTimeout> | null = null
-
-const isToggleCard = computed(() => props.tool.url === 'toggleJumpTarget')
 
 /**
  * 拖拽（sortablejs）结束后浏览器还会补发一次 click，
@@ -203,7 +201,7 @@ const onClick = (event: MouseEvent) => {
   emit('click', props.tool)
   // 配置了内网网址的卡片：先判断内网是否可达，再决定打开内网还是外网地址。
   // Ctrl/Cmd/Shift 点击与中键点击保留浏览器默认行为（直接按外网网址在新标签页打开）
-  if (isToggleCard.value || !internalUrl.value) {
+  if (!internalUrl.value) {
     return
   }
   if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
@@ -230,17 +228,12 @@ const onContextMenu = (event: MouseEvent) => {
   emit('contextmenu', props.tool, event)
 }
 
-// 跳转方式卡片用的是内置图片（相对路径），直接取原值；
-// 其余卡片优先读保存到本机的图片，没配置图标的卡片用后台上传的默认图标（相当于替换内置的 default.png）
+// 卡片优先读保存到本机的图片，没配置图标的卡片用后台上传的默认图标（相当于替换内置的 default.png）
 const imageSrc = computed(() => {
-  if (isToggleCard.value) {
-    return props.tool.logo || DEFAULT_LOGO_URL
-  }
   return hasToolLogo(props.tool) ? getToolLogoUrl(props.tool) : customDefaultLogo.value
 })
 // 名称首字符占位：没有图标也没有上传默认图标（图片地址为空），或图片加载失败（含默认图标加载失败）时显示
-// 跳转方式卡片一定用内置图片，不参与该逻辑
-const showNameInitial = computed(() => (isToggleCard.value ? false : !imageSrc.value || imageError.value))
+const showNameInitial = computed(() => !imageSrc.value || imageError.value)
 // 占位字符：虚拟卡片（如搜索引擎卡片）可用 logoText 指定，缺省取名称首字符
 const initialName = computed(() => props.tool.logoText || props.tool.name)
 

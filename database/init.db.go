@@ -71,7 +71,6 @@ func InitDB() {
 		hideAdmin BOOLEAN,
 		hideGithub BOOLEAN,
 		hideMemo BOOLEAN,
-		hideToggleJumpTarget BOOLEAN,
 		jumpTargetBlank BOOLEAN,
 		backgroundImage TEXT,
 		defaultLogo TEXT,
@@ -104,10 +103,6 @@ func InitDB() {
 	// 设置表表结构升级-首页便签入口显隐（类似 Github 按钮开关，默认显示）
 	if !columnExists("nav_setting", "hideMemo") {
 		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN hideMemo BOOLEAN;`)
-	}
-	// 设置表表结构升级-20250624
-	if !columnExists("nav_setting", "hideToggleJumpTarget") {
-		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN hideToggleJumpTarget BOOLEAN;`)
 	}
 	// 设置表表结构升级-20250923【首页背景图，存放后台上传返回的 url 或外链地址】
 	if !columnExists("nav_setting", "backgroundImage") {
@@ -340,9 +335,9 @@ func InitDB() {
 	}
 	if !rows.Next() {
 		if _, err = DB.Exec(`
-			INSERT INTO nav_setting (favicon, title, govRecord, logo192, logo512, hideAdmin, hideGithub, hideMemo, hideToggleJumpTarget, jumpTargetBlank)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-			`, "favicon.ico", "Van Nav", "", "logo192.png", "logo512.png", false, false, false, false, true); err != nil {
+			INSERT INTO nav_setting (favicon, title, govRecord, logo192, logo512, hideAdmin, hideGithub, hideMemo, jumpTargetBlank)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+			`, "favicon.ico", "Van Nav", "", "logo192.png", "logo512.png", false, false, false, true); err != nil {
 			utils.CheckErr(err)
 		}
 	}
@@ -398,6 +393,21 @@ func InitDB() {
 
 	// 清理空分类记录 - 删除名称为空或只包含空白字符的分类
 	cleanupEmptyCategories()
+	// 清理已移除的「跳转方式卡片」：老版本内置的一条特殊工具记录（url='toggleJumpTarget'），
+	// 该卡片功能已移除，删除记录避免首页残留一条无法跳转的卡片
+	cleanupRemovedToggleCard()
+}
+
+// cleanupRemovedToggleCard 删除已移除的「跳转方式卡片」残留记录
+func cleanupRemovedToggleCard() {
+	result, err := DB.Exec(`DELETE FROM nav_table WHERE url = 'toggleJumpTarget';`)
+	if err != nil {
+		logger.LogInfo("清理跳转方式卡片记录时出错: %v", err)
+		return
+	}
+	if rowsAffected, err := result.RowsAffected(); err == nil && rowsAffected > 0 {
+		logger.LogInfo("已清理 %d 条跳转方式卡片记录", rowsAffected)
+	}
 }
 
 // cleanupEmptyCategories 清理空分类记录

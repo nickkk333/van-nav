@@ -15,7 +15,6 @@ const defaultSetting: Setting = {
   hideAdmin: false,
   hideGithub: false,
   hideMemo: false,
-  hideToggleJumpTarget: false,
   jumpTargetBlank: true,
   backgroundImage: '',
   defaultLogo: '',
