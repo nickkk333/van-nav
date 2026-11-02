@@ -128,9 +128,11 @@ func UploadMemoFileHandler(c *gin.Context) {
 // GetMemoFileHandler 输出便签附件。
 // 附件是用 <img>/<a> 直接引用的，浏览器不会带上 Authorization 头，所以这个只读接口不校验登录；
 // 文件名带时间戳与随机串不可枚举（与 /api/uploadedImage/:name 一致）。
-// 非图片附件按下载返回，避免被浏览器当页面执行
+// 文档附件按内联返回，浏览器在新标签页直接预览（无需下载）；
+// 会被浏览器当页面/脚本执行的类型（html/svg/js 等）仍按下载返回，避免脚本执行风险
 func GetMemoFileHandler(c *gin.Context) {
-	path, ok := service.GetMemoFilePath(c.Param("name"))
+	name := c.Param("name")
+	path, ok := service.GetMemoFilePath(name)
 	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success":      false,
@@ -140,10 +142,14 @@ func GetMemoFileHandler(c *gin.Context) {
 	}
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.Header("Cache-Control", "no-cache")
-	if !service.IsMemoImageName(c.Param("name")) {
+	if !service.IsMemoImageName(name) {
+		disposition := "inline"
+		if service.IsMemoScriptName(name) {
+			disposition = "attachment"
+		}
 		// 文件名里带中文等非 ASCII 字符时 FormatMediaType 会自动按 RFC 2231 编码
-		c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{
-			"filename": service.MemoFileDownloadName(c.Param("name")),
+		c.Header("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{
+			"filename": service.MemoFileDownloadName(name),
 		}))
 	}
 	c.File(path)

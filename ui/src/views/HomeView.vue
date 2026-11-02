@@ -57,17 +57,6 @@
       <div class="float-actions" :class="{ 'rail-open': railOpen }">
         <DarkSwitch />
         <ProductivityDock :show-memo="showMemo" />
-        <button
-          type="button"
-          class="content-toggle"
-          :class="{ checked: !hideContent }"
-          :title="hideContent ? '仅显示搜索框（点击显示全部内容）' : '显示全部内容（点击仅显示搜索框）'"
-          :aria-label="hideContent ? '显示全部内容' : '仅显示搜索框'"
-          @click="toggleContent"
-        >
-          <svg v-if="!hideContent" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-          <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
-        </button>
         <GithubLink v-if="showGithub" />
         <AdminLink v-if="showAdmin" />
       </div>
@@ -112,6 +101,7 @@ import { multiSearch, pinyinReady } from '../utils/match'
 import { generateSearchEngineCards, getDefaultSearchEngineUrl } from '../utils/searchEngine'
 import { DEFAULT_BACKGROUND_IMAGE, DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW, initServerJumpTargetConfig } from '../utils/setting'
 import { normalizeInternalUrl, resolveToolTargetUrl } from '../utils/toolUrl'
+import { themeMode } from '../utils/theme'
 import type { Tool } from '../types'
 
 const DEFAULT_TAG = '默认'
@@ -127,15 +117,10 @@ const currTag = ref(DEFAULT_TAG)
 const engineCards = ref<Tool[]>([])
 const loading = ref(true)
 
-/** 一键隐藏内容、仅显示搜索框的偏好（存 localStorage，刷新后保持） */
-const hideContent = ref(localStorage.getItem('van_nav_hide_content') === '1')
-const toggleContent = () => {
-  hideContent.value = !hideContent.value
-  localStorage.setItem('van_nav_hide_content', hideContent.value ? '1' : '0')
-}
 // 搜索框有内容时临时显示内容（卡片），不隐藏
 const hasSearchText = computed(() => searchText.value.trim().length > 0)
-const effectiveHide = computed(() => hideContent.value && !hasSearchText.value)
+// 「仅显示搜索框」主题模式：隐藏卡片与分类名；搜索框有内容时临时显示结果
+const effectiveHide = computed(() => themeMode.value === 'search' && !hasSearchText.value)
 const searchBarRef = ref<InstanceType<typeof SearchBar>>()
 
 // ==================== 右下角图标列：默认隐藏，鼠标贴到屏幕右边框才滑出 ====================

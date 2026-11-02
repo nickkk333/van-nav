@@ -50,6 +50,17 @@ func IsMemoImageName(name string) bool {
 	return false
 }
 
+// IsMemoScriptName 判断附件是否会被浏览器当页面/脚本执行。
+// 这类文件（html/svg/js 等）仍按下载返回，避免在公开只读的附件地址上执行脚本；
+// 其余文档（pdf/txt/md/office 等）按内联返回，浏览器在新标签页直接预览
+func IsMemoScriptName(name string) bool {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".html", ".htm", ".xhtml", ".svg", ".js", ".mjs":
+		return true
+	}
+	return false
+}
+
 // SaveMemoFile 保存便签上传的附件（图片或文档），返回保存后的文件名与原始文件名
 func SaveMemoFile(file *multipart.FileHeader) (MemoFileResult, error) {
 	ext, err := validateMemoFile(file)

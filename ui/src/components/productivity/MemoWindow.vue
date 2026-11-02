@@ -16,6 +16,7 @@
     <!-- 展开状态：可拖动、可调整大小的浮动便签窗口 -->
     <section
       v-else-if="visible"
+      ref="winRef"
       class="pv-memo-win"
       :class="{ dragging }"
       :style="winStyle"
@@ -34,7 +35,7 @@
   </Teleport>
 </template>
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue'
 import { Close, EditPen, Minus } from '@element-plus/icons-vue'
 import MemoPanel from './MemoPanel.vue'
 
@@ -55,6 +56,7 @@ const visible = ref(false)
 const collapsed = ref(false)
 const dragging = ref(false)
 const memoRef = ref<InstanceType<typeof MemoPanel> | null>(null)
+const winRef = ref<HTMLElement | null>(null)
 const size = reactive({ w: W_DEFAULT, h: H_DEFAULT })
 const pos = reactive({ x: 0, y: 0 })
 const side = ref<Side>('right')
@@ -90,10 +92,12 @@ const clampPos = () => {
   pos.x = clamp(pos.x, 0, Math.max(0, window.innerWidth - size.w))
   pos.y = clamp(pos.y, 0, Math.max(0, window.innerHeight - size.h))
 }
-/** 默认位置：贴着右下角浮窗入口上方 */
-const defaultPos = () => {
-  pos.x = Math.max(12, window.innerWidth - size.w - 76)
-  pos.y = Math.max(12, window.innerHeight - size.h - 76)
+/** 默认布局：覆盖首页卡片区域（首次打开、无保存记录时） */
+const defaultLayout = () => {
+  size.w = Math.round(clamp(Math.min(760, window.innerWidth - 32), W_MIN, window.innerWidth - 24))
+  size.h = Math.round(clamp(Math.min(560, window.innerHeight - 32), H_MIN, window.innerHeight - 24))
+  pos.x = Math.max(8, Math.round((window.innerWidth - size.w) / 2))
+  pos.y = Math.max(8, Math.round((window.innerHeight - size.h) / 2))
 }
 /** 当前离哪条边最近 */
 const nearestSide = () => {
@@ -147,7 +151,7 @@ const restore = () => {
   clampPos()
   return true
 }
-if (!restore()) defaultPos()
+if (!restore()) defaultLayout()
 
 const reloadMemo = async () => {
   await nextTick()
@@ -189,6 +193,28 @@ const toggle = () => {
   if (visible.value && !collapsed.value) close()
   else void open()
 }
+
+// ==================== 点击便签外区域自动最小化 ====================
+/** 展开状态下，点击窗口外（不含便签入口按钮）自动收起 */
+const onOutsidePointerDown = (ev: PointerEvent) => {
+  if (!visible.value || collapsed.value) return
+  const target = ev.target as HTMLElement | null
+  if (!target) return
+  if (winRef.value?.contains(target)) return
+  // 便签入口按钮 / 收起图标交给各自的点击逻辑处理，不在这里最小化
+  if (target.closest('.pv-dock') || target.closest('.pv-memo-icon')) return
+  // 历史版本弹窗、图片预览等 Teleport 到 body 的浮层，点击不算「便签外」
+  if (target.closest('.el-overlay') || target.closest('.el-image-viewer__wrapper')) return
+  minimize()
+}
+// 只在展开时监听，收起 / 关闭后移除
+watch(
+  () => visible.value && !collapsed.value,
+  (open) => {
+    if (open) document.addEventListener('pointerdown', onOutsidePointerDown)
+    else document.removeEventListener('pointerdown', onOutsidePointerDown)
+  }
+)
 
 // ==================== 拖动移动 + 贴边吸附 ====================
 let dragOrigin = { x: 0, y: 0, px: 0, py: 0 }
@@ -259,6 +285,7 @@ window.addEventListener('resize', onViewportResize)
 
 onUnmounted(() => {
   window.removeEventListener('resize', onViewportResize)
+  document.removeEventListener('pointerdown', onOutsidePointerDown)
   window.removeEventListener('pointermove', onDrag)
   window.removeEventListener('pointerup', stopDrag)
   window.removeEventListener('pointercancel', stopDrag)

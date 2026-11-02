@@ -41,6 +41,7 @@ declare module 'vue' {
     ImageUploader: typeof import('./src/components/ImageUploader.vue')['default']
     Loading: typeof import('./src/components/Loading.vue')['default']
     LogoFallback: typeof import('./src/components/LogoFallback.vue')['default']
+    MemoBlock: typeof import('./src/components/productivity/MemoBlock.vue')['default']
     MemoEditor: typeof import('./src/components/productivity/MemoEditor.vue')['default']
     MemoPanel: typeof import('./src/components/productivity/MemoPanel.vue')['default']
     MemoWindow: typeof import('./src/components/productivity/MemoWindow.vue')['default']
