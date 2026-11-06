@@ -8,14 +8,15 @@
         <div class="card-header-right">
           <el-button type="primary" :icon="Plus" @click="openAdd">添加</el-button>
           <el-button :icon="Refresh" @click="reload">刷新</el-button>
+          <TableColumnSettings table-key="apiToken" :columns="tokenColumns" />
         </div>
       </div>
     </template>
 
     <el-table v-loading="loading" :data="tokens" row-key="id">
-      <el-table-column prop="id" label="序号" width="90" />
-      <el-table-column prop="name" label="名称" width="180" />
-      <el-table-column label="值" min-width="320">
+      <el-table-column v-if="isCol('id')" prop="id" label="序号" width="90" />
+      <el-table-column v-if="isCol('name')" prop="name" label="名称" width="180" />
+      <el-table-column v-if="isCol('value')" label="值" min-width="320">
         <template #default="{ row }">
           <div class="token-value">
             <span class="token-text">{{ row.value }}</span>
@@ -57,8 +58,20 @@ import { CopyDocument, Plus, Refresh } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { fetchAddApiToken, fetchDeleteApiToken, resolveError } from '../../api'
 import { useAdminStore } from '../../stores/admin'
+import { useTableColumnsStore } from '../../stores/tableColumns'
+import type { TableColumnOption } from '../../stores/tableColumns'
+import TableColumnSettings from '../../components/TableColumnSettings.vue'
 import { useIsMobile } from '../../composables/useIsMobile'
 import type { Token } from '../../types'
+
+/** API Token 表格可隐藏的列 */
+const tokenColumns: TableColumnOption[] = [
+  { key: 'id', label: '序号' },
+  { key: 'name', label: '名称' },
+  { key: 'value', label: '值' },
+]
+const cols = useTableColumnsStore()
+const isCol = (key: string) => cols.isVisible('apiToken', key)
 
 const adminStore = useAdminStore()
 /** 手机布局：操作列不再固定到右侧（固定列会遮住窄屏里本就不多的内容） */

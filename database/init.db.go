@@ -233,7 +233,8 @@ func InitDB() {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			noImageMode BOOLEAN NOT NULL DEFAULT 0,
 			compactMode BOOLEAN NOT NULL DEFAULT 0,
-			cardsPerRow INTEGER NOT NULL DEFAULT 5
+			cardsPerRow INTEGER NOT NULL DEFAULT 5,
+			adminHiddenColumns TEXT NOT NULL DEFAULT ''
 		);
 		`
 	_, err = DB.Exec(sql_create_table)
@@ -247,6 +248,11 @@ func InitDB() {
 	// 网站配置表结构升级 - 添加cardsPerRow列（首页每行展示的网站数量）
 	if !columnExists("nav_site_config", "cardsPerRow") {
 		DB.Exec(`ALTER TABLE nav_site_config ADD COLUMN cardsPerRow INTEGER NOT NULL DEFAULT 5;`)
+	}
+
+	// 网站配置表结构升级 - 添加 adminHiddenColumns 列（后台表格隐藏列配置，多设备端同步）
+	if !columnExists("nav_site_config", "adminHiddenColumns") {
+		DB.Exec(`ALTER TABLE nav_site_config ADD COLUMN adminHiddenColumns TEXT NOT NULL DEFAULT '';`)
 	}
 
 	// 便签表：单文档模式（id 固定为 1），多端通过后端同步

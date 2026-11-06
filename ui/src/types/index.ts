@@ -63,6 +63,8 @@ export interface SiteConfig {
   compactMode: boolean
   /** 首页每行展示的网站数量 */
   cardsPerRow: number
+  /** 后台表格隐藏列配置（JSON 字符串），存服务端实现多设备端同步 */
+  adminHiddenColumns: string
 }
 
 export interface Token {

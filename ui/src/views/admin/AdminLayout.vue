@@ -42,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Box,
@@ -56,6 +56,7 @@ import {
   SwitchButton,
 } from '@element-plus/icons-vue'
 import { useAdminStore } from '../../stores/admin'
+import { useTableColumnsStore } from '../../stores/tableColumns'
 import { useIsMobile } from '../../composables/useIsMobile'
 
 const COLLAPSE_KEY = 'admin-sidebar-collapsed'
@@ -115,4 +116,24 @@ const handleLogout = () => {
   adminStore.reset()
   router.replace('/')
 }
+
+// ==================== 表格列配置：多设备端同步 ====================
+// 列配置存服务端，进入后台以及切回本设备（标签页重新可见 / 窗口重新获得焦点）时重新拉取，
+// 这样在其它设备上的改动会自动生效；只刷新列配置，不动表格里尚未保存的行编辑
+const tableColumns = useTableColumnsStore()
+const syncTableColumns = () => {
+  void tableColumns.refresh()
+}
+const onVisibilityChange = () => {
+  if (document.visibilityState === 'visible') syncTableColumns()
+}
+onMounted(() => {
+  syncTableColumns()
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener('focus', syncTableColumns)
+})
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener('focus', syncTableColumns)
+})
 </script>

@@ -9,6 +9,7 @@
         <div class="card-header-right">
           <el-button type="primary" :icon="Plus" @click="openAdd">添加</el-button>
           <el-button :icon="Refresh" @click="reload">刷新</el-button>
+          <TableColumnSettings table-key="categories" :columns="catelogColumns" />
         </div>
       </div>
     </template>
@@ -20,7 +21,7 @@
       :row-class-name="rowClassName"
       row-key="id"
     >
-      <el-table-column width="92" align="center">
+      <el-table-column v-if="isCol('sort')" width="92" align="center">
         <template #header>
           <span class="column-with-tip">
             排序
@@ -36,12 +37,12 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="名称" min-width="180">
+      <el-table-column v-if="isCol('name')" label="名称" min-width="180">
         <template #default="{ row }">
           <el-input v-model="row.name" placeholder="请输入分类名称" @change="saveRow(row)" />
         </template>
       </el-table-column>
-      <el-table-column width="76" align="center">
+      <el-table-column v-if="isCol('hide')" width="76" align="center">
         <template #header>
           <span class="column-with-tip">
             隐藏
@@ -54,7 +55,7 @@
           <el-switch v-model="row.hide" inline-prompt active-text="开" inactive-text="关" @change="saveRow(row)" />
         </template>
       </el-table-column>
-      <el-table-column width="76" align="center">
+      <el-table-column v-if="isCol('default')" width="76" align="center">
         <template #header>
           <span class="column-with-tip">
             默认
@@ -135,8 +136,11 @@ import {
   resolveError,
 } from '../../api'
 import { useAdminStore } from '../../stores/admin'
+import { useTableColumnsStore } from '../../stores/tableColumns'
+import type { TableColumnOption } from '../../stores/tableColumns'
 import { useIsMobile } from '../../composables/useIsMobile'
 import { useTableSortable } from '../../composables/useTableSortable'
+import TableColumnSettings from '../../components/TableColumnSettings.vue'
 import type { Catelog } from '../../types'
 
 interface CatelogForm {
@@ -148,6 +152,16 @@ interface CatelogForm {
 
 /** 新建分类：排序值默认 -1（排到最后）、默认开关默认打开 */
 const createEmptyForm = (): CatelogForm => ({ name: '', sort: -1, hide: false, default: true })
+
+/** 分类表格可隐藏的列 */
+const catelogColumns: TableColumnOption[] = [
+  { key: 'sort', label: '排序' },
+  { key: 'name', label: '名称' },
+  { key: 'hide', label: '隐藏' },
+  { key: 'default', label: '默认' },
+]
+const cols = useTableColumnsStore()
+const isCol = (key: string) => cols.isVisible('categories', key)
 
 const adminStore = useAdminStore()
 /** 手机布局：操作列不再固定到右侧（固定列会遮住窄屏里本就不多的内容） */

@@ -26,6 +26,7 @@ const defaultSiteConfig: SiteConfig = {
   noImageMode: false,
   compactMode: false,
   cardsPerRow: DEFAULT_CARDS_PER_ROW,
+  adminHiddenColumns: '',
 }
 
 export const useSiteStore = defineStore('site', () => {

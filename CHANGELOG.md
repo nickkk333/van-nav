@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.18] - 2026-11-06
+
+### 🚀 Features
+
+- 后台表格列支持隐藏 / 取消隐藏：工具、分类、搜索引擎、API Token 四张表均提供「列设置」浮层勾选显示列
+- 列配置保存在服务端（nav_site_config.adminHiddenColumns），多个设备端自动同步：切回标签页 / 窗口重新聚焦即拉取其它设备的改动
+- 便签附件文件名截断产生的边界 bug 修复：长文件名截断处的点不再被拼成 `..`，预览从 404 恢复；历史坏文件名也能直接读取
+
 ## [1.0.17] - 2026-11-02
 
 ### 🚀 Features

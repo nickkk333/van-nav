@@ -120,4 +120,8 @@ type SiteConfig struct {
 	CompactMode bool `json:"compactMode"`
 	// CardsPerRow 首页每行展示的网站数量
 	CardsPerRow int `json:"cardsPerRow"`
+	// AdminHiddenColumns 后台表格隐藏列的 JSON：按表格分组，值为隐藏的列 key 数组
+	// 例如 {"tools":["internalUrl","logoName"],"categories":[]}，空字符串表示全部显示
+	// 存服务端保证多设备端同步
+	AdminHiddenColumns string `json:"adminHiddenColumns"`
 }

@@ -322,18 +322,18 @@ func SafeImageFileName(name string, fallback string) string {
 		}
 		return r
 	}, strings.TrimSpace(name))
-	cleaned = strings.Trim(cleaned, " .")
-	// 连续的点会被图片访问校验当成路径穿越（含 ".."），折叠成单个点，保证「存得下也读得出」
+	// 文件名不宜过长（多数文件系统单个文件名上限 255 字节），先截断再统一清洗
+	if runes := []rune(cleaned); len(runes) > 50 {
+		cleaned = string(runes[:50])
+	}
+	// 连续的点会被文件访问校验当成路径穿越（含 ".."），折叠成单个点；
+	// 截断处可能正好落在点上，若留着会在拼接扩展名（.jpg 等）时形成 ".."，导致「存得下但读不出」
 	for strings.Contains(cleaned, "..") {
 		cleaned = strings.ReplaceAll(cleaned, "..", ".")
 	}
 	cleaned = strings.Trim(cleaned, " .")
 	if cleaned == "" {
 		return fallback
-	}
-	// 文件名不宜过长（多数文件系统单个文件名上限 255 字节）
-	if runes := []rune(cleaned); len(runes) > 50 {
-		cleaned = string(runes[:50])
 	}
 	return cleaned
 }

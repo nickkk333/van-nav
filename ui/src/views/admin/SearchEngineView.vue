@@ -8,17 +8,18 @@
         <div class="card-header-right">
           <el-button type="primary" :icon="Plus" @click="openAdd">添加搜索引擎</el-button>
           <el-button :icon="Refresh" @click="loadEngines">刷新</el-button>
+          <TableColumnSettings table-key="searchEngines" :columns="engineColumns" />
         </div>
       </div>
     </template>
 
     <el-table ref="tableRef" v-loading="loading" :data="engines" row-key="id">
-      <el-table-column label="排序" width="70" align="center">
+      <el-table-column v-if="isCol('sort')" label="排序" width="70" align="center">
         <template #default>
           <el-icon class="drag-handle"><Rank /></el-icon>
         </template>
       </el-table-column>
-      <el-table-column label="Logo" width="80">
+      <el-table-column v-if="isCol('logo')" label="Logo" width="80">
         <template #default="{ row }">
           <!-- 没填 logo 的搜索引擎在前台会退回默认图标，这里直接显示名称首字符占位图；加载失败也走同一个占位 -->
           <LogoFallback v-if="!row.logo" class="engine-logo" :name="row.name" />
@@ -29,10 +30,10 @@
           </el-image>
         </template>
       </el-table-column>
-      <el-table-column prop="name" label="名称" width="140" />
-      <el-table-column prop="baseUrl" label="基础 URL" min-width="220" show-overflow-tooltip />
-      <el-table-column prop="queryParam" label="查询参数" width="120" />
-      <el-table-column label="启用" width="100">
+      <el-table-column v-if="isCol('name')" prop="name" label="名称" width="140" />
+      <el-table-column v-if="isCol('baseUrl')" prop="baseUrl" label="基础 URL" min-width="220" show-overflow-tooltip />
+      <el-table-column v-if="isCol('queryParam')" prop="queryParam" label="查询参数" width="120" />
+      <el-table-column v-if="isCol('enabled')" label="启用" width="100">
         <template #default="{ row }">
           <el-switch
             v-model="row.enabled"
@@ -128,6 +129,9 @@ import {
 } from '../../api'
 import { useIsMobile } from '../../composables/useIsMobile'
 import { useTableSortable } from '../../composables/useTableSortable'
+import { useTableColumnsStore } from '../../stores/tableColumns'
+import type { TableColumnOption } from '../../stores/tableColumns'
+import TableColumnSettings from '../../components/TableColumnSettings.vue'
 import LogoFallback from '../../components/LogoFallback.vue'
 import { clearSearchEngineCache } from '../../utils/searchEngine'
 import type { SearchEngine } from '../../types'
@@ -148,6 +152,18 @@ const createEmptyForm = (): EngineForm => ({
   logo: '',
   enabled: true,
 })
+
+/** 搜索引擎表格可隐藏的列 */
+const engineColumns: TableColumnOption[] = [
+  { key: 'sort', label: '排序' },
+  { key: 'logo', label: 'Logo' },
+  { key: 'name', label: '名称' },
+  { key: 'baseUrl', label: '基础 URL' },
+  { key: 'queryParam', label: '查询参数' },
+  { key: 'enabled', label: '启用' },
+]
+const cols = useTableColumnsStore()
+const isCol = (key: string) => cols.isVisible('searchEngines', key)
 
 /** 手机布局：操作列不再固定到右侧（固定列会遮住窄屏里本就不多的内容） */
 const isMobile = useIsMobile()

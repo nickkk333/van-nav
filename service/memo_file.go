@@ -130,9 +130,11 @@ func MemoFileDownloadName(name string) string {
 	return rest
 }
 
-// isSafeMemoFileName 校验文件名：只能是 MemoFileDir 下的文件，避免路径穿越
+// isSafeMemoFileName 校验文件名：只能是 MemoFileDir 下的文件，避免路径穿越。
+// 不含路径分隔符时（filepath.Base 与 ContainsAny 两重校验）".." 只是普通字符、无法穿越目录，
+// 故不再额外拒绝：兼容早期由长文件名截断产生、名称里含 ".." 的历史附件，保证仍能预览
 func isSafeMemoFileName(name string) bool {
-	if name == "" || name != filepath.Base(name) || strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
+	if name == "" || name != filepath.Base(name) || strings.ContainsAny(name, `/\`) {
 		return false
 	}
 	return strings.HasPrefix(name, memoFilePrefix)

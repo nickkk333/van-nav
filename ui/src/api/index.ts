@@ -179,6 +179,12 @@ export const fetchUpdateSiteConfig = async (payload: Record<string, unknown>): P
   return data
 }
 
+/** 保存后台表格隐藏列配置（JSON 字符串，存服务端实现多设备端同步） */
+export const fetchUpdateAdminTableColumns = async (hiddenColumns: string): Promise<ApiResult> => {
+  const { data } = await http.put<ApiResult>('/admin/tableColumns', { hiddenColumns })
+  return data
+}
+
 export const fetchUpdateUser = async (payload: Record<string, unknown>): Promise<ApiResult> => {
   const { data } = await http.put<ApiResult>('/admin/user', payload)
   return data

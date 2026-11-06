@@ -29,33 +29,48 @@ func NormalizeCardsPerRow(value int) int {
 // GetSiteConfig 获取站点展示配置
 func GetSiteConfig() types.SiteConfig {
 	row := database.DB.QueryRow(`
-		SELECT id, noImageMode, compactMode, cardsPerRow
+		SELECT id, noImageMode, compactMode, cardsPerRow, adminHiddenColumns
 		FROM nav_site_config
 		ORDER BY id ASC
 		LIMIT 1;
 		`)
 	var (
-		siteConfig  types.SiteConfig
-		noImageMode sql.NullBool
-		compactMode sql.NullBool
-		cardsPerRow sql.NullInt64
+		siteConfig         types.SiteConfig
+		noImageMode        sql.NullBool
+		compactMode        sql.NullBool
+		cardsPerRow        sql.NullInt64
+		adminHiddenColumns sql.NullString
 	)
-	if err := row.Scan(&siteConfig.Id, &noImageMode, &compactMode, &cardsPerRow); err != nil {
+	if err := row.Scan(&siteConfig.Id, &noImageMode, &compactMode, &cardsPerRow, &adminHiddenColumns); err != nil {
 		logger.LogError("获取网站配置失败: %s", err)
 		return types.SiteConfig{Id: 1, NoImageMode: false, CompactMode: false, CardsPerRow: DefaultCardsPerRow}
 	}
 	siteConfig.NoImageMode = noImageMode.Bool
 	siteConfig.CompactMode = compactMode.Bool
 	siteConfig.CardsPerRow = NormalizeCardsPerRow(int(cardsPerRow.Int64))
+	siteConfig.AdminHiddenColumns = adminHiddenColumns.String
 	return siteConfig
 }
 
-// UpdateSiteConfig 更新站点展示配置
+// UpdateSiteConfig 更新站点展示配置。
+// 注意：后台表格隐藏列 adminHiddenColumns 由 UpdateAdminHiddenColumns 单独维护，
+// 避免系统设置表单整包提交时把列配置覆盖掉
 func UpdateSiteConfig(data types.SiteConfig) error {
 	_, err := database.DB.Exec(`
 		UPDATE nav_site_config
 		SET noImageMode = ?, compactMode = ?, cardsPerRow = ?
 		WHERE id = (SELECT id FROM nav_site_config ORDER BY id ASC LIMIT 1);
 		`, data.NoImageMode, data.CompactMode, NormalizeCardsPerRow(data.CardsPerRow))
+	return err
+}
+
+// UpdateAdminHiddenColumns 保存后台表格隐藏列配置（JSON 字符串，已由 handler 校验合法性）。
+// 存服务端全局单条记录，多设备端读取同一份配置
+func UpdateAdminHiddenColumns(hidden string) error {
+	_, err := database.DB.Exec(`
+		UPDATE nav_site_config
+		SET adminHiddenColumns = ?
+		WHERE id = (SELECT id FROM nav_site_config ORDER BY id ASC LIMIT 1);
+		`, hidden)
 	return err
 }

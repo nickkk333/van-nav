@@ -38,6 +38,7 @@
           <el-tooltip content="导出全部数据（工具、分类、搜索引擎、API Token），图标只导出图标网址（工具的图片名与搜索引擎的图标不导出），导入后按网址重新获取" placement="top">
             <el-button :icon="Download" @click="handleExport">导出</el-button>
           </el-tooltip>
+          <TableColumnSettings table-key="tools" :columns="toolColumns" />
         </div>
       </div>
     </template>
@@ -51,7 +52,7 @@
       @selection-change="onSelectionChange"
     >
       <el-table-column type="selection" width="46" />
-      <el-table-column width="92" align="center">
+      <el-table-column v-if="isCol('sort')" width="92" align="center">
         <template #header>
           <span class="column-with-tip">
             排序
@@ -68,7 +69,7 @@
         </template>
       </el-table-column>
       <!-- <el-table-column prop="id" label="ID" width="70" /> -->
-      <el-table-column label="名称" min-width="160">
+      <el-table-column v-if="isCol('name')" label="名称" min-width="160">
         <template #default="{ row }">
           <div class="tool-name-cell">
             <!-- 有图片名时读 data 目录里的本地图片，其次按图标网址显示；两者都没有时显示名称首字符占位图，有图标但加载失败也显示占位图 -->
@@ -83,7 +84,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="分类" width="130">
+      <el-table-column v-if="isCol('catelog')" label="分类" width="130">
         <template #default="{ row }">
           <el-select
             v-model="row.catelog"
@@ -96,7 +97,7 @@
           </el-select>
         </template>
       </el-table-column>
-      <el-table-column label="网址" min-width="190">
+      <el-table-column v-if="isCol('url')" label="网址" min-width="190">
         <template #header>
           <span class="column-with-tip">
             网址
@@ -111,7 +112,7 @@
           </span>
         </template>
       </el-table-column>
-      <el-table-column label="内网网址" min-width="180">
+      <el-table-column v-if="isCol('internalUrl')" label="内网网址" min-width="180">
         <template #header>
           <span class="column-with-tip">
             内网网址
@@ -127,12 +128,12 @@
           <el-input v-model="row.internalUrl" placeholder="选填，留空表示没有内网地址" @change="saveRow(row)" />
         </template>
       </el-table-column>
-      <el-table-column label="描述" min-width="150">
+      <el-table-column v-if="isCol('desc')" label="描述" min-width="150">
         <template #default="{ row }">
           <el-input v-model="row.desc" placeholder="请输入描述" @change="saveRow(row)" />
         </template>
       </el-table-column>
-      <el-table-column label="logo 网址" min-width="170">
+      <el-table-column v-if="isCol('logo')" label="logo 网址" min-width="170">
         <template #header>
           <span class="column-with-tip">
             logo 网址
@@ -148,7 +149,7 @@
           <el-input v-model="row.logo" placeholder="修改后会重新获取图标（图片外链优先下载该图片）" @change="saveRow(row)" />
         </template>
       </el-table-column>
-      <el-table-column label="logo 图片名" min-width="150">
+      <el-table-column v-if="isCol('logoName')" label="logo 图片名" min-width="150">
         <template #header>
           <span class="column-with-tip">
             logo 图片名
@@ -176,7 +177,7 @@
           </el-upload>
         </template>
       </el-table-column>
-      <el-table-column width="76" align="center">
+      <el-table-column v-if="isCol('hide')" width="76" align="center">
         <template #header>
           <span class="column-with-tip">
             隐藏
@@ -189,7 +190,7 @@
           <el-switch v-model="row.hide" inline-prompt active-text="开" inactive-text="关" @change="saveRow(row)" />
         </template>
       </el-table-column>
-      <el-table-column width="76" align="center">
+      <el-table-column v-if="isCol('default')" width="76" align="center">
         <template #header>
           <span class="column-with-tip">
             默认
@@ -323,9 +324,12 @@ import {
   resolveError,
 } from '../../api'
 import { useAdminStore } from '../../stores/admin'
+import { useTableColumnsStore } from '../../stores/tableColumns'
+import type { TableColumnOption } from '../../stores/tableColumns'
 import { useIsMobile } from '../../composables/useIsMobile'
 import { useTableSortable } from '../../composables/useTableSortable'
 import LogoFallback from '../../components/LogoFallback.vue'
+import TableColumnSettings from '../../components/TableColumnSettings.vue'
 import { multiSearch, pinyinReady } from '../../utils/match'
 import { getToolLogoUrl, hasToolLogo } from '../../utils/check'
 import { clearSearchEngineCache } from '../../utils/searchEngine'
@@ -362,6 +366,23 @@ const createEmptyForm = (): ToolForm => ({
   // 新工具默认展示在默认页
   default: true,
 })
+
+/** 工具管理表格可隐藏的列；多选列与操作列固定保留 */
+const toolColumns: TableColumnOption[] = [
+  { key: 'sort', label: '排序' },
+  { key: 'name', label: '名称' },
+  { key: 'catelog', label: '分类' },
+  { key: 'url', label: '网址' },
+  { key: 'internalUrl', label: '内网网址' },
+  { key: 'desc', label: '描述' },
+  { key: 'logo', label: 'logo 网址' },
+  { key: 'logoName', label: 'logo 图片名' },
+  { key: 'hide', label: '隐藏' },
+  { key: 'default', label: '默认' },
+]
+const cols = useTableColumnsStore()
+/** 绑定工具表的列可见性判断：v-if="isCol('name')" */
+const isCol = (key: string) => cols.isVisible('tools', key)
 
 const adminStore = useAdminStore()
 const store = computed(() => adminStore.store)

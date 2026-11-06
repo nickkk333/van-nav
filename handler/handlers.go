@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"sort"
 	"strconv"
@@ -236,6 +237,38 @@ func UpdateSiteConfigHandler(c *gin.Context) {
 		"success": true,
 		"message": "更新网站配置成功",
 	})
+}
+
+// UpdateAdminTableColumnsHandler 保存后台表格隐藏列配置。
+// 配置存服务端全局单条记录，多个设备端读取同一份数据实现同步；
+// 只更新这一列，不与系统设置表单的整包提交互相覆盖
+func UpdateAdminTableColumnsHandler(c *gin.Context) {
+	var payload struct {
+		HiddenColumns string `json:"hiddenColumns"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "errorMessage": "参数格式不正确"})
+		return
+	}
+	hidden := strings.TrimSpace(payload.HiddenColumns)
+	if len(hidden) > 8192 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "errorMessage": "列配置过长"})
+		return
+	}
+	// 必须是「表格 -> 隐藏列 key 数组」的 JSON 对象，避免脏数据存进去
+	if hidden != "" {
+		var parsed map[string][]string
+		if err := json.Unmarshal([]byte(hidden), &parsed); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "errorMessage": "列配置格式不正确"})
+			return
+		}
+	}
+	if err := service.UpdateAdminHiddenColumns(hidden); err != nil {
+		utils.CheckErr(err)
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "errorMessage": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "列配置已保存"})
 }
 
 func GetAllHandler(c *gin.Context) {

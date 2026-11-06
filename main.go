@@ -159,6 +159,8 @@ func main() {
 			admin.PUT("/user", handler.UpdateUserHandler)
 			admin.PUT("/setting", handler.UpdateSettingHandler)
 			admin.PUT("/siteConfig", handler.UpdateSiteConfigHandler)
+			// 后台表格隐藏列配置（多设备端同步）
+			admin.PUT("/tableColumns", handler.UpdateAdminTableColumnsHandler)
 			// 图片上传（表单字段名为 file）
 			admin.POST("/uploadImage", handler.UploadImageHandler)
 
