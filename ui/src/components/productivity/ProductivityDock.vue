@@ -3,7 +3,7 @@
     <div class="pv-dock">
       <el-tooltip v-if="showMemo" content="便签" placement="left"><button type="button" class="pv-dock-btn" aria-label="便签" @click="openMemo"><el-icon :size="20"><EditPen /></el-icon></button></el-tooltip>
     </div>
-    <!-- 便签：独立浮动窗口，可拖动移动、贴边吸附成图标、点击展开 -->
+    <!-- 便签：打开时自动覆盖除搜索框外的页面区域 -->
     <MemoWindow v-if="showMemo" ref="memoWinRef" />
   </div>
 </template>

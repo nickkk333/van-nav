@@ -1,21 +1,8 @@
 <template>
   <Teleport to="body">
-    <!-- 收起状态：吸附在屏幕边缘的便签图标，点击重新展开 -->
-    <button
-      v-if="visible && collapsed"
-      type="button"
-      class="pv-memo-icon"
-      :class="`pv-memo-icon-${side}`"
-      :style="iconStyle"
-      title="打开便签"
-      aria-label="打开便签"
-      @click="expand"
-    >
-      <el-icon :size="18"><EditPen /></el-icon>
-    </button>
-    <!-- 展开状态：可拖动、可调整大小的浮动便签窗口 -->
+    <!-- 展开状态：打开即自动扩充，覆盖页面「除搜索框」以外的区域 -->
     <section
-      v-else-if="visible"
+      v-if="visible"
       ref="winRef"
       class="pv-memo-win"
       :class="{ dragging }"
@@ -25,7 +12,6 @@
       <header class="pv-memo-win-head" @pointerdown="startDrag">
         <span class="pv-memo-win-title">便签</span>
         <div class="pv-memo-win-actions">
-          <button type="button" class="pv-memo-win-btn" title="收起到边缘" aria-label="收起到边缘" @click="minimize"><el-icon><Minus /></el-icon></button>
           <button type="button" class="pv-memo-win-btn" title="关闭" aria-label="关闭" @click="close"><el-icon><Close /></el-icon></button>
         </div>
       </header>
@@ -36,32 +22,27 @@
 </template>
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue'
-import { Close, EditPen, Minus } from '@element-plus/icons-vue'
+import { Close } from '@element-plus/icons-vue'
 import MemoPanel from './MemoPanel.vue'
+import { memoExpanded } from '../../utils/memoWindow'
 
-// ==================== 便签浮动窗口（拖动移动、贴边吸附成图标、点击展开） ====================
-type Side = 'left' | 'right' | 'top' | 'bottom'
-/** 位置 / 尺寸 / 吸附边 / 收起状态存 localStorage，刷新后回到原位 */
-const STORE_KEY = 'pv-memo-window'
-const W_DEFAULT = 380
-const H_DEFAULT = 420
+// ==================== 便签浮动窗口（打开自动覆盖除搜索框外的页面区域） ====================
+/** 窗口与视口边缘的间距 */
+const EDGE = 8
+/** 窗口顶部与搜索框底部的间距 */
+const TOP_GAP = 12
+/** 找不到搜索框时，顶部预留的兜底距离 */
+const FALLBACK_TOP = 96
+/** 手动调整大小的下限 */
 const W_MIN = 280
 const H_MIN = 260
-/** 拖到离边缘多近就吸附（px） */
-const SNAP = 28
-/** 收起成图标后与屏幕上下/左右角的最小间距，避免图标缩到角落点不到 */
-const ICON_GAP = 60
 
 const visible = ref(false)
-const collapsed = ref(false)
 const dragging = ref(false)
 const memoRef = ref<InstanceType<typeof MemoPanel> | null>(null)
 const winRef = ref<HTMLElement | null>(null)
-const size = reactive({ w: W_DEFAULT, h: H_DEFAULT })
+const size = reactive({ w: 0, h: 0 })
 const pos = reactive({ x: 0, y: 0 })
-const side = ref<Side>('right')
-/** 视口尺寸变化的计数器：让依赖窗口大小的计算属性（图标位置等）重新求值 */
-const vp = ref(0)
 
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), Math.max(min, max))
 
@@ -71,152 +52,83 @@ const winStyle = computed(() => ({
   width: `${size.w}px`,
   height: `${size.h}px`,
 }))
-/** 图标居中贴在被吸附的那条边上 */
-const iconStyle = computed(() => {
-  void vp.value
-  if (side.value === 'left' || side.value === 'right') {
-    return { top: `${clamp(pos.y + size.h / 2, ICON_GAP, window.innerHeight - ICON_GAP)}px` }
-  }
-  return { left: `${clamp(pos.x + size.w / 2, ICON_GAP, window.innerWidth - ICON_GAP)}px` }
-})
 
 /** 尺寸收进视口 */
 const clampSize = () => {
-  const maxW = Math.max(W_MIN, window.innerWidth - 24)
-  const maxH = Math.max(H_MIN, window.innerHeight - 24)
-  size.w = clamp(size.w, Math.min(W_MIN, maxW), maxW)
-  size.h = clamp(size.h, Math.min(H_MIN, maxH), maxH)
+  const maxW = Math.max(1, window.innerWidth - EDGE * 2)
+  const maxH = Math.max(1, window.innerHeight - EDGE * 2)
+  size.w = clamp(size.w, 1, maxW)
+  size.h = clamp(size.h, 1, maxH)
 }
 /** 窗口整体收进视口 */
 const clampPos = () => {
   pos.x = clamp(pos.x, 0, Math.max(0, window.innerWidth - size.w))
   pos.y = clamp(pos.y, 0, Math.max(0, window.innerHeight - size.h))
 }
-/** 默认布局：覆盖首页卡片区域（首次打开、无保存记录时） */
-const defaultLayout = () => {
-  size.w = Math.round(clamp(Math.min(760, window.innerWidth - 32), W_MIN, window.innerWidth - 24))
-  size.h = Math.round(clamp(Math.min(560, window.innerHeight - 32), H_MIN, window.innerHeight - 24))
-  pos.x = Math.max(8, Math.round((window.innerWidth - size.w) / 2))
-  pos.y = Math.max(8, Math.round((window.innerHeight - size.h) / 2))
+/**
+ * 打开时自动扩充：覆盖页面「除搜索框」以外的区域。
+ * 以首页搜索框的实际底部为起点（适配不同视口 / 主题 / 「仅显示搜索框」模式），
+ * 横向铺满、纵向延伸到视口底部；不再贴边吸附成图标
+ */
+const coverBelowSearch = () => {
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const search =
+    document.querySelector<HTMLElement>('.topbar .search-wraper') ??
+    document.querySelector<HTMLElement>('.topbar .search')
+  const rect = search?.getBoundingClientRect()
+  const baseTop = rect && rect.bottom > 0 ? rect.bottom : FALLBACK_TOP
+  const top = Math.max(0, Math.min(Math.round(baseTop + TOP_GAP), vh - 80))
+  size.w = Math.max(1, vw - EDGE * 2)
+  size.h = Math.max(1, vh - top - EDGE)
+  pos.x = EDGE
+  pos.y = top
 }
-/** 当前离哪条边最近 */
-const nearestSide = () => {
-  const dist: Record<Side, number> = {
-    left: pos.x,
-    right: window.innerWidth - (pos.x + size.w),
-    top: pos.y,
-    bottom: window.innerHeight - (pos.y + size.h),
-  }
-  let best: Side = 'right'
-  ;(Object.keys(dist) as Side[]).forEach((k) => {
-    if (dist[k] < dist[best]) best = k
-  })
-  return { side: best, dist: dist[best] }
-}
-/** 把窗口贴到指定边（不改收起状态） */
-const snapTo = (s: Side) => {
-  side.value = s
-  if (s === 'left') pos.x = 0
-  else if (s === 'right') pos.x = Math.max(0, window.innerWidth - size.w)
-  else if (s === 'top') pos.y = 0
-  else pos.y = Math.max(0, window.innerHeight - size.h)
-}
-
-const persist = () => {
-  try {
-    window.localStorage.setItem(
-      STORE_KEY,
-      JSON.stringify({ x: pos.x, y: pos.y, w: size.w, h: size.h, side: side.value, collapsed: collapsed.value }),
-    )
-  } catch {
-    /* 隐私模式等存不了：忽略 */
-  }
-}
-/** 读取上次的窗口状态；有记录返回 true */
-const restore = () => {
-  let saved: Record<string, unknown> | null = null
-  try {
-    saved = JSON.parse(window.localStorage.getItem(STORE_KEY) || 'null')
-  } catch {
-    saved = null
-  }
-  if (!saved || typeof saved !== 'object') return false
-  if (typeof saved.w === 'number') size.w = saved.w
-  if (typeof saved.h === 'number') size.h = saved.h
-  if (typeof saved.x === 'number') pos.x = saved.x
-  if (typeof saved.y === 'number') pos.y = saved.y
-  if (saved.side === 'left' || saved.side === 'right' || saved.side === 'top' || saved.side === 'bottom') side.value = saved.side
-  collapsed.value = saved.collapsed === true
-  clampSize()
-  clampPos()
-  return true
-}
-if (!restore()) defaultLayout()
 
 const reloadMemo = async () => {
   await nextTick()
   memoRef.value?.reload?.()
 }
-/** 打开：展开成完整窗口并拉取最新便签 */
+/** 打开：自动扩充到覆盖除搜索框外的页面区域，并拉取最新便签 */
 const open = async () => {
+  // 首页的搜索框与便签窗口是否显示无关，先算好尺寸再显示，避免 0 尺寸闪一帧
+  coverBelowSearch()
   visible.value = true
-  collapsed.value = false
-  clampSize()
-  clampPos()
-  persist()
+  // reloadMemo 内部会等面板挂载完成
   await reloadMemo()
 }
 const close = () => {
+  // 关闭会销毁面板，先把防抖期内尚未提交的修改落盘，避免丢失
+  void memoRef.value?.save?.()
   visible.value = false
-  persist()
 }
-/** 点击图标展开 */
-const expand = async () => {
-  collapsed.value = false
-  persist()
-  await reloadMemo()
-}
-/** 收起到最近的一条边，变成图标 */
-const minimize = () => {
-  snapTo(nearestSide().side)
-  collapsed.value = true
-  persist()
-}
-/** 收起成图标时，也把窗口坐标贴到该边，展开后位置才一致 */
-const collapseTo = (s: Side) => {
-  snapTo(s)
-  collapsed.value = true
-  persist()
-}
-/** 浮窗入口的点击行为：开着就关，否则展开（图标状态也顺带展开） */
+/** 浮窗入口的点击行为：开着就关，否则展开 */
 const toggle = () => {
-  if (visible.value && !collapsed.value) close()
+  if (visible.value) close()
   else void open()
 }
 
-// ==================== 点击便签外区域自动最小化 ====================
-/** 展开状态下，点击窗口外（不含便签入口按钮）自动收起 */
+// ==================== 点击便签外区域自动收起（不再吸附到边缘） ====================
 const onOutsidePointerDown = (ev: PointerEvent) => {
-  if (!visible.value || collapsed.value) return
+  if (!visible.value) return
   const target = ev.target as HTMLElement | null
   if (!target) return
   if (winRef.value?.contains(target)) return
-  // 便签入口按钮 / 收起图标交给各自的点击逻辑处理，不在这里最小化
-  if (target.closest('.pv-dock') || target.closest('.pv-memo-icon')) return
+  // 便签入口按钮交给自身点击逻辑处理
+  if (target.closest('.pv-dock')) return
+  // 搜索框区域是便签覆盖页面后特意保留的：点击它不关闭便签，可继续做网页搜索
+  if (target.closest('.topbar')) return
   // 历史版本弹窗、图片预览等 Teleport 到 body 的浮层，点击不算「便签外」
   if (target.closest('.el-overlay') || target.closest('.el-image-viewer__wrapper')) return
-  minimize()
+  close()
 }
-// 只在展开时监听，收起 / 关闭后移除
-watch(
-  () => visible.value && !collapsed.value,
-  (open) => {
-    if (open) document.addEventListener('pointerdown', onOutsidePointerDown)
-    else document.removeEventListener('pointerdown', onOutsidePointerDown)
-  }
-)
+watch(visible, (isOpen) => {
+  memoExpanded.value = isOpen
+  if (isOpen) document.addEventListener('pointerdown', onOutsidePointerDown)
+  else document.removeEventListener('pointerdown', onOutsidePointerDown)
+})
 
-// ==================== 拖动移动 + 贴边吸附 ====================
+// ==================== 拖动移动（仅本次会话临时调整，不再贴边吸附） ====================
 let dragOrigin = { x: 0, y: 0, px: 0, py: 0 }
 const onDrag = (ev: PointerEvent) => {
   pos.x = dragOrigin.px + (ev.clientX - dragOrigin.x)
@@ -229,11 +141,6 @@ const stopDrag = () => {
   window.removeEventListener('pointermove', onDrag)
   window.removeEventListener('pointerup', stopDrag)
   window.removeEventListener('pointercancel', stopDrag)
-  const near = nearestSide()
-  side.value = near.side
-  // 松手时贴着边缘：吸附并收起成图标；否则停在原地，两种结果都记下来
-  if (near.dist <= SNAP) collapseTo(near.side)
-  else persist()
 }
 const startDrag = (ev: PointerEvent) => {
   if (ev.pointerType === 'mouse' && ev.button !== 0) return
@@ -256,8 +163,8 @@ const startResize = (ev: PointerEvent) => {
   document.body.style.cursor = 'nwse-resize'
   document.body.style.userSelect = 'none'
   const onMove = (e: PointerEvent) => {
-    const maxW = Math.max(W_MIN, window.innerWidth - 24)
-    const maxH = Math.max(H_MIN, window.innerHeight - 24)
+    const maxW = Math.max(W_MIN, window.innerWidth - EDGE * 2)
+    const maxH = Math.max(H_MIN, window.innerHeight - EDGE * 2)
     size.w = clamp(start.w + (e.clientX - start.x), Math.min(W_MIN, maxW), maxW)
     size.h = clamp(start.h + (e.clientY - start.y), Math.min(H_MIN, maxH), maxH)
     clampPos()
@@ -268,22 +175,23 @@ const startResize = (ev: PointerEvent) => {
     window.removeEventListener('pointermove', onMove)
     window.removeEventListener('pointerup', stop)
     window.removeEventListener('pointercancel', stop)
-    persist()
   }
   window.addEventListener('pointermove', onMove)
   window.addEventListener('pointerup', stop)
   window.addEventListener('pointercancel', stop)
 }
 
-// ==================== 视口变化：尺寸与位置收回可视范围 ====================
+// ==================== 视口变化：展开时重新覆盖，保证始终贴合页面 ====================
 const onViewportResize = () => {
-  vp.value++
+  if (!visible.value) return
+  coverBelowSearch()
   clampSize()
   clampPos()
 }
 window.addEventListener('resize', onViewportResize)
 
 onUnmounted(() => {
+  memoExpanded.value = false
   window.removeEventListener('resize', onViewportResize)
   document.removeEventListener('pointerdown', onOutsidePointerDown)
   window.removeEventListener('pointermove', onDrag)

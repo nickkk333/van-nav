@@ -19,7 +19,16 @@
     <button v-if="removable" type="button" class="pv-block-remove" title="删除块" aria-label="删除块" @mousedown.prevent @click="emit('remove')">
       <el-icon :size="12"><Close /></el-icon>
     </button>
-    <span class="pv-block-resize" title="拖动调整高度" @pointerdown="startResize"></span>
+    <span
+      ref="resizeRef"
+      class="pv-block-resize"
+      :class="{ 'is-resizing': resizing, 'is-collapsed': collapsed }"
+      role="separator"
+      aria-orientation="horizontal"
+      title="拖动调整高度，双击折叠为一行 / 展开"
+      aria-label="拖动调整块高度，双击折叠为一行或展开"
+      @pointerdown="startResize"
+    ></span>
     <input ref="inputRef" class="pv-block-input" type="file" multiple @change="onPicked" />
     <!-- 点击图片放大：浮层显示原图（自带缩放 / 旋转） -->
     <el-image-viewer v-if="previewUrl" :url-list="[previewUrl]" teleported hide-on-click-modal @close="previewUrl = ''" />
@@ -37,6 +46,7 @@ import type { MemoFile } from '../../types'
  * 便签的单个「块」：带圆角的矩形区域，宽度撑满便签、高度可拖动拉伸。
  * - 块内是独立的富文本编辑区，可输入文字、粘贴图片/文件、拖入文件
  * - v-model 绑定块内 HTML；height 为 null 时高度随内容自适应，拖动底部把手后固定高度
+ * - 双击底部把手在「缩为一行」与「展开（恢复原高度 / 自适应）」之间切换
  */
 const props = withDefaults(
   defineProps<{
@@ -64,17 +74,19 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
-  (e: 'update:height', value: number): void
+  (e: 'update:height', value: number | null): void
   (e: 'focus'): void
   (e: 'remove'): void
 }>()
 
-/** 块最小高度（px）：一行文本 + 内边距 */
+/** 块最小高度（px）：一行文本 + 内边距，拖动下限的兜底值 */
 const MIN_H = 44
 
 const rootRef = ref<HTMLElement | null>(null)
 const bodyRef = ref<HTMLElement | null>(null)
 const inputRef = ref<HTMLInputElement | null>(null)
+const resizeRef = ref<HTMLElement | null>(null)
+const resizing = ref(false)
 const dragOver = ref(false)
 const hasContent = ref(false)
 const previewUrl = ref('')
@@ -84,6 +96,36 @@ const uploading = ref(false)
 let savedRange: Range | null = null
 
 const blockStyle = computed(() => (props.height ? { height: `${props.height}px` } : {}))
+
+/**
+ * 「刚好显示一行」的块高度：按正文实际行高与内边距计算。
+ * 触屏下底部把手更高、正文 padding-bottom 更大，直接写死 44px 会裁掉那一行文字。
+ */
+const oneLineHeight = (): number => {
+  const body = bodyRef.value
+  if (!body) return MIN_H
+  const cs = window.getComputedStyle(body)
+  const line = parseFloat(cs.lineHeight) || 22.4
+  const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0)
+  // 2px 是 .pv-block 上下边框；块的 height 是 border-box，也要算进去
+  return Math.max(MIN_H, Math.ceil(line + pad + 2))
+}
+
+/** 当前是否处于「缩为一行」状态（null 表示自适应内容，不算折叠） */
+const collapsed = computed(() => props.height !== null && props.height <= oneLineHeight() + 1)
+
+/** 折叠前记住的高度：null 表示原本自适应，展开时恢复自适应 */
+let expandedHeight: number | null = null
+
+const toggleHeight = () => {
+  const oneLine = oneLineHeight()
+  if (collapsed.value) {
+    emit('update:height', expandedHeight && expandedHeight > oneLine + 1 ? expandedHeight : null)
+  } else {
+    expandedHeight = props.height
+    emit('update:height', oneLine)
+  }
+}
 
 const isBlank = (el: HTMLElement) => !(el.textContent || '').trim() && !el.querySelector('img, a')
 
@@ -338,30 +380,91 @@ const onClick = (e: MouseEvent) => {
   }
 }
 
-// ==================== 高度拉伸 ====================
+// ==================== 高度拉伸 / 双击折叠 ====================
+
+/** 收尾函数句柄：块被删除时也能清掉全局监听与 body 样式 */
+let endResize: (() => void) | null = null
+
+/**
+ * 双击判定：只有两次「短按且没有发生拖动」才算双击，避免把连续两次微调高度误判成折叠。
+ * 用 pointerdown 自行判定而不是 dblclick —— pointerdown 阻止默认后 dblclick 不会再触发，触屏也支持。
+ */
+const DOUBLE_TAP_MS = 320
+const DOUBLE_TAP_SLOP = 12
+let lastTapAt = 0
+let lastTapX = 0
+let lastTapY = 0
+let lastTapWasPlain = false
 
 const startResize = (ev: PointerEvent) => {
   if (ev.pointerType === 'mouse' && ev.button !== 0) return
-  ev.preventDefault()
   const el = rootRef.value
-  if (!el) return
+  const handle = resizeRef.value
+  if (!el || !handle || resizing.value) return
+  ev.preventDefault()
+  const now = Date.now()
+  const isDoubleTap =
+    lastTapWasPlain &&
+    now - lastTapAt < DOUBLE_TAP_MS &&
+    Math.abs(ev.clientX - lastTapX) < DOUBLE_TAP_SLOP &&
+    Math.abs(ev.clientY - lastTapY) < DOUBLE_TAP_SLOP
+  lastTapWasPlain = false
+  if (isDoubleTap) {
+    lastTapAt = 0
+    toggleHeight()
+    return
+  }
+  const pointerId = ev.pointerId
   const startY = ev.clientY
   const startH = el.offsetHeight
+  const minH = oneLineHeight()
+  let moved = false
+  resizing.value = true
   document.body.style.cursor = 'row-resize'
   document.body.style.userSelect = 'none'
-  const onMove = (e: PointerEvent) => {
-    emit('update:height', Math.max(MIN_H, startH + (e.clientY - startY)))
+  // 指针捕获：触摸时手指滑出细把手、或滚动容器想接管手势，事件仍然持续发到把手上
+  try {
+    handle.setPointerCapture(pointerId)
+  } catch {
+    // 捕获不可用时仍由 window 监听兜底
   }
-  const stop = () => {
+  const onMove = (e: PointerEvent) => {
+    if (e.pointerId !== pointerId) return
+    if (Math.abs(e.clientY - startY) > 3) moved = true
+    emit('update:height', Math.max(minH, startH + (e.clientY - startY)))
+  }
+  const stop = (e: PointerEvent) => {
+    if (e.pointerId !== pointerId) return
+    // 只有正常抬起且全程没拖动才算一次「短按」；取消 / 捕获丢失的坐标不可靠，直接作废
+    if (e.type === 'pointerup') {
+      lastTapAt = Date.now()
+      lastTapX = e.clientX
+      lastTapY = e.clientY
+      lastTapWasPlain = !moved
+    } else {
+      lastTapWasPlain = false
+    }
+    endResize?.()
+  }
+  endResize = () => {
+    resizing.value = false
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     window.removeEventListener('pointermove', onMove)
     window.removeEventListener('pointerup', stop)
     window.removeEventListener('pointercancel', stop)
+    window.removeEventListener('lostpointercapture', stop)
+    try {
+      if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId)
+    } catch {
+      // 指针已失效或捕获已自动释放
+    }
+    endResize = null
   }
   window.addEventListener('pointermove', onMove)
   window.addEventListener('pointerup', stop)
   window.addEventListener('pointercancel', stop)
+  window.addEventListener('lostpointercapture', stop)
 }
 
 const focus = () => bodyRef.value?.focus()
@@ -375,7 +478,10 @@ onMounted(() => {
   document.addEventListener('selectionchange', rememberRange)
 })
 
-onUnmounted(() => document.removeEventListener('selectionchange', rememberRange))
+onUnmounted(() => {
+  endResize?.()
+  document.removeEventListener('selectionchange', rememberRange)
+})
 
 defineExpose({ pickFiles, focus })
 </script>

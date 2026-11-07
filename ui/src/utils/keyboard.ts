@@ -26,6 +26,8 @@ export const isTypingContext = (ev: Event): boolean => {
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
     // 富文本可编辑区
     if (target.isContentEditable) return true
+    // 便签窗口内（标题栏、按钮、块间隙等非编辑区）也交给便签，避免全局快捷键抢焦点
+    if (target.closest('.pv-memo-win')) return true
     // el-dialog / ElMessageBox 等遮罩内（含日期面板、按钮等非输入控件）
     if (target.closest('.el-overlay, .el-message-box__wrapper')) return true
   }

@@ -6,7 +6,7 @@
         <SearchBar
           ref="searchBarRef"
           :model-value="searchText"
-          :placeholder="searchPlaceholder"
+          :placeholder="searchBoxPlaceholder"
           :completion="domainCompletion"
           @update:model-value="onSearchInput"
           @search="onSearchSubmit"
@@ -102,6 +102,7 @@ import { generateSearchEngineCards, getDefaultSearchEngineUrl } from '../utils/s
 import { DEFAULT_BACKGROUND_IMAGE, DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW, initServerJumpTargetConfig } from '../utils/setting'
 import { normalizeInternalUrl, resolveToolTargetUrl } from '../utils/toolUrl'
 import { themeMode } from '../utils/theme'
+import { memoExpanded } from '../utils/memoWindow'
 import type { Tool } from '../types'
 
 const DEFAULT_TAG = '默认'
@@ -119,8 +120,15 @@ const loading = ref(true)
 
 // 搜索框有内容时临时显示内容（卡片），不隐藏
 const hasSearchText = computed(() => searchText.value.trim().length > 0)
-// 「仅显示搜索框」主题模式：隐藏卡片与分类名；搜索框有内容时临时显示结果
-const effectiveHide = computed(() => themeMode.value === 'search' && !hasSearchText.value)
+// 「仅显示搜索框」主题模式：隐藏卡片与分类名；搜索框有内容时临时显示结果。
+// 便签展开时搜索框是纯网页搜索，输入内容不改变卡片显示状态，也不触发卡片搜索
+const effectiveHide = computed(
+  () => themeMode.value === 'search' && !(hasSearchText.value && !memoExpanded.value)
+)
+// 便签展开时把提示语切成「网页搜索」，并提示 Tab 补全域名；不影响必应壁纸描述等原有提示
+const searchBoxPlaceholder = computed(() =>
+  memoExpanded.value ? '输入网址或关键词（Tab 补全域名），回车搜索' : searchPlaceholder.value
+)
 const searchBarRef = ref<InstanceType<typeof SearchBar>>()
 
 // ==================== 右下角图标列：默认隐藏，鼠标贴到屏幕右边框才滑出 ====================
@@ -177,7 +185,7 @@ const matchedDomain = computed<string>(() => {
   return ''
 })
 
-/** 搜索框里灰显的未补全域名后缀，如输入 git 时显示 hub.com */
+/** 搜索框里灰显的未补全域名后缀，如输入 git 时显示 hub.com（便签展开时同样生效，补全后回车直接访问该域名） */
 const domainCompletion = computed<string>(() => {
   const text = searchText.value.trim().toLowerCase()
   return matchedDomain.value && text ? matchedDomain.value.slice(text.length) : ''
@@ -200,6 +208,7 @@ const isHttpUrl = (text: string): boolean => /^https?:\/\//i.test(text.trim())
  * 回车 / 点搜索按钮：
  * - 输入以 http:// 或 https:// 开头则直接访问该完整地址；
  * - 输入像域名则补上 https:// 直接访问该域名；
+ * - 便签展开时是纯网页搜索：跳过工具卡片，直接用默认搜索引擎搜索当前词；
  * - 否则优先打开第一个匹配的工具卡片（跳过搜索引擎卡片）；
  * - 没有任何工具卡片时，用默认搜索引擎搜索当前词。
  */
@@ -210,7 +219,8 @@ const submitSearch = async () => {
     resetSearch()
     return
   }
-  if (firstToolCard.value) {
+  // 便签展开时搜索框只作网页搜索，不打开匹配的工具卡片
+  if (!memoExpanded.value && firstToolCard.value) {
     void openCardUrl(firstToolCard.value)
     resetSearch()
     return
@@ -547,6 +557,13 @@ watch(searchString, async (value) => {
 // 输入框内容变化（由 SearchBar 触发，避免与 resetSearch 相互递归）
 const onSearchInput = (value: string) => {
   searchText.value = value
+  // 便签展开时搜索框只作网页搜索：仅保留输入文字，不写 searchString，
+  // 从而不过滤卡片、不生成搜索引擎卡片、不切换分类；
+  // 顺带清掉打开便签前可能残留的卡片搜索词，避免关闭便签后卡片仍被旧词过滤
+  if (memoExpanded.value) {
+    if (searchString.value) searchString.value = ''
+    return
+  }
   if (value && value.trim() !== '') {
     currTag.value = DEFAULT_TAG
     searchString.value = value.trim()
@@ -564,6 +581,17 @@ const resetSearch = (notSetTag = false) => {
   }
 }
 
+// 便签展开 / 关闭时整理搜索状态：
+// - 展开：清掉旧的卡片搜索关键词（保留输入框文字作为网页搜索词），不再过滤卡片
+// - 关闭：清掉「网页搜索」模式下残留的文字（未提交回车就关闭），避免显示与状态不一致
+watch(memoExpanded, (expanded) => {
+  if (expanded) {
+    if (searchString.value) searchString.value = ''
+    return
+  }
+  if (searchText.value && !searchString.value) resetSearch()
+})
+
 const handleSetCurrTag = (tag: string) => {
   currTag.value = tag
   if (tag !== ADMIN_TAG) {
@@ -576,10 +604,10 @@ const handleCardClick = () => {
   resetSearch()
 }
 
-/** 点击搜索按钮：有关键词时打开第一条结果，否则聚焦搜索框 */
+/** 点击搜索按钮：有关键词时打开搜索结果，否则聚焦搜索框 */
 const onSearchSubmit = () => {
-  if (isSearching.value) {
-    submitSearch()
+  if (isSearching.value || (memoExpanded.value && hasSearchText.value)) {
+    void submitSearch()
     return
   }
   searchBarRef.value?.focus()
@@ -589,8 +617,10 @@ const onSearchSubmit = () => {
 const onKeyEnter = (ev: KeyboardEvent) => {
   // 弹窗（便签）与输入框中的按键不触发搜索快捷键，回车等交给弹窗自己
   if (isTypingContext(ev)) return
-  // 焦点在按钮/链接上时交给元素自身激活，避免与搜索快捷键重复触发
   const evTarget = ev.target as HTMLElement | null
+  // 便签展开时全局回车只服务于搜索框，便签窗口内的按键（含非编辑区）交给便签自己
+  if (memoExpanded.value && !evTarget?.closest('.topbar')) return
+  // 焦点在按钮/链接上时交给元素自身激活，避免与搜索快捷键重复触发
   if (evTarget && (evTarget.tagName === 'BUTTON' || evTarget.tagName === 'A' || evTarget.closest('button, a[href]'))) return
   // Ctrl/Cmd + Enter：在新标签打开搜索结果页，保留导航页
   if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'Enter' || ev.keyCode === 13)) {
@@ -609,11 +639,13 @@ const onKeyEnter = (ev: KeyboardEvent) => {
     })
     return
   }
-  const cards = filteredData.value
   if (ev.key === 'Enter' || ev.keyCode === 13) {
     submitSearch()
     return
   }
+  // 便签展开时搜索框只作网页搜索，不响应打开卡片的数字快捷键
+  if (memoExpanded.value) return
+  const cards = filteredData.value
   if (ev.ctrlKey || ev.metaKey) {
     const num = Number(ev.key)
     if (Number.isNaN(num) || ev.key.trim() === '') {
@@ -630,12 +662,13 @@ const onKeyEnter = (ev: KeyboardEvent) => {
 
 const bindKeyboard = () => {
   document.removeEventListener('keydown', onKeyEnter)
-  if (isSearching.value) {
+  // 便签展开时搜索框是纯网页搜索，不写 searchString，也要绑定回车
+  if (isSearching.value || memoExpanded.value) {
     document.addEventListener('keydown', onKeyEnter)
   }
 }
 
-watch(searchString, bindKeyboard)
+watch([searchString, memoExpanded], bindKeyboard)
 
 /** 动态设置标题和 favicon */
 const applySiteMeta = () => {

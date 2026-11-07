@@ -143,5 +143,5 @@ onMounted(load)
 onUnmounted(() => {
   if (timer) window.clearTimeout(timer)
 })
-defineExpose({ reload })
+defineExpose({ reload, save })
 </script>
