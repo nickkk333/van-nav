@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.20] - 2026-11-07
+
+### 🐛 Bug Fixes
+
+- 修复便签展开时右键点击便签外区域会误关闭便签，导致首页卡片右键「设置」菜单丢失
+- 右键操作不再被「点空白处收起菜单」逻辑提前关闭，卡片右键菜单稳定弹出
+
 ## [1.0.19] - 2026-11-07
 
 ### 🚀 Features

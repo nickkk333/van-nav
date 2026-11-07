@@ -111,6 +111,9 @@ const toggle = () => {
 // ==================== 点击便签外区域自动收起（不再吸附到边缘） ====================
 const onOutsidePointerDown = (ev: PointerEvent) => {
   if (!visible.value) return
+  // 只响应主键 / 触摸：右键是菜单操作（卡片右键「设置」、浏览器原生菜单），
+  // 不能顺手把便签关掉，否则同一次右键会让页面状态突变、卡片右键菜单丢失
+  if (ev.pointerType === 'mouse' && ev.button !== 0) return
   const target = ev.target as HTMLElement | null
   if (!target) return
   if (winRef.value?.contains(target)) return

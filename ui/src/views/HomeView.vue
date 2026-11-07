@@ -498,6 +498,8 @@ const handleCardContextMenu = (tool: Tool, event: MouseEvent) => {
   if (!canEdit.value || !manageableIds.value.has(tool.id)) {
     return
   }
+  // 双保险：确保弹出的是自定义「设置」菜单，而不是浏览器原生菜单
+  event.preventDefault()
   // 菜单约 120x44，贴近窗口边缘时向内收，避免被裁掉
   cardMenu.value = {
     visible: true,
@@ -531,8 +533,11 @@ const handleDeleteCard = async (tool: Tool) => {
   }
 }
 
-/** 点空白处 / 滚动时收起右键菜单；Esc 收起菜单并退出设置模式 */
-const onGlobalPointerDown = () => closeCardMenu()
+/** 点空白处收起右键菜单；右键自身不处理，避免各浏览器 contextmenu 时序差异把刚弹出的菜单关掉 */
+const onGlobalPointerDown = (event: PointerEvent) => {
+  if (event.pointerType === 'mouse' && event.button !== 0) return
+  closeCardMenu()
+}
 const onGlobalScroll = () => closeCardMenu()
 const onGlobalKeydown = (event: KeyboardEvent) => {
   if (event.key !== 'Escape') {
