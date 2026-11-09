@@ -174,7 +174,17 @@ const resolveRange = (el: HTMLElement): Range => {
   return range
 }
 
-const insertNodes = (nodes: Node[]) => {
+/** 纯文本转义成 HTML（execCommand 只接受 HTML 字符串） */
+const escapeText = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/** 节点 → HTML 字符串（保留属性，文本节点按 HTML 转义） */
+const nodesToHtml = (nodes: Node[]) =>
+  nodes
+    .map((node) => (node.nodeType === Node.TEXT_NODE ? escapeText(node.textContent || '') : (node as Element).outerHTML))
+    .join('')
+
+/** 直接插节点（execCommand 不可用时的兜底；这种改 DOM 的方式不进原生撤销栈） */
+const insertNodesDirectly = (nodes: Node[]) => {
   const el = bodyRef.value
   if (!el || !nodes.length) return
   const range = resolveRange(el)
@@ -192,10 +202,43 @@ const insertNodes = (nodes: Node[]) => {
   sync()
 }
 
+/**
+ * 在光标处插入 HTML。
+ * 用 execCommand('insertHTML') 而不是直接改 DOM：浏览器会把它记入原生撤销栈，
+ * 粘贴 / 上传之后按 Ctrl+Z 才能撤掉（直接 insertNode 撤销栈里没有这一步）。
+ */
 const insertHtml = (html: string) => {
-  const tpl = document.createElement('template')
-  tpl.innerHTML = html
-  insertNodes(Array.from(tpl.content.childNodes))
+  const el = bodyRef.value
+  if (!el || !html) return
+  const range = resolveRange(el)
+  // 点过工具栏按钮后编辑器已失去焦点，先把选区放回去再执行命令
+  el.focus()
+  const sel = window.getSelection()
+  if (sel) {
+    sel.removeAllRanges()
+    sel.addRange(range)
+  }
+  let ok = false
+  try {
+    ok = document.execCommand('insertHTML', false, html)
+  } catch {
+    ok = false
+  }
+  if (!ok) {
+    const tpl = document.createElement('template')
+    tpl.innerHTML = html
+    insertNodesDirectly(Array.from(tpl.content.childNodes))
+    return
+  }
+  const next = window.getSelection()
+  if (next && next.rangeCount > 0) savedRange = next.getRangeAt(0).cloneRange()
+  sync()
+}
+
+/** 插入节点：序列化成 HTML 后走 insertHtml（这样能保留撤销能力） */
+const insertNodes = (nodes: Node[]) => {
+  if (!nodes.length) return
+  insertHtml(nodesToHtml(nodes))
 }
 
 // ==================== 粘贴内容清洗 ====================

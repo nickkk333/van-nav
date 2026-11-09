@@ -1,8 +1,9 @@
 <template>
   <Teleport to="body">
     <!-- 展开状态：打开即自动扩充，覆盖页面「除搜索框」以外的区域 -->
+    <!-- 用 v-show 而不是 v-if：关闭时保留编辑器 DOM，浏览器的原生撤销栈才不会丢 -->
     <section
-      v-if="visible"
+      v-show="visible"
       ref="winRef"
       class="pv-memo-win"
       :class="{ dragging }"
@@ -98,14 +99,34 @@ const open = async () => {
   await reloadMemo()
 }
 const close = () => {
-  // 关闭会销毁面板，先把防抖期内尚未提交的修改落盘，避免丢失
+  // 关闭后编辑器只是隐藏，先把防抖期内尚未提交的修改落盘，避免丢失
   void memoRef.value?.save?.()
+  // 隐藏后焦点必须离开编辑器，否则键盘输入还会落到看不见的便签里
+  const active = document.activeElement as HTMLElement | null
+  if (active && winRef.value?.contains(active)) active.blur()
   visible.value = false
 }
 /** 浮窗入口的点击行为：开着就关，否则展开 */
 const toggle = () => {
   if (visible.value) close()
   else void open()
+}
+
+// ==================== 撤销快捷键：先让编辑器恢复被删除的块 ====================
+/**
+ * 浏览器原生撤销只记录文本编辑，删除块是结构变化，需要单独恢复。
+ * 这里不拦截普通情况：编辑器没有待恢复的块时直接放行，仍走浏览器原生撤销。
+ */
+const onMemoKeydown = (ev: KeyboardEvent) => {
+  if (!visible.value || ev.isComposing) return
+  if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return
+  if (ev.key.toLowerCase() !== 'z') return
+  // 搜索框有自己的撤销历史（便签展开时搜索框仍然可用），不抢它的 Ctrl+Z
+  if ((ev.target as HTMLElement | null)?.closest('#search-bar')) return
+  if (memoRef.value?.undo?.()) {
+    ev.preventDefault()
+    ev.stopPropagation()
+  }
 }
 
 // ==================== 点击便签外区域自动收起（不再吸附到边缘） ====================
@@ -127,8 +148,13 @@ const onOutsidePointerDown = (ev: PointerEvent) => {
 }
 watch(visible, (isOpen) => {
   memoExpanded.value = isOpen
-  if (isOpen) document.addEventListener('pointerdown', onOutsidePointerDown)
-  else document.removeEventListener('pointerdown', onOutsidePointerDown)
+  if (isOpen) {
+    document.addEventListener('pointerdown', onOutsidePointerDown)
+    document.addEventListener('keydown', onMemoKeydown, true)
+  } else {
+    document.removeEventListener('pointerdown', onOutsidePointerDown)
+    document.removeEventListener('keydown', onMemoKeydown, true)
+  }
 })
 
 // ==================== 拖动移动（仅本次会话临时调整，不再贴边吸附） ====================
@@ -197,6 +223,7 @@ onUnmounted(() => {
   memoExpanded.value = false
   window.removeEventListener('resize', onViewportResize)
   document.removeEventListener('pointerdown', onOutsidePointerDown)
+  document.removeEventListener('keydown', onMemoKeydown, true)
   window.removeEventListener('pointermove', onDrag)
   window.removeEventListener('pointerup', stopDrag)
   window.removeEventListener('pointercancel', stopDrag)

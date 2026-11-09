@@ -41,6 +41,8 @@ const versions = ref<MemoVersion[]>([])
 const verOpen = ref(false)
 const editorRef = ref<InstanceType<typeof MemoEditor> | null>(null)
 let timer: number | null = null
+/** 正在进行的保存：关闭后立刻重新打开时，要等它落盘再拉最新内容，避免把刚保存的修改覆盖回去 */
+let pendingSave: Promise<void> | null = null
 
 const dirty = computed(() => content.value !== serverContent.value)
 const saveState = computed(() => (saving.value ? 'saving' : dirty.value ? 'dirty' : 'saved'))
@@ -83,13 +85,21 @@ const save = async (tip = false) => {
     return
   }
   saving.value = true
+  const job = (async () => {
+    try {
+      const m = await fetchSaveMemo({ content: content.value, mode: 'rich' })
+      serverContent.value = toEditorHtml(m)
+    } catch (e) {
+      ElMessage.error(resolveError(e, '保存失败'))
+    } finally {
+      saving.value = false
+    }
+  })()
+  pendingSave = job
   try {
-    const m = await fetchSaveMemo({ content: content.value, mode: 'rich' })
-    serverContent.value = toEditorHtml(m)
-  } catch (e) {
-    ElMessage.error(resolveError(e, '保存失败'))
+    await job
   } finally {
-    saving.value = false
+    if (pendingSave === job) pendingSave = null
   }
 }
 
@@ -138,10 +148,26 @@ const delVer = async (v: MemoVersion) => {
   }
 }
 
-const reload = () => load()
+const reload = async () => {
+  // 关闭时触发的保存可能还在路上，等它完成再拉，否则会读到旧内容
+  if (pendingSave) {
+    try {
+      await pendingSave
+    } catch {
+      // 保存失败时下面会用本地未保存内容兜底
+    }
+  }
+  // 本地还有没保存成功的修改时，不要用服务端内容覆盖
+  if (dirty.value) return
+  await load()
+}
+
+/** 撤销：块删除这类结构变化交给编辑器恢复；返回 false 时让浏览器自己撤销文本 */
+const undo = () => editorRef.value?.undo?.() ?? false
+
 onMounted(load)
 onUnmounted(() => {
   if (timer) window.clearTimeout(timer)
 })
-defineExpose({ reload, save })
+defineExpose({ reload, save, undo })
 </script>

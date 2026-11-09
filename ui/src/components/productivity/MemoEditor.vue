@@ -10,7 +10,8 @@
         :color-index="i"
         :active="b.id === activeId"
         :removable="blocks.length > 1"
-        @update:height="(h) => (b.height = h)"
+        @update:modelValue="forgetRemoved"
+        @update:height="(h) => onHeight(b, h)"
         @focus="activeId = b.id"
         @remove="removeBlock(b.id)"
       />
@@ -50,6 +51,20 @@ const blockRefs = new Map<string, InstanceType<typeof MemoBlock>>()
 
 let seq = 0
 const genId = () => `b${Date.now().toString(36)}-${(seq++).toString(36)}`
+
+/**
+ * 刚被删除的块：浏览器原生撤销只记录文本编辑，删块是结构变化，Ctrl+Z 不会恢复。
+ * 这里记住最后一次删除，按 Ctrl+Z 时优先把块放回去；之后的任何编辑都会清掉它。
+ */
+let removedBlock: { index: number; block: Block } | null = null
+const forgetRemoved = () => {
+  removedBlock = null
+}
+
+const onHeight = (block: Block, height: number | null) => {
+  block.height = height
+  forgetRemoved()
+}
 
 const setBlockRef = (id: string, el: unknown) => {
   if (el) blockRefs.set(id, el as InstanceType<typeof MemoBlock>)
@@ -102,6 +117,7 @@ watch(
 
 /** 添加一个空块并聚焦 */
 const addBlock = async () => {
+  forgetRemoved()
   const block: Block = { id: genId(), html: '', height: null }
   blocks.value.push(block)
   activeId.value = block.id
@@ -114,11 +130,27 @@ const removeBlock = (id: string) => {
   if (blocks.value.length <= 1) return
   const idx = blocks.value.findIndex((b) => b.id === id)
   if (idx < 0) return
-  blocks.value.splice(idx, 1)
+  const [block] = blocks.value.splice(idx, 1)
+  removedBlock = { index: idx, block }
   if (activeId.value === id) {
     activeId.value = (blocks.value[idx] || blocks.value[idx - 1])?.id || ''
   }
   emitHtml()
+}
+
+/**
+ * Ctrl+Z：恢复刚删掉的块。
+ * 返回 false 表示没有待恢复的结构变化，交给浏览器原生撤销（普通文字 / 粘贴 / 上传）。
+ */
+const undo = (): boolean => {
+  if (!removedBlock) return false
+  const { index, block } = removedBlock
+  removedBlock = null
+  blocks.value.splice(Math.min(index, blocks.value.length), 0, block)
+  activeId.value = block.id
+  emitHtml()
+  void nextTick(() => blockRefs.get(block.id)?.focus())
+  return true
 }
 
 /** 工具栏「上传文件」：上传到当前聚焦的块 */
@@ -131,5 +163,5 @@ blocks.value = parseBlocks(props.modelValue || '')
 if (!blocks.value.length) blocks.value = [{ id: genId(), html: '', height: null }]
 activeId.value = blocks.value[0]?.id || ''
 
-defineExpose({ pickFiles })
+defineExpose({ pickFiles, undo })
 </script>
