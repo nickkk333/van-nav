@@ -1,21 +1,21 @@
 <template>
-  <el-tooltip :content="`${themeModeLabel(themeMode)}（点击切换）`" placement="left">
-    <div class="theme-switch-box" @click="switchTheme">
+  <el-tooltip
+    :content="`${homeModeLabel(homeMode)}模式（点击切换到${homeModeLabel(nextHomeMode(homeMode))}）`"
+    placement="left"
+  >
+    <div class="theme-switch-box" @click="switchMode">
       <el-icon :size="22">
-        <Monitor v-if="themeMode === 'auto'" />
-        <Sunny v-else-if="themeMode === 'light'" />
-        <Moon v-else-if="themeMode === 'dark'" />
-        <Search v-else />
+        <Search v-if="homeMode === 'search'" />
+        <Grid v-else />
       </el-icon>
     </div>
   </el-tooltip>
 </template>
 
 <script setup lang="ts">
-import { Monitor, Moon, Search, Sunny } from '@element-plus/icons-vue'
-import { nextThemeMode, setThemeMode, themeMode, themeModeLabel } from '../utils/theme'
+import { Grid, Search } from '@element-plus/icons-vue'
+import { homeMode, homeModeLabel, nextHomeMode, setHomeMode } from '../utils/theme'
 
-const switchTheme = () => {
-  setThemeMode(nextThemeMode(themeMode.value))
-}
+/** 右下角按钮只切换首页显示模式；自动 / 浅色 / 深色配色在管理页「系统配置」里设置 */
+const switchMode = () => setHomeMode(nextHomeMode(homeMode.value))
 </script>

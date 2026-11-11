@@ -66,6 +66,26 @@
             </el-select>
           </el-tooltip>
         </el-form-item>
+        <el-form-item label="主题配色">
+          <el-tooltip content="全站配色：自动按系统偏好与时间切换，浅色 / 深色为固定配色；保存后立即生效" placement="top">
+            <el-select v-model="settingForm.colorTheme" style="width: 100%">
+              <el-option label="自动" value="auto" />
+              <el-option label="浅色" value="light" />
+              <el-option label="深色" value="dark" />
+            </el-select>
+          </el-tooltip>
+        </el-form-item>
+        <el-form-item label="卡片持续显示时间">
+          <el-tooltip :content="`卡片搜索模式下，鼠标移动后卡片与分类名显示的秒数，可填 ${MIN_CARD_SHOW_DURATION}-${MAX_CARD_SHOW_DURATION}，默认 ${DEFAULT_CARD_SHOW_DURATION} 秒`" placement="top">
+            <el-input-number
+              v-model="settingForm.cardShowDuration"
+              :min="MIN_CARD_SHOW_DURATION"
+              :max="MAX_CARD_SHOW_DURATION"
+              :step="1"
+              controls-position="right"
+            />
+          </el-tooltip>
+        </el-form-item>
         <el-form-item label="默认跳转方式" prop="jumpTargetBlank">
           <el-tooltip content="选择点击卡片后默认的跳转方式" placement="top">
             <el-select v-model="settingForm.jumpTargetBlank" style="width: 100%">
@@ -145,6 +165,7 @@ import { fetchGetAllSearchEngines, fetchUpdateSetting, fetchUpdateSiteConfig, fe
 import { useAdminStore } from '../../stores/admin'
 import ImageUploader from '../../components/ImageUploader.vue'
 import { DEFAULT_CARDS_PER_ROW, MAX_CARDS_PER_ROW } from '../../utils/setting'
+import { DEFAULT_CARD_SHOW_DURATION, MAX_CARD_SHOW_DURATION, MIN_CARD_SHOW_DURATION, setColorTheme } from '../../utils/theme'
 import type { SearchEngine } from '../../types'
 
 const defaultSettingForm = () => ({
@@ -160,6 +181,8 @@ const defaultSettingForm = () => ({
   backgroundImage: '',
   defaultLogo: '',
   defaultSearchEngine: 0,
+  colorTheme: 'auto',
+  cardShowDuration: DEFAULT_CARD_SHOW_DURATION,
 })
 
 const adminStore = useAdminStore()
@@ -255,6 +278,8 @@ const handleUpdateSetting = async () => {
   requestLoading.value = true
   try {
     await fetchUpdateSetting({ ...settingForm })
+    // 配色由服务端统一下发，保存后管理页也立即应用
+    setColorTheme(settingForm.colorTheme)
     ElMessage.success('修改成功!')
   } catch (error) {
     ElMessage.warning(resolveError(error, '修改失败'))

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { fetchList } from '../api'
 import { setCustomDefaultLogo } from '../utils/check'
 import { DEFAULT_CARDS_PER_ROW } from '../utils/setting'
+import { DEFAULT_CARD_SHOW_DURATION } from '../utils/theme'
 import type { HomeData, Setting, SiteConfig, Tool } from '../types'
 
 const defaultSetting: Setting = {
@@ -19,6 +20,8 @@ const defaultSetting: Setting = {
   backgroundImage: '',
   defaultLogo: '',
   defaultSearchEngine: 0,
+  colorTheme: 'auto',
+  cardShowDuration: DEFAULT_CARD_SHOW_DURATION,
 }
 
 const defaultSiteConfig: SiteConfig = {

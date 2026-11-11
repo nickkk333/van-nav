@@ -8,10 +8,18 @@ import (
 	"github.com/mereith/nav/types"
 )
 
+// 首页显示配置的默认值（与前端 utils/theme.ts 保持一致）
+const (
+	DefaultColorTheme       = "auto"
+	DefaultCardShowDuration = 5
+	MinCardShowDuration     = 1
+	MaxCardShowDuration     = 60
+)
+
 // GetSetting 获取网站设置
 func GetSetting() types.Setting {
 	row := database.DB.QueryRow(`
-		SELECT id, favicon, title, govRecord, logo192, logo512, hideAdmin, hideGithub, hideMemo, jumpTargetBlank, backgroundImage, defaultLogo, defaultSearchEngine
+		SELECT id, favicon, title, govRecord, logo192, logo512, hideAdmin, hideGithub, hideMemo, jumpTargetBlank, backgroundImage, defaultLogo, defaultSearchEngine, colorTheme, cardShowDuration
 		FROM nav_setting
 		ORDER BY id ASC
 		LIMIT 1;
@@ -25,9 +33,12 @@ func GetSetting() types.Setting {
 		backgroundImage     sql.NullString
 		defaultLogo         sql.NullString
 		defaultSearchEngine sql.NullInt64
+		colorTheme          sql.NullString
+		cardShowDuration    sql.NullInt64
 	)
 	err := row.Scan(&setting.Id, &setting.Favicon, &setting.Title, &setting.GovRecord, &setting.Logo192, &setting.Logo512,
-		&hideAdmin, &hideGithub, &hideMemo, &jumpTargetBlank, &backgroundImage, &defaultLogo, &defaultSearchEngine)
+		&hideAdmin, &hideGithub, &hideMemo, &jumpTargetBlank, &backgroundImage, &defaultLogo, &defaultSearchEngine,
+		&colorTheme, &cardShowDuration)
 	if err != nil {
 		logger.LogError("获取配置失败: %s", err)
 		return types.Setting{
@@ -44,6 +55,8 @@ func GetSetting() types.Setting {
 			BackgroundImage:     "",
 			DefaultLogo:         "",
 			DefaultSearchEngine: 0,
+			ColorTheme:          DefaultColorTheme,
+			CardShowDuration:    DefaultCardShowDuration,
 		}
 	}
 	setting.HideAdmin = hideAdmin.Bool
@@ -64,6 +77,16 @@ func GetSetting() types.Setting {
 	if defaultSearchEngine.Valid {
 		setting.DefaultSearchEngine = int(defaultSearchEngine.Int64)
 	}
+	// 未设置 / 非法配色时回落到自动主题
+	setting.ColorTheme = DefaultColorTheme
+	if colorTheme.Valid && (colorTheme.String == "auto" || colorTheme.String == "light" || colorTheme.String == "dark") {
+		setting.ColorTheme = colorTheme.String
+	}
+	// 未设置 / 越界的持续显示时间回落到默认值
+	setting.CardShowDuration = DefaultCardShowDuration
+	if cardShowDuration.Valid && cardShowDuration.Int64 >= MinCardShowDuration && cardShowDuration.Int64 <= MaxCardShowDuration {
+		setting.CardShowDuration = int(cardShowDuration.Int64)
+	}
 	return setting
 }
 
@@ -71,9 +94,10 @@ func GetSetting() types.Setting {
 func UpdateSetting(data types.Setting) error {
 	_, err := database.DB.Exec(`
 		UPDATE nav_setting
-		SET favicon = ?, title = ?, govRecord = ?, logo192 = ?, logo512 = ?, hideAdmin = ?, hideGithub = ?, hideMemo = ?, jumpTargetBlank = ?, backgroundImage = ?, defaultLogo = ?, defaultSearchEngine = ?
+		SET favicon = ?, title = ?, govRecord = ?, logo192 = ?, logo512 = ?, hideAdmin = ?, hideGithub = ?, hideMemo = ?, jumpTargetBlank = ?, backgroundImage = ?, defaultLogo = ?, defaultSearchEngine = ?, colorTheme = ?, cardShowDuration = ?
 		WHERE id = (SELECT id FROM nav_setting ORDER BY id ASC LIMIT 1);
 		`, data.Favicon, data.Title, data.GovRecord, data.Logo192, data.Logo512,
-		data.HideAdmin, data.HideGithub, data.HideMemo, data.JumpTargetBlank, data.BackgroundImage, data.DefaultLogo, data.DefaultSearchEngine)
+		data.HideAdmin, data.HideGithub, data.HideMemo, data.JumpTargetBlank, data.BackgroundImage, data.DefaultLogo,
+		data.DefaultSearchEngine, data.ColorTheme, data.CardShowDuration)
 	return err
 }

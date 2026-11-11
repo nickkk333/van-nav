@@ -74,7 +74,9 @@ func InitDB() {
 		jumpTargetBlank BOOLEAN,
 		backgroundImage TEXT,
 		defaultLogo TEXT,
-		defaultSearchEngine INTEGER
+		defaultSearchEngine INTEGER,
+		colorTheme TEXT DEFAULT 'auto',
+		cardShowDuration INTEGER DEFAULT 5
 	);
 	`
 	_, err = DB.Exec(sql_create_table)
@@ -116,6 +118,13 @@ func InitDB() {
 	// 设置表表结构升级-20261006【默认搜索引擎 id，0 表示自动】
 	if !columnExists("nav_setting", "defaultSearchEngine") {
 		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN defaultSearchEngine INTEGER;`)
+	}
+	// 设置表表结构升级-20261111【配色主题与卡片持续显示时间】
+	if !columnExists("nav_setting", "colorTheme") {
+		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN colorTheme TEXT DEFAULT 'auto';`)
+	}
+	if !columnExists("nav_setting", "cardShowDuration") {
+		DB.Exec(`ALTER TABLE nav_setting ADD COLUMN cardShowDuration INTEGER DEFAULT 5;`)
 	}
 
 	// 默认 tools 用的 表

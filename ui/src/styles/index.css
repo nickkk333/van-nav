@@ -227,7 +227,7 @@ body {
   color: var(--el-text-color-placeholder);
 }
 
-/* 仅显示搜索框（主题「仅显示搜索框」模式）：隐藏分类、卡片与备案，只留搜索框与浮窗 */
+/* 首页隐藏状态（仅搜索模式始终隐藏 / 卡片搜索模式默认隐藏）：隐藏分类、卡片与备案，只留搜索框与浮窗 */
 .main.hide-content .tag-selector,
 .main.hide-content .content-wraper,
 .main.hide-content .record-wraper {

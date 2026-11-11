@@ -1,8 +1,23 @@
 import { ref } from 'vue'
 
-export type ThemeMode = 'auto' | 'light' | 'dark' | 'search'
+/**
+ * 首页配色与显示模式是两件独立的事：
+ * - ColorTheme（自动 / 浅色 / 深色）由管理页「系统配置」下发，本地只缓存用于首屏
+ * - HomeMode（仅搜索 / 卡片搜索）由首页右下角按钮切换，属于设备端偏好
+ * 旧版把「仅显示搜索框」塞进主题四态循环，改配色会连带改变首页布局，这里彻底拆开。
+ */
+export type ColorTheme = 'auto' | 'light' | 'dark'
+export type HomeMode = 'search' | 'card'
 
-const THEME_KEY = 'theme'
+const COLOR_THEME_KEY = 'colorTheme'
+const HOME_MODE_KEY = 'homeMode'
+/** 旧版主题 key：值可能是 auto/light/dark/search，用于平滑迁移 */
+const LEGACY_THEME_KEY = 'theme'
+
+/** 卡片搜索模式下，鼠标移动后卡片与分类名的持续显示时间（秒） */
+export const DEFAULT_CARD_SHOW_DURATION = 5
+export const MIN_CARD_SHOW_DURATION = 1
+export const MAX_CARD_SHOW_DURATION = 60
 
 /** 根据当前时间与系统偏好推断自动主题 */
 export const decodeAuto = (): 'auto-dark' | 'auto-light' => {
@@ -17,65 +32,75 @@ export const decodeAuto = (): 'auto-dark' | 'auto-light' => {
   return 'auto-light'
 }
 
-/** 解析主题：'search'（仅显示搜索框）使用自动主题 */
-export const decodeTheme = (t: ThemeMode): string => {
-  const effective = t === 'search' ? 'auto' : t
-  return effective === 'auto' ? decodeAuto() : effective
-}
+export const decodeTheme = (t: ColorTheme): string => (t === 'auto' ? decodeAuto() : t)
 
-/** 应用主题：使用 element-plus 约定的 html.dark 类名 */
+/** 应用配色：使用 element-plus 约定的 html.dark 类名 */
 export const applyTheme = (t: string) => {
-  const el = document.documentElement
-  el.classList.toggle('dark', t.includes('dark'))
+  document.documentElement.classList.toggle('dark', t.includes('dark'))
 }
 
-export const getThemeMode = (): ThemeMode => {
+const readStorage = (key: string): string => {
   try {
-    const saved = localStorage.getItem(THEME_KEY)
-    if (saved === 'dark' || saved === 'light' || saved === 'auto' || saved === 'search') {
-      return saved
-    }
+    return localStorage.getItem(key) || ''
   } catch {
-    /* 隐私模式等读不到：回落 auto */
+    // 隐私模式等读不到：回落默认值
+    return ''
   }
+}
+
+const writeStorage = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // 隐私模式等存不了：忽略
+  }
+}
+
+export const getColorTheme = (): ColorTheme => {
+  const saved = readStorage(COLOR_THEME_KEY)
+  if (saved === 'auto' || saved === 'light' || saved === 'dark') return saved
+  // 旧版把主题存成 4 态；'search' 是布局模式，配色按自动处理
+  const legacy = readStorage(LEGACY_THEME_KEY)
+  if (legacy === 'auto' || legacy === 'light' || legacy === 'dark') return legacy
   return 'auto'
 }
 
-/** 当前主题模式（响应式）：DarkSwitch 据此渲染图标，HomeView 据此判断「仅显示搜索框」 */
-export const themeMode = ref<ThemeMode>(getThemeMode())
+/** 当前配色主题（响应式）；首页加载服务端设置后会用 setColorTheme 覆盖 */
+export const colorTheme = ref<ColorTheme>(getColorTheme())
 
-export const setThemeMode = (mode: ThemeMode) => {
-  themeMode.value = mode
-  try {
-    localStorage.setItem(THEME_KEY, mode)
-  } catch {
-    /* 隐私模式等存不了：忽略 */
-  }
-  applyTheme(decodeTheme(mode))
-  return decodeTheme(mode)
+/** 应用配色主题：服务端设置下发、管理页保存后调用，顺带更新本地首屏缓存 */
+export const setColorTheme = (theme: string) => {
+  const value: ColorTheme = theme === 'light' || theme === 'dark' ? theme : 'auto'
+  colorTheme.value = value
+  writeStorage(COLOR_THEME_KEY, value)
+  applyTheme(decodeTheme(value))
 }
 
-export const nextThemeMode = (mode: ThemeMode): ThemeMode => {
-  if (mode === 'auto') return 'light'
-  if (mode === 'light') return 'dark'
-  if (mode === 'dark') return 'search'
-  return 'auto'
+export const getHomeMode = (): HomeMode => {
+  const saved = readStorage(HOME_MODE_KEY)
+  if (saved === 'search' || saved === 'card') return saved
+  // 旧版「仅显示搜索框」对应新的「仅搜索」模式
+  if (readStorage(LEGACY_THEME_KEY) === 'search') return 'search'
+  return 'card'
 }
 
-export const themeModeLabel = (mode: ThemeMode) => {
-  if (mode === 'light') return '浅色'
-  if (mode === 'dark') return '深色'
-  if (mode === 'search') return '仅显示搜索框'
-  return '自动'
+/** 当前首页模式（响应式）：仅搜索 / 卡片搜索 */
+export const homeMode = ref<HomeMode>(getHomeMode())
+
+export const setHomeMode = (mode: HomeMode) => {
+  homeMode.value = mode
+  writeStorage(HOME_MODE_KEY, mode)
 }
 
-/** 初始化主题，并在自动模式下监听系统/时间变化 */
+export const nextHomeMode = (mode: HomeMode): HomeMode => (mode === 'search' ? 'card' : 'search')
+
+export const homeModeLabel = (mode: HomeMode) => (mode === 'search' ? '仅搜索' : '卡片搜索')
+
+/** 初始化配色：首屏先用本地缓存，首页拿到服务端设置后会再覆盖一次 */
 export const initTheme = () => {
-  const mode = getThemeMode()
-  applyTheme(decodeTheme(mode))
-  if ((mode === 'auto' || mode === 'search') && typeof window !== 'undefined') {
-    window
-      .matchMedia('(prefers-color-scheme: dark)')
-      .addEventListener('change', () => applyTheme(decodeTheme(getThemeMode())))
-  }
+  applyTheme(decodeTheme(getColorTheme()))
+  if (typeof window === 'undefined') return
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (colorTheme.value === 'auto') applyTheme(decodeAuto())
+  })
 }

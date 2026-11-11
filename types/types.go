@@ -22,6 +22,10 @@ type Setting struct {
 	DefaultLogo string `json:"defaultLogo"`
 	// DefaultSearchEngine 默认搜索引擎 id：回车无匹配卡片或按 Ctrl+Enter 时使用；0 表示自动（第一个启用的引擎）
 	DefaultSearchEngine int `json:"defaultSearchEngine"`
+	// ColorTheme 全站配色：auto（按系统偏好与时间）/ light / dark，由管理页系统配置统一下发
+	ColorTheme string `json:"colorTheme"`
+	// CardShowDuration 卡片搜索模式下鼠标移动后卡片与分类名的持续显示时间（秒），默认 5
+	CardShowDuration int `json:"cardShowDuration"`
 }
 
 type Token struct {
