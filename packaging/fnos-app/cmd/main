@@ -1,22 +1,76 @@
 #!/bin/bash
-# Docker 模式：容器由 fnOS 的 docker-project 机制托管，start/stop 是空操作，
-# status 直接查容器运行状态（file path 与 docker-project 的 path 对应）
-FILE_PATH="${TRIM_APPDEST}/docker/docker-compose.yaml"
+# Docker 模式：容器由 fnOS 的 docker-project 机制托管，这里不重建容器，
+# 但要兜住新版 fnOS 的两个开机问题：
+#   1. 关机时 docker.service 的 ExecStop 会主动 stop 全部容器，restart: always 虽能拉回，
+#      但应用中心可能已经把应用标成「未启用」；start 主动把已有容器拉起（幂等，不改端口/数据卷）。
+#   2. trim_app_center.service 缺少 After=docker.service，开机瞬间 docker 还不可用，
+#      status 先等守护进程就绪再判断，避免被误判为停用。
+# fnOS 传给生命周期脚本的环境不含 PATH，显式导出保证 docker 等命令可用。
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-is_docker_running () {
-    DOCKER_NAME=""
-    if [ -f "$FILE_PATH" ]; then
-        DOCKER_NAME=$(cat "$FILE_PATH" | grep "container_name" | awk -F ':' '{print $2}' | xargs)
-    fi
-    if [ -n "$DOCKER_NAME" ]; then
-        docker inspect "$DOCKER_NAME" | grep -q "\"Status\": \"running\"," || exit 1
-        return
-    fi
+COMPOSE_FILE="${TRIM_APPDEST}/docker/docker-compose.yaml"
+
+container_name() {
+    [ -r "$COMPOSE_FILE" ] || return 1
+    sed -n 's/^[[:space:]]*container_name:[[:space:]]*//p' "$COMPOSE_FILE" | head -n 1 | xargs
 }
 
-case $1 in
-start) exit 0 ;;
-stop) exit 0 ;;
-status) if is_docker_running; then exit 0; else exit 3; fi ;;
-*) exit 1 ;;
+is_running() {
+    local name="$1"
+    [ -n "$name" ] || return 1
+    [ "$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null)" = "true" ]
+}
+
+# 开机竞态：最多等 10 秒；平时 Docker 已就绪，第一次就返回，不拖慢状态检查
+wait_docker() {
+    local i=0
+    while [ "$i" -lt 10 ]; do
+        docker info >/dev/null 2>&1 && return 0
+        sleep 1
+        i=$((i + 1))
+    done
+    return 1
+}
+
+# restart: always 由守护进程拉起容器需要一点时间，再给最多 3 秒
+wait_container() {
+    local name="$1" i=0
+    while [ "$i" -lt 3 ]; do
+        is_running "$name" && return 0
+        sleep 1
+        i=$((i + 1))
+    done
+    return 1
+}
+
+case "${1:-}" in
+    start)
+        NAME="$(container_name 2>/dev/null || true)"
+        wait_docker || exit 0
+        if [ -n "$NAME" ]; then
+            # 纠正被外部改过的策略；容器不存在时失败可忽略，创建时由 compose 决定策略
+            docker update --restart=always "$NAME" >/dev/null 2>&1 || true
+            if ! is_running "$NAME"; then
+                docker start "$NAME" >/dev/null 2>&1 || true
+            fi
+        fi
+        wait_container "$NAME" >/dev/null 2>&1 || true
+        exit 0
+        ;;
+    stop)
+        # 停用交给 fnOS 的 docker-project 处理。这里保持空操作，
+        # 不修改 restart 策略，避免关机流程把开机自启一起关掉。
+        exit 0
+        ;;
+    status)
+        NAME="$(container_name 2>/dev/null || true)"
+        wait_docker || exit 3
+        if wait_container "$NAME"; then
+            exit 0
+        fi
+        exit 3
+        ;;
+    *)
+        exit 1
+        ;;
 esac

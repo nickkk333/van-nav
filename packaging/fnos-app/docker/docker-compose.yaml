@@ -13,4 +13,7 @@ services:
       - "${TRIM_DATA_SHARE_PATHS:-/var/apps/van-nav/var/data}:/app/data"
     environment:
       - TZ=Asia/Shanghai
-    restart: unless-stopped
+    # 飞牛 fnOS 关机会主动 docker stop 全部容器：unless-stopped 会把它当成「手动停止」，
+    # 开机后不再拉起，应用中心里表现为「每次重启都要手动启用一次」。
+    # always 不记忆手动停止状态，Docker 守护进程一启动就恢复容器。
+    restart: always

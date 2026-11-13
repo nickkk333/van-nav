@@ -36,8 +36,23 @@ apply_port() {
     install_log "Patched docker-compose.yaml: port=${port}"
 }
 
+# 已存在的容器不会因为 compose 文件更新而自动改变重启策略。
+# 升级安装后显式纠正为 always，避免旧容器仍是 unless-stopped：
+# 飞牛关机会主动 stop 容器，unless-stopped 视为手动停止，开机不再拉起，
+# 表现为每次重启都需要在应用中心手动启用一次。
+apply_restart_policy() {
+    local name
+    [ -f "$COMPOSE_FILE" ] || return
+    name="$(sed -n 's/^[[:space:]]*container_name:[[:space:]]*//p' "$COMPOSE_FILE" | head -n 1 | xargs)"
+    [ -z "$name" ] && return
+    if docker update --restart=always "$name" >/dev/null 2>&1; then
+        install_log "Restart policy: ${name} -> always"
+    fi
+}
+
 service_postinst() {
     apply_data_dir
+    apply_restart_policy
 }
 
 service_postupgrade() {
@@ -46,6 +61,7 @@ service_postupgrade() {
     if [ -f "$PORT_SAVE" ]; then
         apply_port "$(cat "$PORT_SAVE")"
     fi
+    apply_restart_policy
 }
 
 service_postconfig() {

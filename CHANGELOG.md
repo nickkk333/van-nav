@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.24] - 2026-11-13
+
+### 🚀 Features
+
+- 首页卡片与分类名的持续显示时间范围由 1-60 秒放宽到 1-600 秒，系统配置表单、提示文案、首页计时与后端校验同步生效，默认仍为 5 秒
+
+### 🐛 Bug Fixes
+
+- 修复最新版飞牛 OS（fnOS）安装 fpk 后每次重启都需要在应用中心手动启用一次：容器重启策略改为 `always`，安装与升级钩子自动纠正已有容器策略
+- 生命周期脚本补齐 Docker 就绪等待与容器主动拉起，避免应用中心早于 Docker 启动时把应用误判为停用
+
 ## [1.0.23] - 2026-11-13
 
 ### 🚀 Features

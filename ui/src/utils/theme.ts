@@ -13,7 +13,7 @@ const LEGACY_THEME_KEY = 'theme'
 /** 鼠标活动后卡片与分类名的持续显示时间（秒），可在管理页系统配置中调整 */
 export const DEFAULT_CARD_SHOW_DURATION = 5
 export const MIN_CARD_SHOW_DURATION = 1
-export const MAX_CARD_SHOW_DURATION = 60
+export const MAX_CARD_SHOW_DURATION = 600
 
 /** 根据当前时间与系统偏好推断自动主题 */
 export const decodeAuto = (): 'auto-dark' | 'auto-light' => {

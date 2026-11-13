@@ -13,7 +13,7 @@ const (
 	DefaultColorTheme       = "auto"
 	DefaultCardShowDuration = 5
 	MinCardShowDuration     = 1
-	MaxCardShowDuration     = 60
+	MaxCardShowDuration     = 600
 )
 
 // GetSetting 获取网站设置
