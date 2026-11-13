@@ -227,7 +227,7 @@ body {
   color: var(--el-text-color-placeholder);
 }
 
-/* 首页隐藏状态（仅搜索模式始终隐藏 / 卡片搜索模式默认隐藏）：隐藏分类、卡片与备案，只留搜索框与浮窗 */
+/* 首页卡片默认隐藏状态：隐藏分类、卡片与备案，只留搜索框与浮窗 */
 .main.hide-content .tag-selector,
 .main.hide-content .content-wraper,
 .main.hide-content .record-wraper {
@@ -649,8 +649,7 @@ body.card-dragging .content.cards .card-box.card-editable {
 }
 
 .github-link-box,
-.admin-link-box,
-.theme-switch-box {
+.admin-link-box {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -668,15 +667,10 @@ body.card-dragging .content.cards .card-box.card-editable {
 }
 
 .github-link-box:hover,
-.admin-link-box:hover,
-.theme-switch-box:hover {
+.admin-link-box:hover {
   color: var(--el-color-primary);
   background-color: var(--card-hover-bg);
   transform: scale(1.08);
-}
-
-.theme-switch-box {
-  cursor: pointer;
 }
 
 .record-wraper {
@@ -1286,7 +1280,6 @@ body.card-dragging .content.cards .card-box.card-editable {
   }
   .admin-link-box:hover,
   .github-link-box:hover,
-  .theme-switch-box:hover,
   .pv-dock-btn:hover {
     transform: none;
   }
@@ -1475,8 +1468,7 @@ body.card-dragging .content.cards .card-box.card-editable {
     gap: 8px;
   }
   .github-link-box,
-  .admin-link-box,
-  .theme-switch-box {
+  .admin-link-box {
     width: 36px;
     height: 36px;
   }

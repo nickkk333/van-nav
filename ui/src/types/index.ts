@@ -57,7 +57,7 @@ export interface Setting {
   defaultSearchEngine: number
   /** 全站配色：auto（按系统偏好与时间）/ light / dark，管理页「系统配置」设置 */
   colorTheme: string
-  /** 卡片搜索模式下鼠标移动后卡片与分类名的持续显示时间（秒） */
+  /** 鼠标活动后卡片与分类名的持续显示时间（秒） */
   cardShowDuration: number
 }
 

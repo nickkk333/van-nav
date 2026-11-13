@@ -24,7 +24,7 @@ type Setting struct {
 	DefaultSearchEngine int `json:"defaultSearchEngine"`
 	// ColorTheme 全站配色：auto（按系统偏好与时间）/ light / dark，由管理页系统配置统一下发
 	ColorTheme string `json:"colorTheme"`
-	// CardShowDuration 卡片搜索模式下鼠标移动后卡片与分类名的持续显示时间（秒），默认 5
+	// CardShowDuration 鼠标活动后卡片与分类名的持续显示时间（秒），默认 5
 	CardShowDuration int `json:"cardShowDuration"`
 }
 

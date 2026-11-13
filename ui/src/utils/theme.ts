@@ -1,20 +1,16 @@
 import { ref } from 'vue'
 
 /**
- * 首页配色与显示模式是两件独立的事：
- * - ColorTheme（自动 / 浅色 / 深色）由管理页「系统配置」下发，本地只缓存用于首屏
- * - HomeMode（仅搜索 / 卡片搜索）由首页右下角按钮切换，属于设备端偏好
- * 旧版把「仅显示搜索框」塞进主题四态循环，改配色会连带改变首页布局，这里彻底拆开。
+ * 首页配色由管理页「系统配置」统一设置（自动 / 浅色 / 深色），本地只缓存用于首屏渲染。
+ * 首页显示行为固定：卡片与分类名默认隐藏，鼠标活动或输入时显示，不再提供模式切换。
  */
 export type ColorTheme = 'auto' | 'light' | 'dark'
-export type HomeMode = 'search' | 'card'
 
 const COLOR_THEME_KEY = 'colorTheme'
-const HOME_MODE_KEY = 'homeMode'
-/** 旧版主题 key：值可能是 auto/light/dark/search，用于平滑迁移 */
+/** 旧版主题 key：值可能是 auto/light/dark/search，仅配色取值会被迁移，search 忽略 */
 const LEGACY_THEME_KEY = 'theme'
 
-/** 卡片搜索模式下，鼠标移动后卡片与分类名的持续显示时间（秒） */
+/** 鼠标活动后卡片与分类名的持续显示时间（秒），可在管理页系统配置中调整 */
 export const DEFAULT_CARD_SHOW_DURATION = 5
 export const MIN_CARD_SHOW_DURATION = 1
 export const MAX_CARD_SHOW_DURATION = 60
@@ -59,7 +55,7 @@ const writeStorage = (key: string, value: string) => {
 export const getColorTheme = (): ColorTheme => {
   const saved = readStorage(COLOR_THEME_KEY)
   if (saved === 'auto' || saved === 'light' || saved === 'dark') return saved
-  // 旧版把主题存成 4 态；'search' 是布局模式，配色按自动处理
+  // 旧版把主题存成 4 态；'search' 是已废弃的布局模式，配色按自动处理
   const legacy = readStorage(LEGACY_THEME_KEY)
   if (legacy === 'auto' || legacy === 'light' || legacy === 'dark') return legacy
   return 'auto'
@@ -76,28 +72,14 @@ export const setColorTheme = (theme: string) => {
   applyTheme(decodeTheme(value))
 }
 
-export const getHomeMode = (): HomeMode => {
-  const saved = readStorage(HOME_MODE_KEY)
-  if (saved === 'search' || saved === 'card') return saved
-  // 旧版「仅显示搜索框」对应新的「仅搜索」模式
-  if (readStorage(LEGACY_THEME_KEY) === 'search') return 'search'
-  return 'card'
-}
-
-/** 当前首页模式（响应式）：仅搜索 / 卡片搜索 */
-export const homeMode = ref<HomeMode>(getHomeMode())
-
-export const setHomeMode = (mode: HomeMode) => {
-  homeMode.value = mode
-  writeStorage(HOME_MODE_KEY, mode)
-}
-
-export const nextHomeMode = (mode: HomeMode): HomeMode => (mode === 'search' ? 'card' : 'search')
-
-export const homeModeLabel = (mode: HomeMode) => (mode === 'search' ? '仅搜索' : '卡片搜索')
-
 /** 初始化配色：首屏先用本地缓存，首页拿到服务端设置后会再覆盖一次 */
 export const initTheme = () => {
+  // 旧版「仅搜索 / 卡片搜索」模式偏好已废弃，顺手清掉本机残留
+  try {
+    localStorage.removeItem('homeMode')
+  } catch {
+    // 隐私模式等读写不了：忽略
+  }
   applyTheme(decodeTheme(getColorTheme()))
   if (typeof window === 'undefined') return
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {

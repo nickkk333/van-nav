@@ -76,7 +76,7 @@
           </el-tooltip>
         </el-form-item>
         <el-form-item label="卡片持续显示时间">
-          <el-tooltip :content="`卡片搜索模式下，鼠标移动后卡片与分类名显示的秒数，可填 ${MIN_CARD_SHOW_DURATION}-${MAX_CARD_SHOW_DURATION}，默认 ${DEFAULT_CARD_SHOW_DURATION} 秒`" placement="top">
+          <el-tooltip :content="`鼠标移动或滚动后卡片与分类名显示的秒数，可填 ${MIN_CARD_SHOW_DURATION}-${MAX_CARD_SHOW_DURATION}，默认 ${DEFAULT_CARD_SHOW_DURATION} 秒`" placement="top">
             <el-input-number
               v-model="settingForm.cardShowDuration"
               :min="MIN_CARD_SHOW_DURATION"

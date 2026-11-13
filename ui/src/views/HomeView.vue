@@ -55,7 +55,6 @@
         <a href="https://beian.miit.gov.cn" target="_blank" rel="noreferrer">{{ setting.govRecord }}</a>
       </div>
       <div class="float-actions" :class="{ 'rail-open': railOpen }">
-        <DarkSwitch />
         <ProductivityDock :show-memo="showMemo" />
         <GithubLink v-if="showGithub" />
         <AdminLink v-if="showAdmin" />
@@ -87,7 +86,6 @@ import TagSelector from '../components/TagSelector.vue'
 import ToolCard from '../components/ToolCard.vue'
 import GithubLink from '../components/GithubLink.vue'
 import AdminLink from '../components/AdminLink.vue'
-import DarkSwitch from '../components/DarkSwitch.vue'
 import Loading from '../components/Loading.vue'
 import ProductivityDock from '../components/productivity/ProductivityDock.vue'
 import { isTypingContext } from '../utils/keyboard'
@@ -105,7 +103,6 @@ import {
   DEFAULT_CARD_SHOW_DURATION,
   MAX_CARD_SHOW_DURATION,
   MIN_CARD_SHOW_DURATION,
-  homeMode,
   setColorTheme,
 } from '../utils/theme'
 import { memoExpanded } from '../utils/memoWindow'
@@ -126,13 +123,9 @@ const loading = ref(true)
 
 // 搜索框有内容时临时显示内容（卡片），不隐藏
 const hasSearchText = computed(() => searchText.value.trim().length > 0)
-/**
- * 纯网页搜索：便签展开时、或「仅搜索」模式下，搜索框只走默认搜索引擎，
- * 输入不过滤卡片、不生成搜索引擎虚拟卡片、回车不打开工具卡片。
- */
-const webSearchOnly = computed(() => memoExpanded.value || homeMode.value === 'search')
+// 便签展开时搜索框只作纯网页搜索：输入不过滤卡片、回车不打开工具卡片
 
-// ==================== 卡片自动隐藏（卡片搜索模式） ====================
+// ==================== 首页卡片自动隐藏 ====================
 /** 鼠标移动后是否正处于「临时显示卡片」的持续时间内 */
 const cardsRevealed = ref(false)
 let cardsHideTimer: number | null = null
@@ -146,7 +139,6 @@ const clearCardsTimer = () => {
 
 /** 鼠标移动 / 滚动滚轮 / 触屏点按时显示卡片与分类名，持续显示时间由系统配置 cardShowDuration（秒）决定 */
 const revealCards = () => {
-  if (homeMode.value !== 'card') return
   cardsRevealed.value = true
   clearCardsTimer()
   const seconds = Number(site.data.setting.cardShowDuration)
@@ -170,19 +162,17 @@ const onGlobalTouchReveal = (event: PointerEvent) => {
 }
 
 /**
- * 卡片与分类名的显隐：
- * - 仅搜索模式：始终隐藏，输入也不临时显示
- * - 卡片搜索模式：输入时显示搜索结果；否则只在鼠标活动后的持续显示时间内显示
+ * 卡片与分类名的显隐：默认隐藏；输入时显示搜索结果，
+ * 鼠标活动后按系统配置的时长临时显示。便签展开时输入不改变显示状态。
  */
 const effectiveHide = computed(() => {
-  if (homeMode.value === 'search') return true
   if (hasSearchText.value && !memoExpanded.value) return false
   return !cardsRevealed.value
 })
 
-// 纯网页搜索时把提示语切成「网页搜索」，并提示 Tab 补全域名；不影响必应壁纸描述等原有提示
+// 便签展开时搜索框切为纯网页搜索提示，并提示 Tab 补全域名；不影响必应壁纸描述等原有提示
 const searchBoxPlaceholder = computed(() =>
-  webSearchOnly.value ? '输入网址或关键词（Tab 补全域名），回车搜索' : searchPlaceholder.value
+  memoExpanded.value ? '输入网址或关键词（Tab 补全域名），回车搜索' : searchPlaceholder.value
 )
 const searchBarRef = ref<InstanceType<typeof SearchBar>>()
 
@@ -263,7 +253,7 @@ const isHttpUrl = (text: string): boolean => /^https?:\/\//i.test(text.trim())
  * 回车 / 点搜索按钮：
  * - 输入以 http:// 或 https:// 开头则直接访问该完整地址；
  * - 输入像域名则补上 https:// 直接访问该域名；
- * - 纯网页搜索（仅搜索模式 / 便签展开）：跳过工具卡片，直接用默认搜索引擎搜索当前词；
+ * - 便签展开时是纯网页搜索：跳过工具卡片，直接用默认搜索引擎搜索当前词；
  * - 否则优先打开第一个匹配的工具卡片（跳过搜索引擎卡片）；
  * - 没有任何工具卡片时，用默认搜索引擎搜索当前词。
  */
@@ -274,8 +264,8 @@ const submitSearch = async () => {
     resetSearch()
     return
   }
-  // 纯网页搜索时跳过工具卡片，直接用默认搜索引擎
-  if (!webSearchOnly.value && firstToolCard.value) {
+  // 便签展开时搜索框只作网页搜索，不打开匹配的工具卡片
+  if (!memoExpanded.value && firstToolCard.value) {
     void openCardUrl(firstToolCard.value)
     resetSearch()
     return
@@ -617,10 +607,10 @@ watch(searchString, async (value) => {
 // 输入框内容变化（由 SearchBar 触发，避免与 resetSearch 相互递归）
 const onSearchInput = (value: string) => {
   searchText.value = value
-  // 纯网页搜索（仅搜索模式 / 便签展开）：仅保留输入文字，不写 searchString，
+  // 便签展开时搜索框只作网页搜索：仅保留输入文字，不写 searchString，
   // 从而不过滤卡片、不生成搜索引擎卡片、不切换分类；
-  // 顺带清掉可能残留的卡片搜索词，避免退出该模式后卡片仍被旧词过滤
-  if (webSearchOnly.value) {
+  // 顺带清掉打开便签前可能残留的卡片搜索词，避免关闭便签后卡片仍被旧词过滤
+  if (memoExpanded.value) {
     if (searchString.value) searchString.value = ''
     return
   }
@@ -652,13 +642,6 @@ watch(memoExpanded, (expanded) => {
   if (searchText.value && !searchString.value) resetSearch()
 })
 
-// 切换首页模式：清掉计时与搜索残留，避免「仅搜索」下还留着卡片搜索结果
-watch(homeMode, () => {
-  clearCardsTimer()
-  cardsRevealed.value = false
-  if (searchText.value || searchString.value) resetSearch()
-})
-
 const handleSetCurrTag = (tag: string) => {
   currTag.value = tag
   if (tag !== ADMIN_TAG) {
@@ -673,7 +656,7 @@ const handleCardClick = () => {
 
 /** 点击搜索按钮：有关键词时打开搜索结果，否则聚焦搜索框 */
 const onSearchSubmit = () => {
-  if (isSearching.value || (webSearchOnly.value && hasSearchText.value)) {
+  if (isSearching.value || (memoExpanded.value && hasSearchText.value)) {
     void submitSearch()
     return
   }
@@ -710,8 +693,8 @@ const onKeyEnter = (ev: KeyboardEvent) => {
     submitSearch()
     return
   }
-  // 纯网页搜索时不响应打开卡片的数字快捷键
-  if (webSearchOnly.value) return
+  // 便签展开时搜索框只作网页搜索，不响应打开卡片的数字快捷键
+  if (memoExpanded.value) return
   const cards = filteredData.value
   if (ev.ctrlKey || ev.metaKey) {
     const num = Number(ev.key)
@@ -729,13 +712,13 @@ const onKeyEnter = (ev: KeyboardEvent) => {
 
 const bindKeyboard = () => {
   document.removeEventListener('keydown', onKeyEnter)
-  // 纯网页搜索不写 searchString，也要绑定回车
-  if (isSearching.value || webSearchOnly.value) {
+  // 便签展开时搜索框是纯网页搜索，不写 searchString，也要绑定回车
+  if (isSearching.value || memoExpanded.value) {
     document.addEventListener('keydown', onKeyEnter)
   }
 }
 
-watch([searchString, webSearchOnly], bindKeyboard)
+watch([searchString, memoExpanded], bindKeyboard)
 
 /** 动态设置标题和 favicon */
 const applySiteMeta = () => {
@@ -785,7 +768,7 @@ onMounted(() => {
     document.addEventListener('mousemove', onRailMove)
     document.addEventListener('mouseleave', hideRail)
   }
-  // 卡片搜索模式：鼠标移动、滚动滚轮或触屏点按时临时显示卡片与分类名
+  // 鼠标移动、滚动滚轮或触屏点按时临时显示卡片与分类名
   document.addEventListener('mousemove', onGlobalActivity)
   // wheel 只需读取事件、不阻止默认滚动，用 passive 避免影响滚动性能
   document.addEventListener('wheel', onGlobalActivity, { passive: true })
