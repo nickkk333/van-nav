@@ -52,7 +52,7 @@
         <div v-if="!loading && filteredData.length === 0" class="empty-tip">没有找到匹配的结果</div>
       </div>
       <div class="record-wraper">
-        <a href="https://beian.miit.gov.cn" target="_blank" rel="noreferrer">{{ setting.govRecord }}</a>
+        <a v-if="setting.govRecord" href="https://beian.miit.gov.cn" target="_blank" rel="noreferrer">{{ setting.govRecord }}</a>
       </div>
       <div class="float-actions" :class="{ 'rail-open': railOpen }">
         <ProductivityDock :show-memo="showMemo" />
@@ -723,7 +723,7 @@ watch([searchString, memoExpanded], bindKeyboard)
 /** 动态设置标题和 favicon */
 const applySiteMeta = () => {
   document.title = setting.value.title || 'Van Nav'
-  const href = setting.value.favicon || '/logo192.png'
+  const href = setting.value.favicon || '/favicon.ico'
   let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']")
   if (!link) {
     link = document.createElement('link')
