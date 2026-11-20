@@ -1269,7 +1269,7 @@ body.card-dragging .content.cards .card-box.card-editable {
   color: var(--el-color-primary);
 }
 
-/* ==================== 关于我们 ==================== */
+/* ==================== 关于应用 ==================== */
 
 .about-page {
   min-height: 100vh;
@@ -1390,8 +1390,16 @@ body.card-dragging .content.cards .card-box.card-editable {
   color: var(--text-secondary);
 }
 
-.about-info-row > strong {
+.about-info-link {
+  color: var(--text-primary);
   font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.about-info-link:hover {
+  color: var(--el-color-primary);
+  text-decoration: underline;
 }
 
 /* 赞赏支持 */
@@ -1457,18 +1465,6 @@ body.card-dragging .content.cards .card-box.card-editable {
   margin-top: 8px;
   color: var(--text-secondary);
   font-size: 12px;
-}
-
-.about-homepage {
-  margin-top: 24px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  text-decoration: none;
-  transition: color 0.2s;
-}
-
-.about-homepage:hover {
-  color: var(--el-color-primary);
 }
 
 @media (max-width: 640px) {

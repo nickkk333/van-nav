@@ -5,7 +5,7 @@
         <el-icon :size="16"><ArrowLeft /></el-icon>
         <span>返回</span>
       </button>
-      <h1>关于我们</h1>
+      <h1>关于应用</h1>
     </header>
 
     <main class="about-main">
@@ -18,11 +18,15 @@
         <div class="about-info">
           <div class="about-info-row">
             <span>当前版本</span>
-            <strong>v{{ ABOUT_INFO.version }}</strong>
+            <a class="about-info-link" :href="ABOUT_INFO.releaseUrl" target="_blank" rel="noopener noreferrer">
+              v{{ ABOUT_INFO.version }}
+            </a>
           </div>
           <div class="about-info-row">
             <span>开发者</span>
-            <strong>{{ ABOUT_INFO.developer }}</strong>
+            <a class="about-info-link" :href="ABOUT_INFO.developerUrl" target="_blank" rel="noopener noreferrer">
+              {{ ABOUT_INFO.developer }}
+            </a>
           </div>
         </div>
 
@@ -46,10 +50,6 @@
             </figure>
           </div>
         </div>
-
-        <a class="about-homepage" :href="ABOUT_INFO.homepage" target="_blank" rel="noopener noreferrer">
-          项目主页
-        </a>
       </section>
     </main>
   </div>
@@ -106,12 +106,12 @@ const goBack = () => {
 }
 
 onMounted(async () => {
-  document.title = '关于我们'
+  document.title = '关于应用'
   try {
     await site.load()
     // 直接打开 /about 时也按服务端配置应用配色
     setColorTheme(site.data.setting.colorTheme)
-    document.title = `关于我们 - ${appName.value}`
+    document.title = `关于应用 - ${appName.value}`
   } catch (error) {
     console.error(error)
   }
