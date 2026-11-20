@@ -20,6 +20,9 @@ const (
 	BingWallpaperDir = "./data"
 	// BingWallpaperBaseName 必应每日壁纸的文件名（不含扩展名，扩展名按下载到的图片格式决定）
 	BingWallpaperBaseName = "必应壁纸"
+	// BingWallpaperDailyBaseName 每日壁纸副本的文件名（不含扩展名）：
+	// 每次下载/更新后都会把最新壁纸复制成「每日壁纸.扩展名」，覆盖旧文件，方便其它程序固定读取同一个路径
+	BingWallpaperDailyBaseName = "每日壁纸"
 	// bingWallpaperApi 必应每日壁纸信息接口，返回当天的壁纸信息
 	bingWallpaperApi = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=zh-CN"
 	// bingWallpaperHost 必应图片的域名前缀（接口返回的图片地址是相对路径）
@@ -70,6 +73,10 @@ func DownloadBingWallpaper() {
 	bingWallpaperMu.Lock()
 	defer bingWallpaperMu.Unlock()
 	if BingWallpaperDownloadedToday() {
+		// 升级后首次启动时，历史壁纸可能还没有固定文件名的副本，这里补一份
+		if path, ok := GetBingWallpaperPath(); ok {
+			ensureBingWallpaperDailyCopy(path)
+		}
 		logger.LogInfo("必应每日壁纸今天已经下载过，跳过下载")
 		return
 	}
@@ -98,8 +105,75 @@ func DownloadBingWallpaper() {
 		}
 		// 壁纸按日期命名（必应壁纸-YYYYMMDD-描述），历史壁纸一律保留、不做清理
 		logger.LogInfo("必应每日壁纸已保存到本地: %s %s", filepath.Join(BingWallpaperDir, name), info.Title)
+		// 同时覆盖一份固定文件名的「每日壁纸.扩展名」，方便其它程序按固定路径读取当天壁纸
+		if dailyPath, err := saveBingWallpaperDailyCopy(data, ext); err != nil {
+			logger.LogError("保存每日壁纸副本失败: %s", err)
+		} else {
+			logger.LogInfo("每日壁纸副本已更新: %s", dailyPath)
+		}
 		return
 	}
+}
+
+// saveBingWallpaperDailyCopy 把当天壁纸复制为固定文件「每日壁纸.扩展名」，覆盖旧文件。
+// 下载到的图片格式变化时（例如 jpg 变成 png），顺带删除其它扩展名的旧副本，保证只保留一个。
+func saveBingWallpaperDailyCopy(data []byte, ext string) (string, error) {
+	utils.PathExistsOrCreate(BingWallpaperDir)
+	path := filepath.Join(BingWallpaperDir, BingWallpaperDailyBaseName+ext)
+	// 先写临时文件再原子替换，避免其它程序正好读取时拿到只写了一半的图片
+	tmp := path + ".tmp"
+	defer os.Remove(tmp)
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return "", err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return "", err
+	}
+	// 只清理「每日壁纸.图片后缀」这类副本，不碰用户放在 data 目录里的其它文件
+	matches, err := filepath.Glob(filepath.Join(BingWallpaperDir, BingWallpaperDailyBaseName+".*"))
+	if err != nil {
+		return path, nil
+	}
+	for _, old := range matches {
+		if old == path {
+			continue
+		}
+		info, err := os.Stat(old)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		if allowedUploadExt[strings.ToLower(filepath.Ext(old))] {
+			_ = os.Remove(old)
+		}
+	}
+	return path, nil
+}
+
+// ensureBingWallpaperDailyCopy 检查固定文件「每日壁纸.扩展名」是否与最新壁纸一致：
+// 副本不存在、或比最新壁纸旧时才复制，避免前台每次请求壁纸都重复写入整张大图。
+func ensureBingWallpaperDailyCopy(path string) {
+	ext := strings.ToLower(filepath.Ext(path))
+	sourceInfo, err := os.Stat(path)
+	if err != nil {
+		return
+	}
+	target := filepath.Join(BingWallpaperDir, BingWallpaperDailyBaseName+ext)
+	if targetInfo, err := os.Stat(target); err == nil &&
+		!targetInfo.ModTime().Before(sourceInfo.ModTime()) &&
+		targetInfo.Size() == sourceInfo.Size() {
+		return
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		logger.LogError("读取必应每日壁纸失败: %s", err)
+		return
+	}
+	dailyPath, err := saveBingWallpaperDailyCopy(data, ext)
+	if err != nil {
+		logger.LogError("更新每日壁纸副本失败: %s", err)
+		return
+	}
+	logger.LogInfo("每日壁纸副本已更新: %s", dailyPath)
 }
 
 // GetBingWallpaperPath 获取本地必应每日壁纸的磁盘路径，文件不存在时返回 false
@@ -183,6 +257,7 @@ func BingWallpaperDownloadedToday() bool {
 
 // bingWallpaperFiles 列出 data 目录下所有必应壁纸文件
 // 两个模式分别匹配旧命名（必应壁纸.jpg）与新命名（必应壁纸-YYYYMMDD-描述.jpg）；
+// 固定副本「每日壁纸.扩展名」不参与匹配，避免被当成最新壁纸影响标题解析；
 // 不用宽泛的「必应壁纸*」，避免误伤用户手工放进 data 目录的同前缀文件
 func bingWallpaperFiles() []string {
 	patterns := []string{
@@ -211,9 +286,11 @@ func bingWallpaperFiles() []string {
 
 // EnsureBingWallpaper 供进程启动与前台「每天首次访问」时调用：
 // 本地已经有壁纸图片就直接跳过（只保留最省的一次下载），
+// 同时确保固定文件名的「每日壁纸.扩展名」副本存在且是最新的；
 // 本地还没有任何壁纸时才发起下载。下载失败只记录日志，不影响页面返回
 func EnsureBingWallpaper() {
-	if _, ok := GetBingWallpaperPath(); ok {
+	if path, ok := GetBingWallpaperPath(); ok {
+		ensureBingWallpaperDailyCopy(path)
 		return
 	}
 	DownloadBingWallpaper()
